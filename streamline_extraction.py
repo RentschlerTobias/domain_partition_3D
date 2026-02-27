@@ -191,61 +191,59 @@ class StrealimeExtractor:
                     "separatrices_ids": separatrices_ids,
                 }
 
+                streamlines = self.get_streamlines(surface_data, vertices)
                 mesh_data = {
                     "vertices":   vertices,
                     "vertex_dims": vertex_dims,
                     "surfaces": surface_data,
+                    "streamlines": streamlines,
                 }
                 print(f"Surface {s_tag}: {
                       quad_faces_tensor.shape[1]} Quads extrahiert.")
 
         return mesh_data
 
-    def export_separatrices_to_msh(self, data, name="separatrices"):
+    def get_streamlines(self, surfaces_data, vertices):
+        streamlines = {}
+
+        for surface_tag in surfaces_data.keys():
+            surface_data = surfaces_data[surface_tag]
+
+            streamlines_surfaces_points = []
+            streamlines_surfaces_splines = []
+
+            for separatrix_id in surface_data['separatrices_ids']:
+
+                points = vertices[separatrix_id]
+                # tck         = points_to_spline(points)
+
+                streamlines_surfaces_points.append(points)
+                # streamlines_surfaces_splines.append(tck)
+
+            streamlines[surface_tag] = {
+                'points': streamlines_surfaces_points,
+                # 'splines' : streamlines_surfaces_splines,
+            }
+
+        return streamlines
+
+    def export_streamlines_to_msh(self, streamlines, output_path="streamlines.msh"):
         """
-        Exportiert Separatrizen als Gmsh .msh Datei (Format 2.2).
-        Jede Separatrix bekommt einen eigenen Physical Tag.
+        streamlines: Liste von numpy arrays, shape (N, 3)
         """
-        # Alle Punkte und Linien sammeln
-        all_points = []       # Liste von (x, y, z)
-        all_elements = []     # Liste von (node1_idx, node2_idx)
-        point_map = {}        # node-index -> msh-node-index (1-basiert)
+        gmsh.initialize()
+        gmsh.model.add("streamlines")
 
-        msh_node_id = 1
-        for key in data:
-            filename = f"{name}_{key}.msh"
-            nodes = data[key]["vertices"]
-            separatrices = data[key]["separatrices"]
-            for sep in separatrices:
-                path = sep['path']
-                for ni in path:
-                    if ni not in point_map:
-                        point_map[ni] = msh_node_id
-                        all_points.append(nodes[ni, :3])
-                        msh_node_id += 1
-                # Liniensegmente
-                for k in range(len(path) - 1):
-                    all_elements.append(
-                        (point_map[path[k]], point_map[path[k+1]]))
+        for line in streamlines:
+            point_tags = []
+            for pt in line:
+                tag = gmsh.model.geo.addPoint(pt[0], pt[1], pt[2])
+                point_tags.append(tag)
 
-            with open(filename, 'w') as f:
-                # Header
-                f.write("$MeshFormat\n2.2 0 8\n$EndMeshFormat\n")
+            # Spline durch alle Punkte der Stromlinie
+            gmsh.model.geo.addSpline(point_tags)
 
-                # Nodes
-                f.write("$Nodes\n")
-                f.write(f"{len(all_points)}\n")
-                for i, (x, y, z) in enumerate(all_points, start=1):
-                    f.write(f"{i} {x:.10e} {y:.10e} {z:.10e}\n")
-                f.write("$EndNodes\n")
-
-                # Elements (Typ 1 = 2-Knoten-Linie)
-                f.write("$Elements\n")
-                f.write(f"{len(all_elements)}\n")
-                for i, (n1, n2) in enumerate(all_elements, start=1):
-                    # Format: elem_id  elem_type  n_tags  tag1  tag2  node1  node2
-                    f.write(f"{i} 1 2 1 0 {n1} {n2}\n")
-                f.write("$EndElements\n")
-
-            print(f"Gespeichert: {filename}  ({len(all_points)} Knoten, {
-                  len(all_elements)} Segmente)")
+        gmsh.model.geo.synchronize()
+        gmsh.model.mesh.generate(1)  # 1D mesh (nur Kurven)
+        gmsh.write(output_path)
+        gmsh.finalize()

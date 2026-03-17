@@ -1,7 +1,83 @@
 import numpy as np
 
 
-def export_streamlines_to_msh(streamlines, output_path="streamlines.msh"):
+def export_streamlines_to_msh(streamline_dict, output_path="streamlines.msh"):
+    """
+    Exports a dictionary of streamlines to MSH 2.2 format.
+    Input: {surface_tag: [np.array(pts_1), np.array(pts_2), ...]}
+    """
+    all_points = []
+    all_elements = []
+    point_offset = 1
+    element_id = 1
+
+    # Create unique physical IDs for each surface tag
+    surface_tag_map = {tag: i + 1 for i,
+                       tag in enumerate(streamline_dict.keys())}
+
+    for surface_tag, lines_list in streamline_dict.items():
+        phys_tag = surface_tag_map[surface_tag]
+
+        for points in lines_list:
+            # Ensure points is a 2D numpy array (N, 3)
+            pts = np.atleast_2d(points)
+            if pts.shape[0] < 2:
+                continue
+
+            # Handle 2D input (N, 2) -> (N, 3)
+            if pts.shape[1] == 2:
+                pts = np.hstack([pts, np.zeros((len(pts), 1))])
+
+            start_node_idx = point_offset
+
+            # 1. Add nodes to global list
+            for pt in pts:
+                all_points.append((point_offset, pt[0], pt[1], pt[2]))
+                point_offset += 1
+
+            # 2. Create Line elements connecting the points
+            n_pts = len(pts)
+            for i in range(n_pts - 1):
+                all_elements.append({
+                    'id': element_id,
+                    'phys': phys_tag,
+                    'nodes': [start_node_idx + i, start_node_idx + i + 1]
+                })
+                element_id += 1
+
+    # Write the MSH 2.2 file
+    with open(output_path, 'w') as f:
+        # Mesh Format Header
+        f.write("$MeshFormat\n2.2 0 8\n$EndMeshFormat\n")
+
+        # Physical Names mapping the surface tags
+        f.write("$PhysicalNames\n")
+        f.write(f"{len(surface_tag_map)}\n")
+        for s_tag, p_tag in surface_tag_map.items():
+            f.write(f'1 {p_tag} "surface_{s_tag}"\n')
+        f.write("$EndPhysicalNames\n")
+
+        # Nodes Section
+        f.write("$Nodes\n")
+        f.write(f"{len(all_points)}\n")
+        for nid, x, y, z in all_points:
+            f.write(f"{nid} {x:.10e} {y:.10e} {z:.10e}\n")
+        f.write("$EndNodes\n")
+
+        # Elements Section
+        f.write("$Elements\n")
+        f.write(f"{len(all_elements)}\n")
+        for e in all_elements:
+            # Format: id type n_tags phys_tag geom_tag node1 node2
+            f.write(f"{e['id']} 1 2 {e['phys']} {e['phys']} {
+                    e['nodes'][0]} {e['nodes'][1]}\n")
+        f.write("$EndElements\n")
+
+    print(f"✓ Exported {len(all_points)} nodes and {
+          len(all_elements)} line segments to {output_path}")
+
+
+def export_streamlines_to_msh_v1(streamlines, output_path="streamlines.msh"):
     """
     Exportiert Stromlinien (Punkte-Arrays) als GMSH .msh Datei (Format 2.2).
     Jede Stromlinie wird als Linienzug (Line-Elemente) gespeichert.

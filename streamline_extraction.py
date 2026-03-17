@@ -5,7 +5,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib.colors import to_rgba
 
 
-class StrealimeExtractor:
+class StreamlineExtractor:
 
     def get_singularities(self, vertices, faces):
         # 1. Erzeuge alle Kanten (wie bisher)
@@ -131,6 +131,43 @@ class StrealimeExtractor:
 
         return all_separatrices
 
+    def filter_unique_streamlines(self, streamlines, decimals=9):
+        """
+        Filters duplicate streamlines, handling both directions and closed loops.
+        """
+        unique_streamlines = []
+        seen_hashes = set()
+
+        for sl in streamlines:
+            if len(sl) < 2:
+                continue
+
+            # Round to handle floating point noise from integration
+            sl_norm = np.round(sl, decimals=decimals)
+
+            # Create reversed version
+            sl_rev = sl_norm[::-1]
+
+            # Canonical form: lexicographical comparison of the entire point sequence
+            # Ensures [A, B, C, A] and [A, C, B, A] are treated identically
+            if np.lexsort(sl_rev.T)[0] < np.lexsort(sl_norm.T)[0]:
+                target = sl_rev
+            else:
+                # For arrays of equal start/end, compare the first differing point
+                if np.array_repr(sl_rev) < np.array_repr(sl_norm):
+                    target = sl_rev
+                else:
+                    target = sl_norm
+
+            # Hash the byte representation
+            sl_hash = target.tobytes()
+
+            if sl_hash not in seen_hashes:
+                seen_hashes.add(sl_hash)
+                unique_streamlines.append(sl)
+
+        return unique_streamlines
+
     def extract_mesh_from_msh(self, path_msh_file):
 
         gmsh.initialize()
@@ -180,7 +217,6 @@ class StrealimeExtractor:
                 for sepa in separatrices:
                     ids = np.array(sepa['path'])
                     separatrices_ids.append(ids)
-
                 surface_data[s_tag] = {
                     "quad_faces": quad_faces_tensor,
                     "singular_nodes": singular_nodes,
@@ -192,6 +228,7 @@ class StrealimeExtractor:
                 }
 
                 streamlines = self.get_streamlines(surface_data, vertices)
+
                 mesh_data = {
                     "vertices":   vertices,
                     "vertex_dims": vertex_dims,
@@ -220,8 +257,10 @@ class StrealimeExtractor:
                 streamlines_surfaces_points.append(points)
                 # streamlines_surfaces_splines.append(tck)
 
+            streamlines_unique = self.filter_unique_streamlines(
+                streamlines_surfaces_points)
             streamlines[surface_tag] = {
-                'points': streamlines_surfaces_points,
+                'points': streamlines_unique,
                 # 'splines' : streamlines_surfaces_splines,
             }
 

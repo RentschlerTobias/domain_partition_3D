@@ -46,7 +46,7 @@ def main():
         block_structure[surface_tag]['faces'] = detect_quad_faces(
             vertices, edges)
 
-    output_path_figure_surfaces = f"./figures/quad_blocking.html"
+    output_path_figure_surfaces = f"./html_files/Case09_post_LV_outer.html"
     output_path_blocking_structure = f"./figures/blocking_structure_linear.html"
 
     # Optional for visualisation purpose
@@ -55,7 +55,7 @@ def main():
     # export_streamlines_to_msh(streamlines, output_path='./streamlines.msh')
     #
     faces_to_html(block_structure,
-                  output_path=output_path_figure_surfaces, n_u=5, n_v=5)
+                  output_path=output_path_figure_surfaces, n_u=20, n_v=20)
     #
     # block_structure_to_html(
     #     block_structure, output_path=output_path_blocking_structure)
@@ -69,7 +69,6 @@ def main():
     #     # streamlines_to_html(s, output_path=output_path)
     #     block_structure_to_html(s, output_path=output_path)
 
-main()
 
 if __name__ == '__main__':
     main()

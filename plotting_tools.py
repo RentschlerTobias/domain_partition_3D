@@ -271,7 +271,7 @@ def faces_to_html(graph_data, output_path="blocking_faces.html", n_u=20, n_v=20)
             aspectmode='data'
         ),
         width=900, height=900,
-        title="3D Block-Structure - Interpilated Faces: "
+        title="3D Block-Structure - Interpolated Faces: "
     )
 
     fig.write_html(output_path)

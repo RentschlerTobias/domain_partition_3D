@@ -1,6 +1,6 @@
 # Quadrilateral Block‑Structure Generator
 
-A lightweight workflow that turns a 2‑D surface (STL or MSH) into a quadrilateral block‑structure.  
+A lightweight workflow that turns a 3‑D surface (STL or MSH) into a quadrilateral block‑structure.  
 [Blocking Case09_post/LV_outer](./html_files/quad_blocking.html)
 The pipeline is split into two parts:
 

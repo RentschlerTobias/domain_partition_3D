@@ -54,13 +54,13 @@ def main():
 
     # export_streamlines_to_msh(streamlines, output_path='./streamlines.msh')
     #
-    # faces_to_html(block_structure,
-    #               output_path=output_path_figure_surfaces, n_u=20, n_v=20)
+    faces_to_html(block_structure,
+                  output_path=output_path_figure_surfaces, n_u=5, n_v=5)
     #
     # block_structure_to_html(
     #     block_structure, output_path=output_path_blocking_structure)
     #
-    surfaces_to_msh(block_structure, n_u=None, n_v=None)
+    # surfaces_to_msh(block_structure, n_u=None, n_v=None)
 
     # Visualise the surfaces induvidually
     # for surface_tag in block_structure.keys():
@@ -69,6 +69,7 @@ def main():
     #     # streamlines_to_html(s, output_path=output_path)
     #     block_structure_to_html(s, output_path=output_path)
 
+main()
 
 if __name__ == '__main__':
     main()

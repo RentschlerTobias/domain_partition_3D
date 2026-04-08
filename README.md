@@ -1,7 +1,9 @@
 # Quadrilateral Block‑Structure Generator
 
 A lightweight workflow that turns a 3‑D surface (STL or MSH) into a quadrilateral block‑structure.  
-[Blocking Case09_post/LV_outer](./html_files/quad_blocking.html)
+
+[Showcase: Blocking Case09_post/LV_outer](./html_files/quad_blocking.html)
+
 The pipeline is split into two parts:
 
 * **GUI‑based** – easy to follow Gmsh steps for quick experimentation.  
@@ -116,32 +118,11 @@ faces_to_html(
 | Component | Purpose |
 |-----------|---------|
 | `MshExtractor` | Automates the GUI workflow: STL → remeshing → triangular mesh → quasi‑structured quad mesh. Returns vertex and surface data. |
-| `StreamlineExtractor` | Detects irregular vertices (degree ≠ 4) and builds streamlines along edges of the quadrilateral mesh. |
-| `split_streamlines` | Finds intersection points between streamlines and cuts them there, yielding clean block boundaries. |
+| `StreamlineExtractor` | Detects irregular vertices (valenz ≠ 4) and builds streamlines along edges of the quadrilateral mesh. |
+| `split_streamlines` | Finds intersection points between streamlines and cuts them there, yielding the block boundaries. |
 | `export_streamlines_to_msh` | Writes a new MSH file containing only the extracted streamlines (useful for debugging). |
 | `block_structure_to_html` | Generates an interactive HTML page showing the streamlines with optional linear or bilinear interpolation. |
 | `faces_to_html` | Renders the full quadrilateral block structure interactively; can interpolate faces (`n_u`, `n_v`) for smoother visualisation. |
 
 ---
 
-## 4. Example Output
-
-| Step | Result |
-|------|--------|
-| **Remeshed triangular mesh** | ![triangular](docs/triangular.png) |
-| **Quasi‑structured quad mesh** | ![quad](docs/quadrilateral.png) |
-| **Streamlines only (MSH)** | `streamlines.msh` – can be opened in Gmsh. |
-| **Interactive HTML** | <a href="streamlines.html">View streamlines</a> |
-| **Full block structure** | <a href="quadrilateral_blocks.html">View blocks</a> |
-
----
-
-## 5. Troubleshooting
-
-| Symptom | Likely Cause | Fix |
-|---------|--------------|-----|
-| Gmsh crashes on `remeshing.geo` | Wrong path to STL or missing Quad‑Tools build | Verify the file exists and that you are using the compiled Gmsh with Quad‑Tools. |
-| No streamlines produced | All vertices have degree 4 (mesh is already regular) | Check `angle`/`curve_angle`; try lowering `element_size`. |
-| HTML page shows no geometry | `n_u`, `n_v` set to `None` but interpolation code expects numeric values | Pass integer values or modify the function call. |
-
----

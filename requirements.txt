@@ -1,0 +1,13 @@
+gmsh==4.15.2
+markdown-it-py==4.0.0
+mdurl==0.1.2
+meshio==5.3.5
+narwhals==2.19.0
+networkx==3.6.1
+numpy==2.4.4
+openmesh==1.2.1
+packaging==26.0
+plotly==6.6.0
+Pygments==2.20.0
+rich==14.3.3
+scipy==1.17.1

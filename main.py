@@ -1,54 +1,74 @@
 
-
-import torch
-from remesh import mesh_stl
-
+from msh_extractor import MshExtractor
 from streamline_extractor import StreamlineExtractor
-# from streamline_extraction import StreamlineExtractor
-from streamline_intersections import StreamlineIntersections
-from remeshing import MshExtractor
-import matplotlib.pyplot as plt
-import numpy as np
-import plotly.graph_objects as go
-import webbrowser
+from streamlines_to_msh import export_streamlines_to_msh
+from streamline_splitter import split_streamlines
+from streamline_intersections import *
+from plotting_tools import *
 import numpy as np
 
 
-def plt_streamlines(streamlines, output_path='./figures/streamlines.png'):
+def main():
+    input_path = './stl_files/Case09_post/LV_outer.stl'
+    # input_path = './stl_files/Case09_post/LV_inner.stl'
+    # input_path = './stl_files/Case199_post/LV_outer.stl'
+    # input_path = './stl_files/Case199_pre_all.stl'
+    output_path = './remeshed_quads.msh'
 
-    figsize = (5, 5)
-    fig = plt.figure(figsize=figsize)
-    ax = fig.add_subplot(projection='3d')
+    extractor = MshExtractor(
+        input_path=input_path,          # Path to your STL
+        remesh=True,                    # Enable GMSH remeshing
+        output_path=output_path,        # Where to save the intermediate MSH
+        element_size=2.5,               # Target edge length
+        angle=50,                        # Angle for surface classification
+        curve_angle=180
+    )
 
-    for streamline in streamlines:
-        x = streamline[:, 0]
-        y = streamline[:, 1]
-        z = streamline[:, 2]
+    vertices = extractor.vertices  # Numpy array (N, 3)
+    surfaces = extractor.surfaces
 
-        color = np.random.rand(3)
-        ax.plot(x, y, z, color=color)
-    plt.savefig(output_path)
-#
-#
-# streamline_extractor = StreamlineExtractor()
-# extracted_data = streamline_extractor.extract_mesh_from_msh(
-#     path_msh_file="./msh_files/remeshing.msh")
-# streamline_intersection = StreamlineIntersections()
-# streamlines = streamline_intersection.get_intersections(
-#     extracted_data['streamlines'])
-#
-# for surface_tag in streamlines.keys():
-#     streamlines_to_html(
-#         streamlines[surface_tag]['streamlines_split'], output_path="./figures/stromlinien.html")
-#
-#
-# type(extracted_data['streamlines'][2])
-# streamlines_preProcessed = extracted_data['streamlines'][2]['points']
-# streamlines_postProcessed = streamlines[surface_tag]['streamlines_split']
-#
-#
-# len(streamlines_preProcessed)
-# len(streamlines_postProcessed)
-#
-# streamlines_to_html(streamlines_preProcessed,
-#                     output_path="./figures/streamlines_preProcessed.html")
+    streamlines = {}
+
+    for surface_tag in surfaces.keys():
+        faces = surfaces[surface_tag]
+        streamline_extractor = StreamlineExtractor(vertices, faces)
+        streamlines[surface_tag] = streamline_extractor.get_streamlines()
+
+    splitted_streamlines = split_streamlines(streamlines)
+    block_structure = get_block_structure_from_streamlines(
+        splitted_streamlines)
+
+    for surface_tag in block_structure.keys():
+        vertices = block_structure[surface_tag]['vertices']
+        edges = block_structure[surface_tag]['edges']
+
+        edge_to_streamline = block_structure[surface_tag]['edge_to_streamline']
+        block_structure[surface_tag]['faces'] = detect_quad_faces(
+            vertices, edges)
+
+    output_path_figure_surfaces = f"./figures/quad_blocking.html"
+    output_path_blocking_structure = f"./figures/blocking_structure_linear.html"
+
+    # Optional for visualisation purpose
+    # html graphics only for small geometries recommendated and small n_u,. n_v values
+
+    # export_streamlines_to_msh(streamlines, output_path='./streamlines.msh')
+    #
+    # faces_to_html(block_structure,
+    #               output_path=output_path_figure_surfaces, n_u=20, n_v=20)
+    #
+    # block_structure_to_html(
+    #     block_structure, output_path=output_path_blocking_structure)
+    #
+    surfaces_to_msh(block_structure, n_u=None, n_v=None)
+
+    # Visualise the surfaces induvidually
+    # for surface_tag in block_structure.keys():
+    #     output_path = f"blocking_{surface_tag}.html"
+    #     s = new_streamlines[surface_tag]
+    #     # streamlines_to_html(s, output_path=output_path)
+    #     block_structure_to_html(s, output_path=output_path)
+
+
+if __name__ == '__main__':
+    main()

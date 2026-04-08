@@ -9,7 +9,7 @@ class MshExtractor:
                  element_size=4, angle=40, include_boundary=True,
                  force_param=False, curve_angle=180):
         """
-        Handles mesh loading and optional quasi-structured quad remeshing.
+        Loads the mesh of a STL file to gmsh to generate an msh file and performs optional a quasi-structured quad remeshing.
         """
         self.vertices = None
         self.surfaces = {}  # Dictionary: {surface_tag: faces_array}

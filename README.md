@@ -22,6 +22,7 @@ The pipeline is split into two parts:
 The result can be visualised in Gmsh, exported as an MSH file or rendered interactively in a web browser (HTML).
 
 Showcase HTML file of Blocking Case09_post/LV_outer.stl to open in any browser: ./html_files/quad_blocking.html
+
 ---
 
 ## 2. GUI Workflow

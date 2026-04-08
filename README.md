@@ -21,7 +21,15 @@ The pipeline is split into two parts:
 
 The result can be visualised in Gmsh, exported as an MSH file or rendered interactively in a web browser (HTML).
 
-Showcase HTML file of Blocking Case09_post/LV_outer.stl to open in any browser: ./html_files/quad_blocking.html
+Showcase HTML file of Blocking to open in any browser
+-./html_files/Case09_post_LV_inner.html
+-./html_files/Case09_post_LV_inner.html
+Blocking applied to Case199_pre_all.stl (really slow rendering) with autmatically subdevided surface plotted individually
+
+-./html_files/blocking_faces_independent_surfaces_s2.html
+-./html_files/blocking_faces_independent_surfaces_s3.html
+-./html_files/blocking_faces_independent_surfaces_s4.html
+
 
 ---
 

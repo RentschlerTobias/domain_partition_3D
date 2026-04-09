@@ -9,15 +9,15 @@ import numpy as np
 
 
 def main():
-    input_path = './stl_files/Case09_post/LV_outer.stl'
-    # input_path = './stl_files/Case09_post/LV_inner.stl'
-    # input_path = './stl_files/Case199_post/LV_outer.stl'
-    # input_path = './stl_files/Case199_pre_all.stl'
+
+    # input_path = './stl_files/Case09_post/LV_outer.stl'
+    input_path = './msh_files/T1_9_ru_gridGmsh.msh'
+    input_path = './msh_files/test.msh'
     output_path = './remeshed_quads.msh'
 
     extractor = MshExtractor(
         input_path=input_path,          # Path to your STL
-        remesh=True,                    # Enable GMSH remeshing
+        remesh=False,                    # Enable GMSH remeshing
         output_path=output_path,        # Where to save the intermediate MSH
         element_size=2.5,               # Target edge length
         angle=50,                        # Angle for surface classification
@@ -52,10 +52,10 @@ def main():
     # Optional for visualisation purpose
     # html graphics only for small geometries recommendated and small n_u,. n_v values
 
-    # export_streamlines_to_msh(streamlines, output_path='./streamlines.msh')
+    export_streamlines_to_msh(streamlines, output_path='./streamlines.msh')
     #
     faces_to_html(block_structure,
-                  output_path=output_path_figure_surfaces, n_u=20, n_v=20)
+                  output_path=output_path_figure_surfaces, n_u=5, n_v=0)
     #
     # block_structure_to_html(
     #     block_structure, output_path=output_path_blocking_structure)
@@ -64,11 +64,16 @@ def main():
 
     # Visualise the surfaces induvidually
     # for surface_tag in block_structure.keys():
-    #     output_path = f"blocking_{surface_tag}.html"
-    #     s = new_streamlines[surface_tag]
+    #     output_path = f"blocking_streamlines_s{surface_tag}.html"
+    #     s = splitted_streamlines[surface_tag]
+    #     export_streamlines_to_msh(s, output_path=output_path)
     #     # streamlines_to_html(s, output_path=output_path)
-    #     block_structure_to_html(s, output_path=output_path)
+    #     # block_structure_to_html(s, output_path=output_path)
+    #     #
+    #
 
+
+main()
 
 if __name__ == '__main__':
     main()

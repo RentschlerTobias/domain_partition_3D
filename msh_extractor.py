@@ -5,24 +5,32 @@ import os
 
 
 class MshExtractor:
-    def __init__(self, input_path, remesh=False, output_path="temp_remeshed.msh",
+    def __init__(self, input_path, remesh=False, output_path="./temp_remeshed.msh",
                  element_size=4, angle=40, include_boundary=True,
                  force_param=False, curve_angle=180):
         """
-        Loads the mesh of a STL file to gmsh to generate an msh file and performs optional a quasi-structured quad remeshing.
+        input_path path either to stl or msh file
+        performs optional a quasi-structured quad remeshing.
         """
+
+        ext = os.path.splitext(input_path)[1].lower()
+        self.remesh = remesh
         self.vertices = None
         self.surfaces = {}  # Dictionary: {surface_tag: faces_array}
-        # self.faces = None
 
-        # Determine whether to generate a new mesh or load existing one
-        if remesh:
+        if ext == ".stl":
             self._mesh_stl(input_path, output_path, element_size, angle,
                            include_boundary, force_param, curve_angle)
             load_path = output_path
+        elif ext == ".msh":
+            if remesh:
+                self._remesh_msh(input_path, output_path, element_size)
+                load_path = output_path
+            else:
+                load_path = input_path
         else:
-            load_path = input_path
-
+            print("File type not supportet, only STL and MSH")
+        print(load_path)
         self._load_msh(load_path)
 
     @staticmethod
@@ -44,6 +52,27 @@ class MshExtractor:
         gmsh.model.mesh.createGeometry()
 
         # Define surface loop and volume for the meshing engine
+        surfaces = gmsh.model.getEntities(2)
+        tags = [s[1] for s in surfaces]
+        gmsh.model.geo.addVolume([gmsh.model.geo.addSurfaceLoop(tags)])
+        gmsh.model.geo.synchronize()
+
+        # Set element size via a background field
+        field_id = gmsh.model.mesh.field.add("MathEval")
+        gmsh.model.mesh.field.setString(field_id, "F", str(element_size))
+        gmsh.model.mesh.field.setAsBackgroundMesh(field_id)
+
+        # Set Algorithm 11: Quasi-structured Quad
+        gmsh.option.setNumber("Mesh.Algorithm", 11)
+        gmsh.model.mesh.generate(2)
+        gmsh.write(output_path)
+        gmsh.finalize()
+
+    def _remesh_msh(self, path: str, output_path: str, element_size: float) -> None:
+
+        gmsh.initialize()
+        gmsh.open(path)
+
         surfaces = gmsh.model.getEntities(2)
         tags = [s[1] for s in surfaces]
         gmsh.model.geo.addVolume([gmsh.model.geo.addSurfaceLoop(tags)])

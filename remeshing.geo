@@ -10,7 +10,8 @@
 
 // Let's merge an STL mesh that we would like to remesh.
 // Merge "t13_data.stl";
-// Merge "./stl_files/Case199_pre_all.stl"; Merge "./stl_files/Case09_post/LV_outer.stl";
+// Merge "./stl_files/Case199_pre_all.stl"; 
+Merge "./msh_files/T1_9_ru_gridGmsh.stl";
 
 // We first classify ("color") the surfaces by splitting the original surface
 // along sharp geometrical features. This will create new discrete surfaces,
@@ -18,7 +19,7 @@
 
 DefineConstant[
   // Angle between two triangles above which an edge is considered as sharp
-  angle = {40, Min 20, Max 120, Step 1,
+  angle = {60, Min 40, Max 120, Step 1,
     Name "Parameters/Angle for surface detection"},
   // For complex geometries, patches can be too complex, too elongated or too
   // large to be parametrized; setting the following option will force the

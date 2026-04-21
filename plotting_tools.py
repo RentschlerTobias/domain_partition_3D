@@ -5,6 +5,26 @@ import os
 import numpy as np
 
 
+def plot_mesh(nodes, faces, output_file="./figures/quad_mesh.png"):
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    figsize = (5, 5)
+    plt.figure(figsize=figsize)
+
+    for face in faces.T:
+        coords = nodes[face]  # shape (4, 2)
+        color = np.random.rand(3,)  # Random RGB color for each face
+        plt.fill(coords[:, 0], coords[:, 1], color=color,
+                 edgecolor='gray', linewidth=0.5)
+
+    plt.axis('off')
+    plt.axis('equal')  # Equal aspect ratio
+    plt.tight_layout()
+    plt.savefig(output_file, dpi=300, transparent=True)
+
+
 def streamlines_to_html(streamlines, output_path="streamlines.html"):
     fig = go.Figure()
 

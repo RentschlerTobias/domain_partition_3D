@@ -1,0 +1,64 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2406                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    arch        "LSB;label=32;scalar=64";
+    class       dictionary;
+    location    "1000/uniform/functionObjects";
+    object      functionObjectProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+cdf7e925f5746741c316f5fbcf39ad0dfca90775
+{
+    Q_ru_in
+    {
+        scalar
+        {
+            sum(RU_INLET,phi) -17.68046684776295;
+        }
+    }
+    ptot_ru_in
+    {
+        scalar
+        {
+            weightedAverage(RU_INLET,ptot) 56.86591613861818;
+        }
+    }
+    ptot_ru_out
+    {
+        scalar
+        {
+            weightedAverage(RU_OUTLET,ptot) 27.65668123844441;
+        }
+    }
+    forces
+    {
+        vector
+        {
+            pressureForce   ( -15485.1 -50458.1 88239.89999999999 );
+            viscousForce    ( 6.45538 527.372 293.234 );
+            internalForce   ( 0 0 0 );
+            pressureMoment  ( 50218.7 -134910 -63876.6 );
+            viscousMoment   ( -760.111 -352.532 737.833 );
+            internalMoment  ( 0 0 0 );
+        }
+    }
+    V_CAV
+    {
+        scalar
+        {
+            sum(p)          0.004283269940631623;
+        }
+    }
+}
+
+
+// ************************************************************************* //

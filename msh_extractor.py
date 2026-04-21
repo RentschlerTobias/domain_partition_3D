@@ -6,7 +6,7 @@ import os
 
 class MshExtractor:
     def __init__(self, input_path, remesh=False, output_path="./temp_remeshed.msh",
-                 element_size=4, angle=40, include_boundary=True,
+                 element_size=4, angle=70, include_boundary=True,
                  force_param=False, curve_angle=180):
         """
         input_path path either to stl or msh file
@@ -24,7 +24,7 @@ class MshExtractor:
             load_path = output_path
         elif ext == ".msh":
             if remesh:
-                self._remesh_msh(input_path, output_path, element_size)
+                self._remesh_msh(input_path, output_path, element_size, angle)
                 load_path = output_path
             else:
                 load_path = input_path
@@ -59,35 +59,90 @@ class MshExtractor:
 
         # Set element size via a background field
         field_id = gmsh.model.mesh.field.add("MathEval")
-        gmsh.model.mesh.field.setString(field_id, "F", str(element_size))
+        gmsh.model.mesh.field.setString(
+            field_id, "F", f"{element_size} + 0.1 * x")
+        # gmsh.model.mesh.field.setString(field_id, "F", str(element_size))
         gmsh.model.mesh.field.setAsBackgroundMesh(field_id)
-
+        #
         # Set Algorithm 11: Quasi-structured Quad
         gmsh.option.setNumber("Mesh.Algorithm", 11)
         gmsh.model.mesh.generate(2)
         gmsh.write(output_path)
         gmsh.finalize()
 
-    def _remesh_msh(self, path: str, output_path: str, element_size: float) -> None:
-
+    @staticmethod
+    def _remesh_msh(path: str, output_path: str, element_size: float, angle: float):
         gmsh.initialize()
-        gmsh.open(path)
+        gmsh.merge(path)
 
-        surfaces = gmsh.model.getEntities(2)
-        tags = [s[1] for s in surfaces]
-        gmsh.model.geo.addVolume([gmsh.model.geo.addSurfaceLoop(tags)])
+        # 1. TOPOLOGIE ERSTELLEN
+        # Das verknüpft die diskreten 2D-Elemente zu zusammenhängenden Flächen
+        gmsh.model.mesh.createTopology()
+
+        # 2. VOLUMINA ENTFERNEN
+        # Wir holen uns alle 3D-Entitäten und löschen sie.
+        # 'recursive=False' stellt sicher, dass die Oberflächen (2D) erhalten bleiben.
+        vols = gmsh.model.getEntities(3)
+        if vols:
+            gmsh.model.removeEntities(vols, recursive=False)
+
+        # 3. GEOMETRIE-REKONSTRUKTION (Wichtig für Quads!)
+        # Winkel zwischen 40 und 80 Grad sind ideal für "Block-Strukturen"
+        gmsh.model.mesh.classifySurfaces(
+            angle * math.pi / 180, True, True, angle * math.pi / 180)
+        gmsh.model.mesh.createGeometry()
+
+        # 4. DAS MESH-SETUP
         gmsh.model.geo.synchronize()
 
-        # Set element size via a background field
+        # Hintergrundfeld für die Größe
         field_id = gmsh.model.mesh.field.add("MathEval")
         gmsh.model.mesh.field.setString(field_id, "F", str(element_size))
         gmsh.model.mesh.field.setAsBackgroundMesh(field_id)
 
-        # Set Algorithm 11: Quasi-structured Quad
+        # ALGORITHMUS-OPTIONEN FÜR GROSSE BLÖCKE
+        # Quasi-structured Quad
         gmsh.option.setNumber("Mesh.Algorithm", 11)
+        # Alles zu Quads machen
+        # gmsh.option.setNumber("Mesh.RecombineAll", 1)
+        # Maximale Glättung für weniger Singularitäten
+        gmsh.option.setNumber("Mesh.Smoothing", 100)
+
+        # Verhindert, dass zu viele kleine "Splitter-Flächen" entstehen
+        # gmsh.option.setNumber("Mesh.MeshSizeExtendFromBoundary", 0)
+        # gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
+        # gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 0)
+        #
+        # 5. GENERIEREN
         gmsh.model.mesh.generate(2)
         gmsh.write(output_path)
         gmsh.finalize()
+    # def _remesh_msh(self, path: str, output_path: str, element_size: float) -> None:
+    #
+    #     gmsh.initialize()
+    #     gmsh.open(path)
+    #
+    #     surfaces = gmsh.model.getEntities(2)
+    #     tags = [s[1] for s in surfaces]
+    #     # gmsh.model.geo.addVolume([gmsh.model.geo.addSurfaceLoop(tags)])
+    #     gmsh.model.geo.synchronize()
+    #
+    #     # Set element size via a background field
+    #     field_id = gmsh.model.mesh.field.add("MathEval")
+    #     gmsh.model.mesh.field.setString(field_id, "F", str(element_size))
+    #     gmsh.model.mesh.field.setAsBackgroundMesh(field_id)
+    #
+    #     # Set Algorithm 11: Quasi-structured Quad
+    #     gmsh.option.setNumber("Mesh.Algorithm", 11)
+    #     # Alles zu Quads machen
+    #     gmsh.option.setNumber("Mesh.RecombineAll", 1)
+    #     # Maximale Glättung für weniger Singularitäten
+    #     gmsh.option.setNumber("Mesh.Smoothing", 100)
+    #
+    #     gmsh.model.mesh.generate(2)
+    #     gmsh.write(output_path)
+    #     gmsh.finalize()
+    #
 
     def _load_msh(self, path):
         gmsh.initialize()

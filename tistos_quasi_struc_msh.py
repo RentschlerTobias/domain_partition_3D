@@ -5,38 +5,41 @@ sys.path.insert(0, '/mnt/opt.net/src/dtOO/ThirdParty~opensuse-leap~15.6/lib64')
 import gmsh
 import numpy as np
 
-gmsh.initialize()
-bC, cV, aF, aG, bV, dC, dP = build()
-bv_n = 2
-gmodel = bV[bv_n]
-gmsh.model.set_current('ru_gridGmsh')
-
-surfaces = gmsh.model.getEntities(2)
-tags = [s[1] for s in surfaces]
-gmsh.model.geo.addVolume([gmsh.model.geo.addSurfaceLoop(tags)])
-gmsh.model.geo.synchronize()
-
-gmsh.option.setNumber("Mesh.Algorithm", 5)  # Delaunay
-gmsh.model.mesh.generate(2)
-
-output_path = './tistos_test_pre_quasi_quad.msh'
-gmsh.write(output_path)
-
-
-field_id = gmsh.model.mesh.field.add("MathEval")
-# gmsh.model.mesh.field.setString(
-#     field_id, "F", f"{element_size} + 0.1 * x")
-gmsh.model.mesh.field.setString(field_id, "F", str(element_size))
-gmsh.model.mesh.field.setAsBackgroundMesh(field_id)
-# Set Algorithm 11: Quasi-structured Quad
-gmsh.option.setNumber("Mesh.Algorithm", 11)
-
-# for dim, tag in surfaces:
-gmsh.model.mesh.generate(2)
-
-output_path = './tistos_test.msh'
-gmsh.write(output_path)
-
+# gmsh.initialize()
+# bC, cV, aF, aG, bV, dC, dP = build()
+# # bv_n = 2
+# # gmodel = bV[bv_n]
+# gmsh.model.set_current('ru_gridGmsh')
+#
+# gmsh.model.mesh.generate(2)
+# output_path = './tistos_test_pre_quasi_quad.msh'
+# gmsh.write(output_path)
+#
+#
+# surfaces = gmsh.model.getEntities(2)
+# tags = [s[1] for s in surfaces]
+# gmsh.model.geo.addVolume([gmsh.model.geo.addSurfaceLoop(tags)])
+# gmsh.model.geo.synchronize()
+#
+#
+# output_path = './tistos_test_pre_quasi_quad.msh'
+# gmsh.write(output_path)
+#
+#
+# field_id = gmsh.model.mesh.field.add("MathEval")
+# # gmsh.model.mesh.field.setString(
+# #     field_id, "F", f"{element_size} + 0.1 * x")
+# gmsh.model.mesh.field.setString(field_id, "F", str(element_size))
+# gmsh.model.mesh.field.setAsBackgroundMesh(field_id)
+# # Set Algorithm 11: Quasi-structured Quad
+# gmsh.option.setNumber("Mesh.Algorithm", 11)
+#
+# # for dim, tag in surfaces:
+# gmsh.model.mesh.generate(2)
+#
+# output_path = './tistos_test.msh'
+# gmsh.write(output_path)
+#
 # gmsh.initialize()
 # gmsh.open(output_path)
 #
@@ -72,15 +75,16 @@ class QuasiStructuredDTOO:
 
         gmsh.initialize()
         bC, cV, aF, aG, bV, dC, dP = build()
-        bv_n = 2
-        gmodel = bV[bv_n]
+        # bv_n = 2
+        # gmodel = bV[bv_n]
         gmsh.model.set_current('ru_gridGmsh')
 
-        surfaces = gmsh.model.getEntities(2)
-        tags = [s[1] for s in surfaces]
-        gmsh.model.geo.addVolume([gmsh.model.geo.addSurfaceLoop(tags)])
-        gmsh.model.geo.synchronize()
-
+        gmsh.model.mesh.generate(2)
+        # surfaces = gmsh.model.getEntities(2)
+        # tags = [s[1] for s in surfaces]
+        # gmsh.model.geo.addVolume([gmsh.model.geo.addSurfaceLoop(tags)])
+        # gmsh.model.geo.synchronize()
+        #
         field_id = gmsh.model.mesh.field.add("MathEval")
         # gmsh.model.mesh.field.setString(
         #     field_id, "F", f"{element_size} + 0.1 * x")

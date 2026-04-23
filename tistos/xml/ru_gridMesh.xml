@@ -1,0 +1,469 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<ru_gridMesh>
+
+  <constValue label="cV_ru_nElemTangentialBlade" name="intParam" value="40" min="1" max="100"/>
+  <constValue label="cV_ru_nElemTangentialTip" name="intParam" value="8" min="1" max="100"/>
+  <constValue label="cV_ru_nElemNormalBlade" name="intParam" value="6" min="1" max="100"/>
+  <constValue label="cV_ru_nElemSpanwiseBlade" name="intParam" value="40" min="1" max="100"/>
+  <constValue label="cV_ru_nElemTrailingBlade" name="intParam" value="4" min="1" max="100"/>
+  <constValue label="cV_ru_nBoundaryLayers" name="intParam" value="11" min="1" max="30"/>
+  <constValue name="sliderFloatParam" label="cV_ru_firstElementSize" value="0.003" min="0.0001" max="1.0"/>
+
+<!--
+!
+!
+! grading hub-shroud
+!
+!
+-->
+
+  <constValue
+    label="cV_ru_gridDoubleGrading"
+    name="sliderFloatParam"
+    value="3.25" min="0.001" max="100.00"
+  />
+  <function label="aF_ru_gridGradingSpline_3">
+    <builder
+      name="scaTanhGradingOneDAFXmlBuilder[]"
+      g="#cV_ru_gridDoubleGrading#" gMin="0.1" gMax="5."
+      c="{.5}{.5}{-1.}{2.}"
+    />
+  </function>
+
+
+<!--
+!
+!
+! grading blade normal
+!
+!
+-->
+
+  <constValue
+    label="cV_ru_gridSingleGrading"
+    name="sliderFloatParam"
+    value="2.7" min="0.001" max="100."
+  />
+  <function label="aF_ru_gridGradingSpline_6">
+    <builder
+      name="scaTanhGradingOneDAFXmlBuilder[]"
+      g="#cV_ru_gridSingleGrading#" gMin="0.1" gMax="5."
+      c="{1}{-1}{1}{-1}"
+    />
+  </function>
+
+
+<!--
+!
+!
+! grading between meshblocks le -> ps,ss -> te
+!
+!
+-->
+  
+  <constValue name="sliderFloatParam" label="cV_ru_firstElementSize_17" value="0.003" min="0.0001" max="1.0"/>
+  <constValue name="sliderFloatParam" label="cV_ru_firstElementSize_18" value="0.012" min="0.0001" max="1.0"/>
+
+  <function label="aF_ru_gridGradingSpline_17">
+    <builder
+      name="scaTanhGradingOneDAFXmlBuilder[]"
+      g="#cV_ru_gridDoubleGrading#" gMin="0.1" gMax="5."
+      c="{.5}{.5}{-1.}{2.}"
+    />
+  </function>
+  
+  <function label="aF_ru_gridGradingSpline_18">
+    <builder
+      name="scaTanhGradingOneDAFXmlBuilder[]"
+      g="#cV_ru_gridDoubleGrading#" gMin="0.1" gMax="5."
+      c="{.5}{.5}{-1.}{2.}"
+    />
+  </function>
+
+
+
+<!--
+!
+!
+! mesh
+!
+! Mesh.RandomFactor = 1.e-12;
+!
+-->
+  <constValue name="sliderFloatParam" label="cV_ru_lcIntPrec" value="0.01" min="0.0001" max="0.1"/>
+  <constValue name="sliderFloatParam" label="cV_ru_charLMin" value="0.025" min="0.0005" max="10.0"/>
+  <constValue name="sliderFloatParam" label="cV_ru_charCLMax" value="3.00" min="4.00" max="10.0"/>
+  <boundedVolume name="map3dTo3dGmsh" label="ru_gridGmsh">
+    <option name="[gmsh]General.Terminal" value="1."/>
+    <option name="[gmsh]General.Verbosity" value="100."/>
+    <option name="[gmsh]General.ExpertMode" value="1."/>
+    <option name="[gmsh]Mesh.LcIntegrationPrecision" value="#cV_ru_lcIntPrec#"/>
+    <option name="[gmsh]Mesh.CharacteristicLengthMin" value="#cV_ru_charLMin#"/>
+    <option name="[gmsh]Mesh.CharacteristicLengthMax" value="#cV_ru_charCLMax#*#cV_ru_charLMin#"/>
+    <option name="[gmsh]Mesh.Algorithm" value="1"/>
+    <option name="[gmsh]Mesh.MeshSizeExtendFromBoundary" value="1"/>
+    <option name="[gmsh]Mesh.MeshSizeFromPoints" value="1"/>
+
+    <bVObserver name="bVONameRegions" regionLabel=""/>
+
+    <bVObserver 
+      name="bVONameFaces" 
+      faceLabel="
+        {aS_ru_blade_rot_0}
+        {aS_ru_blade_rot_1}
+        {aS_ru_blade_rot_2}
+        {aS_ru_blade_rot_3}
+        {aS_ru_blade_rot_4}
+        {aS_ru_hub_0}
+        {aS_ru_hub_1}
+        {aS_ru_hub_2}
+        {aS_ru_hub_3}
+        {aS_ru_hub_4}
+        {aS_ru_hub_5}
+        {aS_ru_shroud_0}
+        {aS_ru_shroud_1}
+        {aS_ru_shroud_2}
+        {aS_ru_shroud_3}
+        {aS_ru_shroud_4}
+        {aS_ru_shroud_5}
+        "
+      face="
+        {R_1->FRONT}
+        {R_2->FRONT}
+        {R_3->FRONT}
+        {R_4->FRONT}
+        {R_5->FRONT}
+        {R_0->SOUTH}
+        {R_1->SOUTH}
+        {R_2->SOUTH}
+        {R_3->SOUTH}
+        {R_4->SOUTH}
+        {R_5->SOUTH}
+        {R_0->NORTH}
+        {R_1->NORTH}
+        {R_2->NORTH}
+        {R_3->NORTH}
+        {R_4->NORTH}
+        {R_5->NORTH}
+      "
+    />
+
+    <bVObserver 
+      name="bVOAddFace" 
+      regionLabel="R_0"
+      faceLabel="
+        {R_1->BACK}{R_2->BACK}{R_3->BACK}{R_4->BACK}{R_5->BACK}
+      "
+    />
+
+    <bVObserver name="bVOAddInternalEdge" regionLabel="R_0"/>
+
+    <bVObserver
+      name="bVOTransfiniteRegions"
+      regionLabel="{R_1}{R_2}{R_3}{R_4}{R_5}"
+      numberElements="{1}{1}{1}"
+    />
+
+    <bVObserver name="bVORecombineRecursiveRegions" regionLabel="{R_1}{R_2}{R_3}{R_4}{R_5}"/>
+
+    <bVObserver name="bVOSetPrescribedMeshSizeAtPoints" meshSize="#cV_ru_charLMin#*#cV_ru_charCLMax#"/>
+
+    <bVObserver 
+      name="bVOSetNElements"
+      faceLabel="{R_0->FRONT}"
+      numberElements="{0}{#cV_ru_nElemSpanwiseBlade#}{0}{#cV_ru_nElemSpanwiseBlade#}"
+    />
+
+    <bVObserver
+      name="bVOSetNElements"
+      faceLabel="{R_0->BACK}"
+      numberElements="{0}{#cV_ru_nElemSpanwiseBlade#}{0}{#cV_ru_nElemSpanwiseBlade#}"
+    />
+
+    <bVObserver 
+      name="bVOTransfiniteRegions"
+      regionLabel="{R_1}{R_3}"
+      numberElements="{#cV_ru_nElemTangentialBlade#}{#cV_ru_nElemNormalBlade#}{#cV_ru_nElemSpanwiseBlade#}"
+    />
+
+    <bVObserver
+      name="bVOTransfiniteRegions"
+      regionLabel="{R_2}"
+      numberElements="{#cV_ru_nElemTangentialTip#}{#cV_ru_nElemNormalBlade#}{#cV_ru_nElemSpanwiseBlade#}"
+    />
+
+    <bVObserver 
+      name="bVOTransfiniteRegions"
+      regionLabel="{R_4}{R_5}"
+      numberElements="{#cV_ru_nElemTrailingBlade#}{#cV_ru_nElemNormalBlade#}{#cV_ru_nElemSpanwiseBlade#}"
+    />
+
+    <bVObserver 
+      name="bVOSetGradingToFaceRule"
+      rule="
+           {:*blade*::*::6::1:}
+           {:*blade*::*blade*::0::1:}
+           {:*hub*::*shroud*::3::1:}                               
+           "
+    />
+
+    <bVObserver
+      name="bVOSetGrading"
+      edgeLabel="
+	    {R_1->F_2->0}{R_1->F_2->2}{R_3->F_2->0}{R_3->F_2->2}
+                "
+      faceLabel=""
+      regionLabel=""
+      type="
+           {17}{17}{17}{17}
+           "
+      grading="{1}{1}{1}{1}"
+    />
+    
+    <bVObserver
+      name="bVOSetGrading"
+      edgeLabel="
+	    {R_1->F_0->2}{R_1->F_1->2}{R_3->F_0->2}{R_3->F_1->2}
+                "
+      faceLabel=""
+      regionLabel=""
+      type="
+           {18}{18}{18}{18}
+           "
+      grading="{1}{1}{1}{1}"
+    />
+
+    <bVObserver 
+      name="bVOSetPrescribedFirstElementSize"
+      type="3"
+      gradingLabel="aF_ru_gridGradingSpline_3"
+      firstElementSize="#cV_ru_firstElementSize#"
+    />
+
+    <bVObserver 
+      name="bVOSetPrescribedFirstElementSize"
+      type="6"
+      gradingLabel="aF_ru_gridGradingSpline_6"
+      firstElementSize="#cV_ru_firstElementSize#"
+    />
+
+    <bVObserver 
+      name="bVOSetPrescribedFirstElementSize"
+      type="17"
+      gradingLabel="aF_ru_gridGradingSpline_17"
+      firstElementSize="#cV_ru_firstElementSize_17#"
+    />
+    
+    <bVObserver 
+      name="bVOSetPrescribedFirstElementSize"
+      type="18"
+      gradingLabel="aF_ru_gridGradingSpline_18"
+      firstElementSize="#cV_ru_firstElementSize_18#"
+    />
+
+    <bVObserver 
+      name="bVOReadMSH" filename="" mustRead="false"
+    />
+
+    <bVObserver 
+      name="bVOSetRotationalPeriodicity"
+      faceMaster="R_0->WEST"
+      faceSlave="R_0->EAST"
+      transformer="xYz_rPhiZ"
+      >
+      <option name="force" value="true"/>
+    </bVObserver>
+
+    <bVObserver
+      name="bVOMeshRule"
+      rule="
+           :
+             {dtMeshFreeGradingGEdge(*)}
+           :
+           :
+             {dtMeshGFaceWithTransfiniteLayer(R_0->FRONT)}
+             {dtMeshGFaceWithTransfiniteLayer(R_0->BACK)}
+             {dtMeshGFaceWithTransfiniteLayer(R_0->EAST)}
+             {dtMeshGFaceWithTransfiniteLayer(R_0->WEST)}
+             {dtMeshGFace(R_0->NORTH)}
+             {dtMeshGFace(R_0->SOUTH)}
+             {dtMeshTransfiniteGFace(*)}
+           :
+           :
+             {dtMeshGRegionWithBoundaryLayer(R_0)}
+             {dtMeshGRegion(*)}
+           :
+           "
+      only=""
+      >
+      <option name="debug" value="false"/>
+      <dtMeshOperator
+        name="dtMeshFreeGradingGEdge"
+        label="dtMeshFreeGradingGEdge"
+        typeTransfinite="{3}{6}{17}{18}"
+        gradingLabel="
+                     {aF_ru_gridGradingSpline_3}
+                     {aF_ru_gridGradingSpline_6}
+                     {aF_ru_gridGradingSpline_17}
+                     {aF_ru_gridGradingSpline_18}
+                     "
+        nSmoothSteps="30"
+        tolerance="1.e-6"
+      />
+      <dtMeshOperator
+        name="dtMeshGFace"
+        label="dtMeshGFace"
+      />
+      <dtMeshOperator
+        name="dtMeshTransfiniteGFace"
+        label="dtMeshTransfiniteGFace"
+      />
+      <dtMeshOperator
+        name="dtMeshGRegion"
+        label="dtMeshGRegion"
+        minQShapeMetric="0.00" 
+        relax="0.1"
+        nPyramidOpenSteps="10"
+        nSmooths="3"
+      />
+      <dtMeshOperator
+        name="dtMeshGRegionWithBoundaryLayer"
+        label="dtMeshGRegionWithBoundaryLayer"
+        nSpacingSteps="-#cV_ru_nBoundaryLayers#"
+        nNormalSmoothingSteps="1000"
+        nGrowingSmoothingSteps="1000"
+        maxGrowingRatePerStep="1.1"
+        maxDihedralAngle="_pi*360./180."
+        faceLabel="
+                  {R_0->NORTH}{R_0->SOUTH}
+                  "
+        slidableFaceLabel="
+                          {R_1->BACK}{R_2->BACK}{R_3->BACK}
+                          {R_4->BACK}
+                          {R_5->BACK}
+                          {R_0->FRONT}{R_0->BACK}{R_0->EAST}{R_0->WEST}
+                          "
+        dtMesh3DOperator="dtMeshGRegion"
+        fixedFaceLabel=""
+      >
+      <option name="debug" value="false"/>
+      </dtMeshOperator>
+        <dtMeshOperator
+          name="dtMeshGFaceWithTransfiniteLayer"
+          label="dtMeshGFaceWithTransfiniteLayer"
+          nLayers="#cV_ru_nBoundaryLayers#+1"
+          direction="0"
+          nSmooth="1000"
+      />
+    </bVObserver>
+
+    <bVObserver name="bVOWriteMSH" filename="" saveAll="true"/>
+
+    <bVObserver
+      name="bVOPatchRule"
+      patchRule="
+                {:*hub*::RU_HUB:}
+                {:*shroud*::RU_SHROUD:}
+                {:*blade*::RU_BLADE:}
+                {:R_0->FRONT::RU_INLET:}
+                {:R_0->BACK::RU_OUTLET:}
+                {:R_0->EAST::RU_PERIOSS:}
+                {:R_0->WEST::RU_PERIOPS:}
+                "
+      regRule="
+              {:*::RU:}
+              "
+    />
+
+    <bVObserver 
+      name="bVORemoveElements" 
+      label="
+            {}
+            "
+    />
+
+    <bVObserver name="bVOOrientCellVolumes" positive="true"/>
+
+    <bVObserver name="bVODumpModel"/>
+
+    <analyticGeometry label="rM2dTo3d_ru_gridChannel"/>
+    <analyticGeometry label="tV_ru_meshBlock_closed_0_0_rot"/>
+    <analyticGeometry label="tV_ru_meshBlock_closed_0_1_rot"/>
+    <analyticGeometry label="tV_ru_meshBlock_closed_0_2_rot"/>
+    <analyticGeometry label="tV_ru_meshBlock_closed_te_0_rot"/>
+    <analyticGeometry label="tV_ru_meshBlock_closed_te_1_rot"/>
+
+  </boundedVolume>
+
+  <boundedVolume
+    name="combineGmsh"
+    label="ru_fullGridGmsh"
+    absolute_tolerance="2.e-05"
+    >
+
+    <bVObserver name="bVODumpModel"/>
+    <bVObserver
+      name="bVOTransformMeshPoints"
+      transformer="{rot_ru_1_NZ}{rot_ru_2_NZ}{rot_ru_3_NZ}"
+      copy="true"
+      absolute_tolerance="2.e-05"
+    />
+
+    <bVObserver
+      name="bVOPatchRule"
+      patchRule="
+                {:RU_HUB*::RU_HUB:}
+                {:RU_SHROUD*::RU_SHROUD:}
+                {:RU_BLADE*::RU_BLADE:}
+                {:RU_INLET*::RU_INLET:}
+                {:RU_OUTLET*::RU_OUTLET:}
+                {:RU_PERIOSS*:::}
+                {:RU_PERIOPS*:::}
+                "
+      regRule="
+              {:RU*::RU:}
+              "
+    />
+
+    <bVObserver
+      name="bVORemoveElements"
+      label="
+            {}
+            "
+    />
+
+    <bVObserver name="bVOOrientCellVolumes" positive="true"/>
+
+    <bVObserver name="bVOWriteMSH" filename="" saveAll="true"/>
+
+    <bVObserver name="bVODumpModel"/>
+
+    <boundedVolume label="ru_gridGmsh"/>
+
+  </boundedVolume>
+
+</ru_gridMesh>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

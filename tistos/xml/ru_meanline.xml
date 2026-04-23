@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<ru_meanline>
+<!--
+!
+!
+! meanplane
+!
+!
+-->
+  <part label="aS_ru_meanplane">
+    <builder name="vec3dInMap3dTo3d">
+      <analyticFunction label="~ru_uVw_phirMs(vec3d2d_ru_meanplane)~"/>
+      <analyticGeometry label="rM2dTo3d_ru_channel"/>
+    </builder>
+  </part>
+
+</ru_meanline>
+

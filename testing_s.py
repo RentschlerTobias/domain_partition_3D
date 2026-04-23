@@ -1,5 +1,4 @@
-
-from msh_extractor import MshExtractor
+from tistos_quasi_struc_msh import QuasiStructuredDTOO
 from streamline_extractor import StreamlineExtractor
 from streamlines_to_msh import export_streamlines_to_msh
 from streamline_splitter import split_streamlines
@@ -8,21 +7,14 @@ from plotting_tools import *
 import numpy as np
 
 
+
 def main():
 
-    # input_path = './stl_files/Case09_post/LV_outer.stl'
-    input_path = './msh_files/T2_7461_ru_gridGmsh~CoraE2.1-217-g155a7190~gcc-12.3.0~opensuse-leap~15.6.msh'
-    # input_path = './tri_mesh.msh'
-    # input_path = './quad_remeshed_m.msh'
     output_path = './remeshed_quads.msh'
 
-    extractor = MshExtractor(
-        input_path=input_path,          # Path to your STL
-        remesh=Ture,                    # Enable GMSH remeshing
-        output_path=output_path,        # Where to save the intermediate MSH
+    extractor = QuasiStructuredDTOO(
         element_size=1.0,               # Target edge length
-        angle=40,                        # Angle for surface classification
-        curve_angle=180
+        output_path=output_path,        # Where to save the intermediate MSH
     )
 
     vertices = extractor.vertices  # Numpy array (N, 3)
@@ -77,4 +69,4 @@ def main():
 main()
 
 if __name__ == '__main__':
-    main()
+ 

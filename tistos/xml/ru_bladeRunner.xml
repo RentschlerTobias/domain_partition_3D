@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<ru_bladeRunner>
+<!--
+!
+!
+! blade
+!
+!
+-->
+
+  <replace variable="ii" values="{ru}{ruWithRoundingRounding}{ruWithRoundingBlade}">
+    <part label="aS_{ii}_blade">
+      <builder name="vec3dInMap3dTo3d">
+        <analyticFunction label="~ru_uVw_phirMs(vec3d2d_{ii}_blade)~"/>
+        <analyticGeometry label="rM2dTo3d_ru_channel"/>
+      </builder>
+    </part>
+  </replace>
+</ru_bladeRunner>

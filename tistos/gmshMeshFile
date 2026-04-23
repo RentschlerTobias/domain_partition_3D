@@ -1,0 +1,42 @@
+
+//Vorder- und Hinterkante+Kranz
+Field[1] = Distance;
+Field[1].Sampling = 100;
+Field[1].CurvesList = {26,38};
+
+Field[2] = Threshold;
+Field[2].InField = 1;
+Field[2].SizeMin = LMinB;
+Field[2].SizeMax = LMax;
+Field[2].DistMin = distMinB;
+Field[2].DistMax = distMaxB;
+
+//Uebergang Ausrundung->Nabe
+Field[3] = Distance;
+Field[3].Sampling = 100;
+Field[3].CurvesList = {13,14,15,15,16,17,18,28,40};
+
+Field[4] = Threshold;
+Field[4].InField = 3;
+Field[4].SizeMin = LMinHB;
+Field[4].SizeMax = LMax;
+Field[4].DistMin = distMinHB;
+Field[4].DistMax = distMaxHB;
+
+//Uebergang Schaufel->Ausrundung
+Field[5] = Distance;
+Field[5].Sampling = 100;
+Field[5].CurvesList = {19,33};
+
+Field[6] = Threshold;
+Field[6].InField = 5;
+Field[6].SizeMin = 0.02;
+Field[6].SizeMax = LMax;
+Field[6].DistMin = 0.2;
+Field[6].DistMax = 0.3;
+
+
+Field[7] = Min;
+Field[7].FieldsList = {2, 4, 6};
+
+Background Field = 7;

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<ru_channel>
+
+<!--
+!
+! meridian shape
+!
+-->
+
+  <constValue label="cV_r_hub" name="sliderFloatParam" value="0.25" min="0.1" max="1.5"/>
+
+  <constValue label="cV_r_shroud" name="sliderFloatParam" value="2.0" min="0.1" max="4.5"/>
+
+  <constValue label="cV_l_ru" name="sliderFloatParam" value="2.5" min="0.5" max="4.5"/>
+
+  <constValue label="cV_ru_nBlades" name="intParam" value="4"/>
+
+
+  <replace variable="ii" values="{hub}{shroud}">
+    <part label="s3_ru_{ii}">
+      <builder name="bSplineCurve_pointConstructOCC" order="1">
+        <Point_3 xyz="0,#cV_r_{ii}#,0"/>
+        <Point_3 xyz="0,#cV_r_{ii}#,#cV_l_ru#"/>
+      </builder>
+    </part>
+
+  </replace>
+
+  <part label="aS_ru_channel">
+    <builder name="bSplineSurface_skinConstructOCC">
+      <analyticGeometry label="s3_ru_hub"/>
+      <analyticGeometry label="s3_ru_shroud"/>
+    </builder>
+  </part>
+
+  <part label="rM2dTo3d_ru_channel">
+    <builder name="rotatingMap2dTo3d">
+      <analyticGeometry label="aS_ru_channel"/>
+      <Vector_3 label="v3_Nzz"/>
+    </builder>
+  </part>
+
+  <part label="aS_ru_hub">
+    <builder name="analyticGeometry">
+      <transformer name="pickMap3dTo3dRangePercent" parameter_percent_three="0."/>
+        <analyticGeometry label="rM2dTo3d_ru_channel"/>
+    </builder>
+  </part>
+  <part label="aS_ru_shroud">
+    <builder name="analyticGeometry">
+      <transformer name="pickMap3dTo3dRangePercent" parameter_percent_three="1."/>
+        <analyticGeometry label="rM2dTo3d_ru_channel"/>
+    </builder>
+  </part>
+
+  <part label="aS_ru_inlet_full">
+    <builder name="surfaceOfRevolution_curveRotateConstructOCCAGXmlBuilder">
+      <analyticGeometry label="~u0_s(aS_ru_channel)~"/>
+        <Point_3 xyz="0,0,0"/>
+        <Vector_3 xyz="0,0,1"/>
+    </builder>
+  </part>
+
+  <part label="aS_ru_outlet_full">
+    <builder name="surfaceOfRevolution_curveRotateConstructOCCAGXmlBuilder">
+      <analyticGeometry label="~u1_s(aS_ru_channel)~"/>
+      <Point_3 xyz="0,0,0"/>
+      <Vector_3 xyz="0,0,1"/>
+    </builder>
+  </part>
+
+<!--
+!
+!
+! coordinate transformation (phir, m, s) -> (u, v, w)
+!
+!
+-->
+  <part label="baseContainer_ru_channel">
+    <builder name="baseContainer">
+      <transformer 
+        label="ru_uVw_phirMs" 
+        name="uVw_phirMs" 
+        part_label="rM2dTo3d_ru_channel"
+        number_points_two="31"
+        number_points_three="11"
+      />
+    </builder>
+  </part>
+
+</ru_channel>
+
+
+
+
+

@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<ru_bladeRunner2d>
+
+<!--
+!
+!
+! design parameters (DOF)
+!
+!
+-->
+
+  <replace variable="ii" values="{a_0}{b_0}">
+    <constValue label="cV_ru_t_le_{ii}" name="sliderFloatParam" value="0.035" min="0.001" max="0.08"/>
+    <constValue label="cV_ru_u_le_{ii}" name="sliderFloatParam" value="0.0" min="0.0" max="0.1"/>
+    <constValue label="cV_ru_t_mid_{ii}" name="sliderFloatParam" value="0.042" min="0.001" max="0.08"/>
+    <constValue label="cV_ru_u_mid_{ii}" name="sliderFloatParam" value="0.5" min="0.3" max="0.7"/>
+    <constValue label="cV_ru_t_te_{ii}" name="sliderFloatParam" value="0.007" min="0.001" max="0.08"/>
+    <constValue label="cV_ru_u_te_{ii}" name="sliderFloatParam" value="1.0" min="0.9" max="1.0"/>
+  </replace>
+  <replace variable="ii" values="{a_0.5}{b_0.5}">
+    <constValue label="cV_ru_t_le_{ii}" name="sliderFloatParam" value="0.021" min="0.001" max="0.02"/>
+    <constValue label="cV_ru_u_le_{ii}" name="sliderFloatParam" value="0.0" min="0.0" max="0.1"/>
+    <constValue label="cV_ru_t_mid_{ii}" name="sliderFloatParam" value="0.026" min="0.002" max="0.02"/>
+    <constValue label="cV_ru_u_mid_{ii}" name="sliderFloatParam" value="0.5" min="0.3" max="0.7"/>
+    <constValue label="cV_ru_t_te_{ii}" name="sliderFloatParam" value="0.0045" min="0.001" max="0.02"/>
+    <constValue label="cV_ru_u_te_{ii}" name="sliderFloatParam" value="1.0" min="0.9" max="1.0"/>
+  </replace>
+  <replace variable="ii" values="{a_1}{b_1}">
+    <constValue label="cV_ru_t_le_{ii}" name="sliderFloatParam" value="0.0083" min="0.001" max="0.02"/>
+    <constValue label="cV_ru_u_le_{ii}" name="sliderFloatParam" value="0.0" min="0.0" max="0.1"/>
+    <constValue label="cV_ru_t_mid_{ii}" name="sliderFloatParam" value="0.0099" min="0.002" max="0.02"/>
+    <constValue label="cV_ru_u_mid_{ii}" name="sliderFloatParam" value="0.5" min="0.3" max="0.7"/>
+    <constValue label="cV_ru_t_te_{ii}" name="sliderFloatParam" value="0.002" min="0.001" max="0.02"/>
+    <constValue label="cV_ru_u_te_{ii}" name="sliderFloatParam" value="1.0" min="0.9" max="1.0"/>
+  </replace>
+
+  <replace variable="ii" values="{0}{0.5}{1}">
+    <function label="v3d1d_ru_thicknessDistribution_a_{ii}">
+      <builder  name="vec3dCurveOneDAFXmlBuilder" order="2">
+        <Point_3 x="0." y="0." z="{ii}"/>
+        <Point_3 x="#cV_ru_t_le_a_{ii}#" y="#cV_ru_u_le_a_{ii}#" z="{ii}"/>
+        <Point_3 x="#cV_ru_t_mid_a_{ii}#" y="#cV_ru_u_mid_a_{ii}#" z="{ii}"/>
+        <Point_3 x="#cV_ru_t_te_a_{ii}#" y="#cV_ru_u_te_a_{ii}#" z="{ii}"/>
+        <Point_3 x="0." y="1." z="{ii}"/>
+      </builder>
+    </function>
+    <function label="v3d1d_ru_thicknessDistribution_b_{ii}">
+      <builder  name="vec3dCurveOneDAFXmlBuilder" order="2">
+        <Point_3 x="0." y="0." z="{ii}"/>
+        <Point_3 x="-#cV_ru_t_le_a_{ii}#" y="#cV_ru_u_le_a_{ii}#" z="{ii}"/>
+        <Point_3 x="-#cV_ru_t_mid_a_{ii}#" y="#cV_ru_u_mid_a_{ii}#" z="{ii}"/>
+        <Point_3 x="-#cV_ru_t_te_a_{ii}#" y="#cV_ru_u_te_a_{ii}#" z="{ii}"/>
+        <Point_3 x="0." y="1." z="{ii}"/>
+      </builder>
+    </function>
+    <function label="v3d1d_ru_thicknessDistribution_{ii}">
+      <builder name="bSplineCurve_curveConnectConstructOCCAFXmlBuilder">
+        <analyticFunction label="v3d1d_ru_thicknessDistribution_b_{ii}"/>
+        <analyticFunction label="v3d1d_ru_thicknessDistribution_a_{ii}"/>
+      </builder>
+    </function>
+  </replace>
+
+  <function label="v3d2d_ru_thicknessDistribution_spline">
+    <builder  name="vec3dSurfaceTwoDAFXmlBuilder" orderMin="2" orderMax="2">
+      <analyticFunction label="v3d1d_ru_thicknessDistribution_0"/>
+      <analyticFunction label="v3d1d_ru_thicknessDistribution_0.5"/>
+      <analyticFunction label="v3d1d_ru_thicknessDistribution_1"/>
+    </builder>
+  </function>
+  <function label="v3d2d_ru_thicknessDistribution">
+    <builder name="analyticFunction">
+      <analyticFunction label="v3d2d_ru_thicknessDistribution_spline"/>
+    </builder>
+  </function>
+
+  <replace variable="ii" values="{ru}">
+    <function label="vec3d2d_{ii}WithDebug_blade">
+      <builder name="analyticFunction">
+        <transformer
+          name="discreteAddNormal"
+          function_label="v3d2d_{ii}_thicknessDistribution"
+          number_points_one="61"
+          number_points_two="41"
+          order="2"
+          nf="v3_zz"
+          skinOrderMin="2"
+          skinOrderMax="2"
+          skinNIterations="0"
+          closeU="true"
+          closeSmooth=".5"  
+        >
+          <option name="debug" value="true"/>
+        </transformer>
+        <analyticFunction label="vec3d2d_ru_meanplane"/>
+      </builder>
+    </function>
+
+
+    <function label="vec3d2d_{ii}_blade">
+      <builder name="analyticFunction">
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_0"/>
+      </builder>
+    </function>
+
+<!--
+!
+!
+! Blade with fillet
+!
+!
+-->
+
+    <constValue
+      label="cV_ru_t_rounding"
+      name="sliderFloatParam"
+      value="0.15" min="0.001" max="10.0"
+    />
+    
+    <vectorReplace
+      variables="{vv}{dd}{nn}"
+      values="
+        {{0.000}{1.0*#cV_ru_t_rounding#}{0}}
+        {{0.01}{0.8*#cV_ru_t_rounding#}{1}}
+        {{0.02}{0.5*#cV_ru_t_rounding#}{2}}
+        {{0.05}{0.2*#cV_ru_t_rounding#}{3}}
+        {{0.075}{0.0*#cV_ru_t_rounding#}{4}}
+        {{0.1}{0.0*#cV_ru_t_rounding#}{5}}
+    ">
+       <function label="aF_radExt_{ii}_{nn}">
+         <builder
+           name="bSplineCurve_normalOffsetGeomCurveOCCAFXmlBuilder"
+           distance="{dd}"
+         >
+           <Vector_3 xyz="0,0,-1"/>
+           <transformer name="pickVec3dTwoDRangePercent" x_percent_two="{vv}"/>
+           <analyticFunction label="vec3d2d_{ii}_blade"/>
+         </builder>
+       </function>
+     </vectorReplace>
+
+     <function label="vec3d2d_{ii}WithRoundingRounding+Blade_blade">
+      <builder name="bSplineSurface_skinConstructOCC" orderMin="3" orderMax="3" nIterations="5">
+        <analyticFunction label="aF_radExt_{ii}_0"/>
+        <analyticFunction label="aF_radExt_{ii}_1"/>
+        <analyticFunction label="aF_radExt_{ii}_2"/>
+        <analyticFunction label="aF_radExt_{ii}_3"/>
+        <analyticFunction label="aF_radExt_{ii}_4"/>
+        <analyticFunction label="aF_radExt_{ii}_5"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_6"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_7"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_8"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_9"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_10"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_11"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_12"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_13"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_14"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_15"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_16"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_17"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_18"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_19"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_20"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_21"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_22"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_23"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_24"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_25"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_26"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_27"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_28"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_29"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_30"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_31"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_32"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_33"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_34"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_35"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_36"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_37"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_38"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_39"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_40"/>
+        <analyticFunction label="vec3d2d_{ii}WithDebug_blade_41"/>
+      </builder>
+    </function>
+
+    <function label="vec3d2d_{ii}WithRoundingRounding_blade">
+      <builder name="analyticFunction">
+        <transformer name="pickVec3dTwoDRectanglePercent">
+          <Point_2 xy="0.0,0.0"/>
+          <Point_2 xy="1.0,0.15"/>
+        </transformer>
+        <analyticFunction label="vec3d2d_{ii}WithRoundingRounding+Blade_blade"/>
+      </builder>
+    </function>
+    <function label="vec3d2d_{ii}WithRoundingBlade_blade">
+      <builder name="analyticFunction">
+        <transformer name="pickVec3dTwoDRectanglePercent">
+          <Point_2 xy="0.0,0.15"/>
+          <Point_2 xy="1.0,1.0"/>
+        </transformer>
+        <analyticFunction label="vec3d2d_{ii}WithRoundingRounding+Blade_blade"/>
+      </builder>
+    </function>
+
+  </replace>
+
+</ru_bladeRunner2d>
+

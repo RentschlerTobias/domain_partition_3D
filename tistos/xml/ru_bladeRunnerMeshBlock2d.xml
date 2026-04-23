@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<ru_bladeRunnerMeshBlock2d>
+<!--
+!
+!
+! mesh parameters (DOF)
+!
+!
+-->
+  <constValue
+    label="cV_ru_meshBlockThickness" name="sliderFloatParam" value="0.01" min="0.001" max="10.00"
+  />
+
+  <vectorReplace 
+    variables="{ii}{jj}" 
+    values="
+      {{cV_ruWithRoundingBlade_meshBlockThickness}{cV_ru_meshBlockThickness}}
+      {{cV_ruWithRoundingRounding_meshBlockThickness}{cV_ru_meshBlockThickness}}
+    ">
+    <constValue 
+      label="{ii}" name="constrainedFloatParam" value="#{jj}#" min="0.001" max="10.00"
+    />
+  </vectorReplace>
+
+<!--
+!
+!
+! thickness distributions of mesh block around blade
+!
+!
+-->
+
+  <replace variable="ii" values="{ru}{ruWithRoundingBlade}{ruWithRoundingRounding}">
+    <function label="v3d2d_{ii}_meshBlockThickness">
+      <builder  name="muParser">
+        <expression value="-1.*#cV_{ii}_meshBlockThickness#, xx, yy"
+                    dimension="3"/>
+        <x_one name="xx" min="0." max="1."/>
+        <x_two name="yy" min="0." max="1."/>
+      </builder>
+    </function>
+  </replace>
+
+<!--
+!
+!
+! combine thickness distribution of meshblock and blade
+!
+!
+-->
+
+
+  <replace variable="ii" values="{ru}{ruWithRoundingBlade}{ruWithRoundingRounding}">
+    <function label="vec3d2d_{ii}_meshBlock">
+      <builder name="analyticFunction">
+        <transformer
+          name="discreteAddNormal"
+          function_label="v3d2d_{ii}_meshBlockThickness"
+          number_points_one="61"
+          number_points_two="5"
+          order="3"
+          nf="v3_zz"
+          skinOrderMin="2"
+          skinOrderMax="2"
+          skinNIterations="3"
+          closeU="true"
+          closeSmooth="0.5"
+        />
+        <analyticFunction label="vec3d2d_{ii}_blade"/>
+      </builder>
+    </function>
+
+    <function label="vec3d3d_{ii}_meshBlock">
+      <builder name="vec3dTransVolThreeD">
+        <analyticFunction label="vec3d2d_{ii}_blade"/>
+        <analyticFunction label="vec3d2d_{ii}_meshBlock"/>
+      </builder>
+    </function>
+  </replace>
+
+
+</ru_bladeRunnerMeshBlock2d>
+
+
+

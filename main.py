@@ -11,14 +11,14 @@ import numpy as np
 def main():
 
     # input_path = './stl_files/Case09_post/LV_outer.stl'
-    # input_path = './T1_9/T1_9_ru_gridGmsh.msh'
+    input_path = './msh_files/T2_7461_ru_gridGmsh~CoraE2.1-217-g155a7190~gcc-12.3.0~opensuse-leap~15.6.msh'
     # input_path = './tri_mesh.msh'
-    input_path = './quad_remeshed_m.msh'
+    # input_path = './quad_remeshed_m.msh'
     output_path = './remeshed_quads.msh'
 
     extractor = MshExtractor(
         input_path=input_path,          # Path to your STL
-        remesh=False,                    # Enable GMSH remeshing
+        remesh=Ture,                    # Enable GMSH remeshing
         output_path=output_path,        # Where to save the intermediate MSH
         element_size=1.0,               # Target edge length
         angle=40,                        # Angle for surface classification
@@ -47,7 +47,7 @@ def main():
         block_structure[surface_tag]['faces'] = detect_quad_faces(
             vertices, edges)
 
-    # output_path_figure_surfaces = f"./html_files/Case09_post_LV_outer.html"
+    output_path_figure_surfaces = f"./html_files/Case09_post_LV_outer.html"
     # output_path_blocking_structure = f"./figures/blocking_structure_linear.html"
     #
     # Optional for visualisation purpose
@@ -55,8 +55,8 @@ def main():
 
     export_streamlines_to_msh(streamlines, output_path='./streamlines.msh')
     #
-    # faces_to_html(block_structure,
-    #               output_path=output_path_figure_surfaces, n_u=5, n_v=5)
+    faces_to_html(block_structure,
+                  output_path=output_path_figure_surfaces, n_u=5, n_v=5)
     #
     # block_structure_to_html(
     #     block_structure, output_path=output_path_blocking_structure)

@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<ru_meanline2d>
+
+
+  <constant label="STREAMWISECUTS" value="{0}{100}{250}{500}{750}{900}{1000}"/>
+
+<!--
+!
+!
+! spanwise constant planes
+!
+!
+-->
+  <replace variable="ii" values="STREAMWISECUTS">
+    <constValue label="cV_ru_mplane_{ii}" name="sliderFloatParam" value="{ii}/1000." min="0." max="1."/>
+  </replace>
+
+<!--
+!
+!
+! design parameters (DOF)
+!
+!
+-->
+  <constValue label="cV_ru_nBlades" name="intParam" value="4"/>
+
+  <replace variable="ii" values="{0.0}{0.5}{1.0}">
+    <constValue label="cV_ru_alpha_1_ex_{ii}" name="sliderFloatParam" value="0." min="-5." max="10."/>
+    <constValue label="cV_ru_alpha_2_ex_{ii}" name="sliderFloatParam" value="0." min="-5." max="5."/>
+    <constValue label="cV_ru_offsetM_ex_{ii}" name="sliderFloatParam" value="1.25" min="0.0" max="4.5"/>
+    <constValue label="cV_ru_M_ex_{ii}" name="sliderFloatParam" value="0.2" min="-0.2" max="0.2"/>
+    <constValue label="cV_ru_offsetPhiR_ex_{ii}" name="sliderFloatParam" value="0.00" min="-0.15" max="0.15"/>
+    <constValue label="cV_ru_ratio_{ii}" name="sliderFloatParam" value="0.50" min="0.4" max="0.6"/>
+    <constValue label="cV_ru_bladeLength_{ii}" name="sliderFloatParam" value="0.7" min="0.1" max="2.0"/>
+  </replace>
+
+  <function label="f_ru_alpha_1">
+    <builder  name="scaCurve2dOneD" order="2">
+      <Point_2 x="0.00" y="180. - 59.5"/>
+      <Point_2 x="0.50" y="180. - 20.67"/>
+      <Point_2 x="1.00" y="180. - 20.0"/>
+    </builder>
+  </function>
+  <function label="f_ru_alpha_2">
+    <builder  name="scaCurve2dOneD" order="2">
+      <Point_2 x="0.00" y="180. - 44.6"/>
+      <Point_2 x="0.50" y="180. - 20.015"/>
+      <Point_2 x="1.00" y="180. - 11.85"/>
+    </builder>
+  </function> 
+
+  <function label="f_ru_M">
+    <builder  name="scaCurve2dOneD" order="2">
+      <Point_2 x="0.00" y="0.30"/>
+      <Point_2 x="0.50" y="0.30"/>
+      <Point_2 x="1.00" y="0.30"/>
+    </builder>
+  </function>
+
+  <replace
+    variable="ii"
+    values="{M_ex}{alpha_1_ex}{alpha_2_ex}{offsetM_ex}{ratio}{offsetPhiR_ex}{bladeLength}"
+  >
+    <function label="f_ru_{ii}">
+      <builder  name="scaCurve2dOneD" order="2">
+        <Point_2 x="0.0" y="#cV_ru_{ii}_0.0#"/>
+        <Point_2 x="0.5" y="#cV_ru_{ii}_0.5#"/>
+        <Point_2 x="1.0" y="#cV_ru_{ii}_1.0#"/>
+      </builder>
+    </function>
+  </replace>
+
+  <replace variable="ii" values="STREAMWISECUTS">
+    <function label="aF_ru_meanline_{ii}">
+      <builder name="sca3PointMeanline"
+        alpha_one="
+          _pi * ( $f_ru_alpha_1(#cV_ru_mplane_{ii}#)$ * ( 1 + $f_ru_alpha_1_ex(#cV_ru_mplane_{ii}#)$ ) ) / 180.
+        "
+        alpha_two="
+          _pi * ( $f_ru_alpha_2(#cV_ru_mplane_{ii}#)$ * ( 1 + $f_ru_alpha_2_ex(#cV_ru_mplane_{ii}#)$ ) ) / 180.
+        "
+        delta_y="( $f_ru_M_ex(#cV_ru_mplane_{ii}#)$ + 1 ) * $f_ru_M(#cV_ru_mplane_{ii}#)$"
+        delta_x="
+          ( 1. - $f_ru_ratio(#cV_ru_mplane_{ii}#)$ ) 
+          * 
+          (                                       
+            (
+              ( $f_ru_M_ex(#cV_ru_mplane_{ii}#)$ + 1 ) * $f_ru_M(#cV_ru_mplane_{ii}#)$
+            )
+            /
+            tan(
+              max(
+                _pi * ( $f_ru_alpha_2(#cV_ru_mplane_{ii}#)$ * ( 1 + $f_ru_alpha_2_ex(#cV_ru_mplane_{ii}#)$ ) ) / 180.,
+                _pi * ( $f_ru_alpha_1(#cV_ru_mplane_{ii}#)$ * ( 1 + $f_ru_alpha_1_ex(#cV_ru_mplane_{ii}#)$ ) ) / 180.
+              )
+            )
+          )       
+          +
+            $f_ru_ratio(#cV_ru_mplane_{ii}#)$
+              * 
+                (                                       
+                  (
+                    ( $f_ru_M_ex(#cV_ru_mplane_{ii}#)$ + 1 ) * $f_ru_M(#cV_ru_mplane_{ii}#)$
+                  )
+                  /
+                  tan(
+                    min(
+                      _pi * ( $f_ru_alpha_2(#cV_ru_mplane_{ii}#)$ * ( 1 + $f_ru_alpha_2_ex(#cV_ru_mplane_{ii}#)$ ) ) / 180.,
+                      _pi * ( $f_ru_alpha_1(#cV_ru_mplane_{ii}#)$ * ( 1 + $f_ru_alpha_1_ex(#cV_ru_mplane_{ii}#)$ ) ) / 180.
+                    )
+                  )
+                )       
+        "
+        targetLength="$f_ru_bladeLength(#cV_ru_mplane_{ii}#)$"
+        targetLengthTolerance=".01"
+        originOnLengthPercent=".5"
+      >
+      <function/>
+      </builder>
+    </function>
+
+    <function label="myBaseContainer_ru_meanline2d_{ii}">
+      <builder name="baseContainer">
+        <transformer name="translate" label="ru_transM_{ii}">
+           <Vector_2
+             x="$f_ru_offsetPhiR_ex(#cV_ru_mplane_{ii}#)$"
+             y="$f_ru_offsetM_ex(#cV_ru_mplane_{ii}#)$"
+           />
+           <Vector_3
+             x="$f_ru_offsetPhiR_ex(#cV_ru_mplane_{ii}#)$"
+             y="$f_ru_offsetM_ex(#cV_ru_mplane_{ii}#)$"
+             z="0.0"
+           />
+         </transformer>
+      </builder>
+    </function>
+<!--
+!
+!
+meanline as 3d function f:(u)->(phiR, m, s)  
+!
+!
+-->
+    <function label="vec3d1d_ru_meanline_{ii}">
+      <builder name="analyticFunction">
+        <transformer name="addConstCoordinate" coordinate_value="{ii}/1000.">
+          <Vector_3 label="v3_zz"/>
+        </transformer>
+        <analyticFunction label="~ru_transM_{ii}(aF_ru_meanline_{ii})~"/>
+      </builder>
+    </function>
+  </replace>
+
+  <function label="f_ru_constructionAngle_alpha_1">
+    <builder name="muParser">
+      <expression
+        value="
+          Y( &quot;$f_ru_alpha_1()$&quot;,xx ) * ( 1. + Y(&quot;$f_ru_alpha_1_ex()$&quot;, xx) )
+        "
+        dimension="1"
+      />
+      <x_one name="xx" min="0." max="1."/>
+    </builder>
+  </function>
+  <function label="f_ru_constructionAngle_alpha_2">
+    <builder name="muParser">
+      <expression
+        value="
+          Y( &quot;$f_ru_alpha_2()$&quot;,xx ) * ( 1. + Y(&quot;$f_ru_alpha_2_ex()$&quot;, xx)
+        "
+        dimension="1"
+      />
+      <x_one name="xx" min="0." max="1."/>
+    </builder>
+  </function>
+  
+<!--
+!
+!
+! meanplane as 3d function f:(u, v)->(phiR, m, s)
+!
+!
+-->
+  <function label="vec3d2d_ru_meanplane">
+    <builder name="vec3dSurfaceTwoD">
+      <replace variable="ii" values="STREAMWISECUTS">
+	<analyticFunction label="vec3d1d_ru_meanline_{ii}"/>
+      </replace>
+    </builder>
+  </function>
+
+</ru_meanline2d>
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<ru_gridChannel>
+
+<!--
+!
+!
+! rotate blade parts
+!
+!
+-->
+
+  <replace variable="ii" values="{ru_meanplane}{ru_blade}{ruWithRoundingRounding_blade}{ruWithRoundingBlade_blade}">
+    <part label="aS_{ii}_rot">
+      <builder name="analyticGeometry">
+        <analyticGeometry label="~rot_ru(aS_{ii})~"/>
+      </builder>
+    </part>
+  </replace>
+
+<!--
+!
+!
+! mesh parameters (DOF)
+!
+!
+-->
+
+  <constValue label="cV_ru_in" name="sliderFloatParam" value="0.0" min="0." max="1.0"/>
+  <constValue label="cV_ru_le" name="sliderFloatParam" value="0.3" min="0." max="1.0"/>
+  <constValue label="cV_ru_le>te" name="sliderFloatParam" value="0.5" min="0." max="1.0"/>
+  <constValue label="cV_ru_te" name="sliderFloatParam" value="0.6" min="0." max="1.0"/>
+  <constValue label="cV_ru_out" name="sliderFloatParam" value="1.0" min="0." max="1.0"/>
+
+<!--
+!
+!
+! create mesh domain in 5 cuts (spanwise direction)
+!
+!
+-->
+
+  <replace variable="jj" values="{in}{le}{le>te}{te}{out}">
+    <replace variable="ii" values="{0.00}{0.50}{1.00}">
+      <constValue
+        label="cV_ru_gridChannel_{jj}_u_w{ii}"
+        name="sliderFloatParam"
+        value="0.5" min="0." max="1.0"
+      />
+      <constValue
+        label="cV_ru_gridChannel_{jj}_v_w{ii}"
+        name="sliderFloatParam"
+        value="#cV_ru_{jj}#" min="0." max="1.0"
+      />
+    </replace>
+    <function label="aF_ru_blade_{jj}">
+      <builder name="vec3dCurveOneD" order="2">
+        <Point_3
+          x="#cV_ru_gridChannel_{jj}_u_w0.00#"
+          y="#cV_ru_gridChannel_{jj}_v_w0.00#"
+          z="0.00"
+        />
+        <Point_3
+          x="#cV_ru_gridChannel_{jj}_u_w0.50#"
+          y="#cV_ru_gridChannel_{jj}_v_w0.50#"
+          z="0.50"
+        />
+        <Point_3
+          x="#cV_ru_gridChannel_{jj}_u_w1.00#"
+          y="#cV_ru_gridChannel_{jj}_v_w1.00#"
+          z="1.00"
+        />
+      </builder>
+    </function>
+    <part label="aG_aF_ru_blade_{jj}">
+      <builder name="vec3dInMap3dTo3d" percent="false">
+        <analyticFunction label="aF_ru_blade_{jj}"/>
+        <analyticGeometry label="rM2dTo3d_ru_channel"/>
+      </builder>
+    </part>
+  </replace>
+
+<!--
+!
+!
+! create mesh domain in 3 spanwise constant planes
+!   - add one point between te and outlet to improve domain geometry
+!
+-->
+  
+  <constValue
+    label="cV_ru_gridChannel_out_u_ext"
+    name="sliderFloatParam"
+    value="1.0" min="0." max="5.0"
+  />
+  <constValue
+    label="cV_ru_gridChannel_out_v_ext"
+    name="sliderFloatParam"
+    value="1.0" min="0." max="5.0"
+  />
+
+  <replace variable="ii" values="{0.00}{0.50}{1.00}">
+    <function label="aF_ru_v3d1d_gridChannel_w{ii}">
+      <builder name="vec3dCurveOneD" order="2">
+        <Point_3 x="#cV_ru_gridChannel_le_u_w{ii}#" y="#cV_ru_gridChannel_in_v_w{ii}#" z="{ii}"/>
+        <Point_3 x="#cV_ru_gridChannel_le>te_u_w{ii}#" y="#cV_ru_gridChannel_le>te_v_w{ii}#" z="{ii}"/>
+        <Point_3 x="#cV_ru_gridChannel_te_u_w{ii}#" y="#cV_ru_gridChannel_out_v_w{ii}#" z="{ii}"/>
+      </builder>
+    </function>
+  </replace>
+
+<!--
+!
+!
+! put inner six points of channel on meanplane
+! 
+!
+-->
+
+
+  <plugin
+    name="constValueAssingRule"
+    label="ru_adjustDomain"
+    assignRule="
+      {
+                                :@rM2dTo3d_ru_channel[-1%](@aS_ru_meanplane_rot[%](0.00, 0.00)@)@:
+                    :cV_ru_gridChannel_le_u_w0.00::cV_ru_gridChannel_le_v_w0.00:
+                  }
+      {
+                                :@rM2dTo3d_ru_channel[-1%](@aS_ru_meanplane_rot[%](0.00, 0.50)@)@:
+                    :cV_ru_gridChannel_le_u_w0.50::cV_ru_gridChannel_le_v_w0.50:
+                  }
+      {
+                                :@rM2dTo3d_ru_channel[-1%](@aS_ru_meanplane_rot[%](0.00, 1.00)@)@:
+                    :cV_ru_gridChannel_le_u_w1.00::cV_ru_gridChannel_le_v_w1.00:
+                  }
+
+                  {
+                                :@rM2dTo3d_ru_channel[-1%](@aS_ru_meanplane_rot[%](0.50, 0.00)@)@:
+                    :cV_ru_gridChannel_le>te_u_w0.00::cV_ru_gridChannel_le>te_v_w0.00:
+                  }
+      {
+                                :@rM2dTo3d_ru_channel[-1%](@aS_ru_meanplane_rot[%](0.50, 0.50)@)@:
+                    :cV_ru_gridChannel_le>te_u_w0.50::cV_ru_gridChannel_le>te_v_w0.50:
+                  }
+      {
+                                :@rM2dTo3d_ru_channel[-1%](@aS_ru_meanplane_rot[%](0.50, 1.00)@)@:
+                    :cV_ru_gridChannel_le>te_u_w1.00::cV_ru_gridChannel_le>te_v_w1.00:
+                  }
+
+      {
+                                :@rM2dTo3d_ru_channel[-1%](@aS_ru_meanplane_rot[%](1.00, 0.00)@)@:
+                    :cV_ru_gridChannel_te_u_w0.00::cV_ru_gridChannel_te_v_w0.00:
+                  }
+      {
+                                :@rM2dTo3d_ru_channel[-1%](@aS_ru_meanplane_rot[%](1.00, 0.50)@)@:
+                    :cV_ru_gridChannel_te_u_w0.50::cV_ru_gridChannel_te_v_w0.50:
+                  }
+      {
+                                :@rM2dTo3d_ru_channel[-1%](@aS_ru_meanplane_rot[%](1.00, 1.00)@)@:
+                    :cV_ru_gridChannel_te_u_w1.00::cV_ru_gridChannel_te_v_w1.00:
+                  }
+      {
+                                :#cV_ru_gridChannel_le_u_w0.00#, 0.:
+                    :cV_ru_gridChannel_in_u_w0.00::cV_ru_gridChannel_in_v_w0.00:
+                  }
+      {
+                                :#cV_ru_gridChannel_le_u_w0.50#, 0.:
+                    :cV_ru_gridChannel_in_u_w0.50::cV_ru_gridChannel_in_v_w0.50:
+                  }
+      {
+                                :#cV_ru_gridChannel_le_u_w1.00#, 0.:
+                    :cV_ru_gridChannel_in_u_w1.00::cV_ru_gridChannel_in_v_w1.00:
+                  }
+      {
+                                :#cV_ru_gridChannel_te_u_w0.00#, 1.0:
+                    :cV_ru_gridChannel_out_u_w0.00::cV_ru_gridChannel_out_v_w0.00:
+                  }
+      {
+                                :#cV_ru_gridChannel_te_u_w0.50#, 1.0:
+                    :cV_ru_gridChannel_out_u_w0.50::cV_ru_gridChannel_out_v_w0.50:
+                  }
+      {
+                                :#cV_ru_gridChannel_te_u_w1.00#, 1.0:
+                    :cV_ru_gridChannel_out_u_w1.00::cV_ru_gridChannel_out_v_w1.00:
+                  }
+                "
+
+  />
+  
+  <replace variable="ii" values="{0.0}{0.5}{1.0}">
+    <part label="aS_ru_blade_rot_v{ii}">
+      <builder name="analyticGeometry">
+        <transformer 
+          name="pickMap2dTo3dRangePercent"
+          parameter_percent_two="{ii}"
+        />
+        <analyticGeometry label="aS_ru_blade_rot"/>
+      </builder>
+    </part>
+  </replace>
+
+  <function label="aF_v3d2d_ru_gridChannel">
+    <builder name="vec3dSurfaceTwoD">
+      <analyticFunction label="aF_ru_v3d1d_gridChannel_w*"/>
+    </builder>
+  </function>
+
+  <part label="aG_v3d2d_ru_gridChannel">
+    <builder name="vec3dInMap3dTo3d" percent="true">
+      <analyticFunction label="aF_v3d2d_ru_gridChannel"/>
+      <analyticGeometry label="rM2dTo3d_ru_channel"/>
+    </builder>
+  </part>
+
+  <part label="rM2dTo3d_ru_fullGridChannel">
+    <builder name="rotatingMap2dTo3d">
+      <analyticGeometry label="aG_v3d2d_ru_gridChannel"/>
+      <Vector_3 label="v3_Nzz"/>
+    </builder>
+  </part>
+
+  <function label="v3d3d_ru_gridChannelCube_y">
+    <builder  name="muParser">
+      <expression
+        value="(1./#cV_ru_nBlades#) * (-0.5 + xx ), yy, zz"
+        dimension="3"
+      />
+      <x_one name="xx" min="0." max="1."/>
+      <x_two name="yy" min="0." max="1"/>
+      <x_three name="zz" min="0." max="1"/>
+    </builder>
+  </function>
+
+  <part label="rM2dTo3d_ru_gridChannel">
+    <builder name="vec3dInMap3dTo3d" percent="true">
+      <analyticFunction label="v3d3d_ru_gridChannelCube_y"/>
+      <analyticGeometry label="rM2dTo3d_ru_fullGridChannel"/>
+    </builder>
+  </part>
+
+  <replace variable="ii" values="{ru}">
+    <replace variable="jj" values="{te_0}{te_1}{0_0}{0_1}{0_2}">
+      <part label="tV_{ii}_meshBlock_closed_{jj}_rot">
+        <builder name="analyticGeometry">
+          <analyticGeometry label="~rot_ru(tV_{ii}_meshBlock_closed_{jj})~"/>
+        </builder>
+      </part>
+    </replace>
+  </replace> 
+
+  <replace variable="ii" values="{ruWithRoundingRounding}{ruWithRoundingBlade}">
+    <replace variable="jj" values="{te_0}{te_1}{0_0}{0_2}{le_0}{le_1}">
+      <part label="tV_{ii}_meshBlock_closed_{jj}_rot">
+        <builder name="analyticGeometry">
+          <analyticGeometry label="~rot_ru(tV_{ii}_meshBlock_closed_{jj})~"/>
+        </builder>
+      </part>
+    </replace>
+  </replace>
+
+</ru_gridChannel>
+
+
+
+
+
+
+
+
+
+
+

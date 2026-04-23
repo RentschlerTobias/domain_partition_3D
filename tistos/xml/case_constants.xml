@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<case_constants>
+
+  <constValue label="cV_n" name="sliderFloatParam" value="90." min="0." max="100."/>
+  <constValue label="cV_omega" name="constrainedFloatParam" value="2.*_pi/60. * #cV_n#" min="0." max="100."/>
+  <constValue label="cV_I" name="sliderFloatParam" value="0.05" min="0." max="1."/>
+  <constValue label="cV_U_n" name="sliderFloatParam" value="6." min="0." max="100."/>
+  <constValue label="cV_U_tl" name="sliderFloatParam" value="5.5" min="0." max="100."/>
+  <constValue label="cV_U_vl" name="sliderFloatParam" value="6.5" min="0." max="100."/>
+
+  <constValue label="cV_Cmu" name="sliderFloatParam" value="0.09" min="0." max="1."/>
+
+  <constValue label="cV_L" name="constrainedFloatParam" value="2*(#cV_r_shroud#-#cV_r_hub#)*#cV_Cmu#^(-1/4)" min="0" max="10"/>
+
+
+</case_constants>

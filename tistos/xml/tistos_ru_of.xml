@@ -1,0 +1,483 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<tistos_ru_of>
+        <replace variable="ii" values="{n}{tl}{vl}">
+        <case 
+        name="ofOpenFOAMCase" 
+        label="tistos_ru_of_{ii}"
+        noWriteRule="
+        {
+        1
+        (
+        }
+        {
+        )
+        }
+        "
+        dictRule="
+                controlDict 
+                {
+                dtOOFileName      &quot;system/controlDict&quot;;
+                                        application       simpleFoam;
+                                        startFrom         latestTime;
+                                        startTime         0;
+                                        stopAt            endTime;
+                                        endTime           1000;
+                                        deltaT            1;
+                                        writeInterval     500;  
+                                        runTimeModifiable yes;
+                                        writeFormat       binary;
+                                        functions {
+        ptot {
+                type pressure ;
+                libs (fieldFunctionObjects) ;
+                mode total ;
+                result ptot ;
+                rho rhoInf ;
+                rhoInf 1.0 ;
+                writeControl writeTime ;
+                executeControl timeStep ;
+                executeInterval 1 ;
+        }        
+        Q_ru_in {
+                type surfaceFieldValue ;
+                libs (fieldFunctionObjects) ;
+                enabled yes ;
+                writeControl timeStep ;
+                regionType patch ;
+                names (RU_INLET) ;
+                operation sum ;
+                writeFields no ;
+                fields (phi) ;
+        }
+        Q_ru_out {
+                type surfaceFieldValue ;
+                libs (fieldFunctionObjects) ;
+                enabled yes ;
+                writeControl timeStep ;
+                regionType patch ;
+                names (RU_OUTLET) ;
+                operation sum ;
+                writeFields no ;
+                fields (phi) ;
+        }
+        Q_ru_periops {
+                type surfaceFieldValue ;
+                libs (fieldFunctionObjects) ;
+                enabled yes ;
+                writeControl timeStep ;
+                regionType patch ;
+                names (RU_PERIOPS) ;
+                operation sum ;
+                writeFields no ;
+                fields (phi) ;
+        }
+        Q_ru_perioss {
+                type surfaceFieldValue ;
+                libs (fieldFunctionObjects) ;
+                enabled yes ;
+                writeControl timeStep ;
+                regionType patch ;
+                names (RU_PERIOSS) ;
+                operation sum ;
+                writeFields no ;
+                fields (phi) ;
+        }
+        ptot_ru_in {
+                type surfaceFieldValue ;
+                libs (fieldFunctionObjects) ;
+                enabled yes ;
+                writeControl timeStep ;
+                regionType patch ;
+                names (RU_INLET) ;
+                operation weightedAverage ;
+                weightField phi ;
+                writeFields no ;
+                fields (ptot) ;
+        }
+        ptot_ru_out {
+                type surfaceFieldValue ;
+                libs (fieldFunctionObjects) ;
+                enabled yes ;
+                writeControl timeStep ;
+                regionType patch ;
+                names (RU_OUTLET) ;
+                operation weightedAverage ;
+                weightField phi ;
+                writeFields no ;
+                fields (ptot) ;
+        }
+        ptot_ru_periops {
+                type surfaceFieldValue ;
+                libs (fieldFunctionObjects) ;
+                enabled yes ;
+                writeControl timeStep ;
+                regionType patch ;
+                names (RU_PERIOPS) ;
+                operation weightedAverage ;
+                weightField phi ;
+                writeFields no ;
+                fields (ptot) ;
+        }
+        ptot_ru_perioss {
+                type surfaceFieldValue ;
+                libs (fieldFunctionObjects) ;
+                enabled yes ;
+                writeControl timeStep ;
+                regionType patch ;
+                names (RU_PERIOSS) ;
+                operation weightedAverage ;
+                weightField phi ;
+                writeFields no ;
+                fields (ptot) ;
+        }
+        forces {
+                type forces ;
+                libs ( &quot;libforces.so&quot; );
+                outputControl timeStep ;
+                outputInterval 1 ;
+                patches ( RU_BLADE ) ;
+                rho rhoInf ;
+                log true ;
+                rhoInf 997 ;
+                CofR ( 0 0 0 ) ;
+        }
+        V_CAV {
+                type cavitationVolume ;
+                libs (cavitationVolume) ;
+                enabled yes ;
+                writeControl timeStep ;
+                operation sum ;
+                writeFields no ;
+                fields (p) ;
+        }
+
+        
+        convertToCylindrical {
+                // Mandatory entries (unmodifiable)
+                type            fieldCoordinateSystemTransform;
+                libs            (fieldFunctionObjects);
+
+                // Mandatory entries (runtime modifiable)
+                fields          (U);
+                coordinateSystem
+                {
+                type            cylindrical;
+                origin          (0 0 0);
+                rotation
+                {
+                        type            cylindrical;
+                        axis            (0 0 1);
+                }
+                }
+
+                writeControl    writeTime;
+                }
+
+                yPlus1 {
+                // Mandatory entries (unmodifiable)
+                type            yPlus;
+                libs            (fieldFunctionObjects);
+
+                writeControl    writeTime;
+                }
+
+
+                wallShearStress
+                {
+                // Mandatory entries (unmodifiable)
+                type            wallShearStress;
+                libs            (fieldFunctionObjects);
+
+                // Optional entries (runtime modifiable)
+                patches         ();
+
+                writeControl    writeTime;
+                }
+        };
+        
+        mappedFieldFixedValue
+        {
+            pathToData      &quot;../boundaryData_RU_INLET/{ii}/boundaryData&quot;;
+        }
+
+        libs (
+                                                &quot;libmappedFieldFixedValue.so&quot;
+                                        );
+                }
+
+        decomposeParDict
+                                {
+                                        dtOOFileName        &quot;system/decomposeParDict&quot;;
+
+                                        method          metis;
+                                        numberOfSubdomains 8;
+        }
+
+        fvSchemes
+                        {
+                        dtOOFileName        &quot;system/fvSchemes&quot;;
+                                        ddtSchemes
+                                        {
+                                                default steadyState;
+                                        }
+
+                                        gradSchemes
+                                        {
+                                                default         cellLimited Gauss linear 0.33;
+                                                grad(p)         cellLimited Gauss linear 0.33;
+                                                grad(U)         cellLimited Gauss linear 0.33;
+                                        }
+
+                                        divSchemes
+                                        {
+                                                default           none;
+                                                div(phi,U)        Gauss linearUpwindV cellLimited Gauss linear 0.33;
+                                                div(phi,k)        Gauss upwind;
+                                                div(phi,omega)  Gauss upwind;
+                                                div((nuEff*dev(grad(U).T()))) Gauss linear;
+                                                div((nuEff*dev2(T(grad(U))))) Gauss linear;
+                                        }
+
+                                        laplacianSchemes
+                                        {
+                                                default Gauss linear limited 0.333;
+                                        }
+
+                                        snGradSchemes
+                                        {
+                                                default limited 0.333;
+                                        }
+
+                                        interpolationSchemes
+                                        {
+                                                default         linear;
+                                                interpolate(U)  linear;
+                                        }
+
+                                        fluxRequired
+                                        {
+                                                default         no;
+                                                p;
+                                        }
+                        
+                                        wallDist
+                                        {
+                                            method          meshWave;
+                                        }
+
+
+        }
+
+        fvSolution
+                        {
+                        dtOOFileName        &quot;system/fvSolution&quot;;
+                                        solvers
+                                        {
+                                                p
+                                                {
+                                                        solver           PCG;
+                                                        preconditioner   FDIC;
+                                                        tolerance        1e-06;
+                                                        relTol           0.1;
+                                                };
+                                                U
+                                                {
+                                                        solver           PBiCGStab;
+                                                        preconditioner   DILU;
+                                                        tolerance        1e-08;
+                                                        relTol           0.0;
+                                                };
+                                                k
+                                                {
+                                                        solver           PBiCGStab;
+                                                        preconditioner   DILU;
+                                                        tolerance        1e-08;
+                                                        relTol           0.0;
+                                                };
+                                                omega
+                                                {
+                                                        solver           PBiCGStab;
+                                                        preconditioner   DILU;
+                                                        tolerance        1e-08;
+                                                        relTol           0.0;
+                                                };
+                                        }
+                                        relaxationFactors
+                                        {
+                                                p               0.3;
+                                                U               0.7;
+                                                k               0.7;
+                                                omega           0.7;
+                                        }
+                                        SIMPLE
+                                        {
+                                                nNonOrthogonalCorrectors 2;
+                                        }
+        }
+
+        transportModel
+                        {
+                                        dtOOFileName        &quot;constant/transportProperties&quot;;
+                                        transportModel  Newtonian;
+
+                                        nu              nu [0 2 -1 0 0 0 0] 1.0e-06;
+        }
+
+        turbulenceProperties
+                {
+                                        dtOOFileName        &quot;constant/turbulenceProperties&quot;;
+
+                        simulationType        RAS;
+
+                        RAS {
+                                RASModel            kOmegaSST;
+                                turbulence          on;
+                                printCoeffs         on;
+                                }
+        }
+
+        MRFProperties
+                {
+                        dtOOFileName        &quot;constant/MRFProperties&quot;;
+
+                                        MRF_RU
+                                        {
+                                                cellZone           RU;
+                                                active             yes;
+                                                patches            ();
+                                                nonRotatingPatches ( RU_INLET RU_OUTLET RU_SHROUD RU_PERIOPS RU_PERIOSS );
+                                                origin             (0 0 0);
+                                                axis               (0 0 1);
+                                                omega              -#cV_omega#;
+                                        }
+        }
+        "
+        fieldRule="
+                                {
+                                        :volVectorField::U::[0 1 -1 0 0 0 0]::(0 0 #cV_U_{ii}# ):
+                                }
+                                {
+                                        :volScalarField::p::[0 2 -2 0 0 0 0]::0:
+                                }
+                                {
+                                        :volScalarField::k::[0 2 -2 0 0 0 0]::`(3./2.) * (#cV_U_{ii}# * #cV_I#)^2`:
+                                }
+                                {
+                                        :volScalarField:
+                                        :omega:
+                                        :[0 0 -1 0 0 0 0]:
+                                        :`((3./2.) * (#cV_U_{ii}# * #cV_I#)^2)^(1./2.) / (0.038 * #cV_L#)`:
+                                }
+                                {
+                                        :volScalarField::nut::[0 2 -1 0 0 0 0]:
+                                        :`#cV_Cmu#*((3./2.) * (#cV_U_{ii}# * #cV_I#)^2)^(2.)/(#cV_Cmu#*((3./2.) * (#cV_U_{ii}# * #cV_I#)^2)^(3./2.) / (0.038 * #cV_L#))`:
+                                }
+        "
+
+        setupRule="
+                        {
+                                        :ofOpenFOAMEmptyRule:::::
+                                }
+                        {
+                                        :ofOpenFOAMMappedFieldFixedValueRule::RU_INLET:::
+                                        :U::mappedFieldFixedValue(
+                                                        offset          (0 0 0);
+                                                        setAverage      0;
+                                                        scaleVolumeFlow
+                                                        {
+                                                            normalVelocity  #cV_U_{ii}#;
+                                                        }
+                                                ):
+                                        :p::zeroGradient(value uniform 0;):
+                                        :k::mappedFieldFixedValue(
+                                                        offset          0;
+                                                        setAverage      off;
+                                                ):
+                                        :omega::mappedFieldFixedValue(
+                                                        offset          0;
+                                                        setAverage      off;
+                                                ):
+                                }
+                {
+                                        :ofOpenFOAMSetupRule::RU_OUTLET:::
+                                        :U::zeroGradient(value uniform (0 0 4);):
+                                        :p::fixedValue(value uniform 0;):
+                                        :k::zeroGradient(
+                                                        value          uniform 0.;
+                                                ):
+                                        :omega::zeroGradient(
+                                                        value uniform 0.;
+                                                ):
+                                }
+                        {
+                                        :ofOpenFOAMWallRule::RU_SHROUD:::
+                                        :U::fixedValue(value uniform (0 0 0);):
+                                        :p::zeroGradient(value uniform 0;):
+                                        :k::kqRWallFunction(value uniform 0;):
+                                        :omega::omegaWallFunction(
+                                                                U        U;
+                                                                refValue uniform 0.0;
+                                                                blending        stepwise;
+                                                                value    uniform `((3./2.) * (#cV_U_{ii}# * #cV_I#)^2)^(1./2.) / (0.038 * #cV_L#)`;
+                                                ):
+                                        :nut::nutkWallFunction(value uniform 0.0;):
+                                }
+                        {
+                                        :ofOpenFOAMWallRule::RU_HUB:::
+                                        :U::fixedValue(value uniform (0 0 0);):
+                                        :p::zeroGradient(value uniform 0;):
+                                        :k::kqRWallFunction(value uniform 0;):
+                                        :omega::omegaWallFunction(
+                                                                U        U;
+                                                                refValue uniform 0.0;
+                                                                blending        stepwise;
+                                                                value    uniform `((3./2.) * (#cV_U_{ii}# * #cV_I#)^2)^(1./2.) / (0.038 * #cV_L#)`;
+                                                ):
+                                        :nut::nutkWallFunction(value uniform 0.0;):
+                                }
+                        {
+                                        :ofOpenFOAMWallRule::RU_BLADE:::
+                                        :U::fixedValue(value uniform (0 0 0);):
+                                        :p::zeroGradient(value uniform 0;):
+                                        :k::kqRWallFunction(value uniform 0;):
+                                        :omega::omegaWallFunction(
+                                                                U        U;
+                                                                refValue uniform 0.0;
+                                                                blending        stepwise;
+                                                                value    uniform `((3./2.) * (#cV_U_{ii}# * #cV_I#)^2)^(1./2.) / (0.038 * #cV_L#)`;
+                                                ):
+                                        :nut::nutkWallFunction(value uniform 0.0;):
+                                }
+                        {
+                                        :ofOpenFOAMCyclicAmiRule::RU_PERIOPS,RU_PERIOSS:
+                        :
+                        RU_PERIOPS(
+                                transform       rotational;
+                                rotationAxis    (0 0 1);
+                                rotationCentre  (0 0 0);
+                                ),
+                                RU_PERIOSS
+                                (
+                                transform       rotational;
+                                rotationCentre  (0 0 0);
+                                rotationAxis    (0 0 1);
+                                )
+                                :
+                        }
+        "
+        runCommand="pwd"
+                >
+                        <option name="keepOrientation" value="true"/>
+
+                        <boundedVolume label="ru_gridGmsh"/>
+                </case>
+        </replace>
+
+</tistos_ru_of>
+
+
+
+
+
+
+

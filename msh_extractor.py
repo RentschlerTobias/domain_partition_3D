@@ -24,7 +24,8 @@ class MshExtractor:
             load_path = output_path
         elif ext == ".msh":
             if remesh:
-                self._remesh_msh(input_path, output_path, element_size, angle)
+                self._remesh_msh(input_path, output_path, element_size,
+                                 angle, include_boundary, force_param, curve_angle)
                 load_path = output_path
             else:
                 load_path = input_path

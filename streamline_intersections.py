@@ -141,6 +141,96 @@ def detect_quad_faces(vertices: np.ndarray, edges: np.ndarray) -> list[list[int]
                         # Order vertices to form a proper cycle around the face
                         quad_faces.append([i, k, j, l])
 
+    if not quad_faces:
+        return np.empty((4, 0), dtype=int)
     quads = np.array(quad_faces).T
 
     return quads
+
+
+def find_corners_in_loop(loop, angle_threshold=np.pi/3):
+    """Find sharp corners in a closed boundary loop."""
+    angles = []
+    for j in range(1, len(loop) - 1):
+        v1 = loop[j] - loop[j-1]
+        v2 = loop[j+1] - loop[j]
+        v1_norm = np.linalg.norm(v1)
+        v2_norm = np.linalg.norm(v2)
+        if v1_norm > 1e-10 and v2_norm > 1e-10:
+            v1 = v1 / v1_norm
+            v2 = v2 / v2_norm
+            dot = np.clip(np.dot(v1, v2), -1.0, 1.0)
+            angle = np.arccos(dot)
+            angles.append(angle)
+        else:
+            angles.append(0)
+    angles = np.array(angles)
+    corner_indices = np.where(angles > angle_threshold)[0]
+    return corner_indices, angles
+
+
+def split_loop_into_segments(loop, corner_indices):
+    """Split a closed loop into segments between corner points."""
+    segments = []
+    n = len(loop) - 1  # Exclude duplicate last point
+    corners = sorted(corner_indices)
+    
+    for i in range(len(corners)):
+        start = corners[i]
+        end = corners[(i + 1) % len(corners)]
+        if end > start:
+            segment = loop[start:end+1]
+        else:
+            # Wrap around the end of the loop
+            segment = np.vstack([loop[start:], loop[1:end+1]])
+        segments.append(segment)
+    
+    return segments
+
+
+def fix_perfect_surface(block_structure, splitted_streamlines, raw_streamlines=None):
+    """For surfaces with no internal singularities (only boundary loops),
+    split the single boundary loop into 4 segments at the sharpest corners
+    and treat the entire surface as a single face.
+    
+    Uses raw_streamlines (before splitting) as fallback, because split_streamlines
+    may break the boundary loop into many small segments at shared points."""
+    for surface_tag in list(block_structure.keys()):
+        faces = block_structure[surface_tag]['faces']
+        if faces.shape[1] > 0:
+            continue
+        
+        # Try to find a closed loop
+        streamlines = splitted_streamlines[surface_tag]
+        loops = [sl for sl in streamlines if np.array_equal(sl[0], sl[-1])]
+        
+        # If split broke the loop, use raw streamlines instead
+        if len(loops) != 1 and raw_streamlines is not None:
+            streamlines = raw_streamlines[surface_tag]
+            loops = [sl for sl in streamlines if np.array_equal(sl[0], sl[-1])]
+        
+        if len(loops) != 1:
+            continue
+        
+        loop = loops[0]
+        corner_indices, angles = find_corners_in_loop(loop)
+        
+        if len(corner_indices) != 4:
+            continue
+        
+        segments = split_loop_into_segments(loop, corner_indices)
+        corner_vertices = loop[corner_indices]
+        
+        # Build new block structure for single face
+        edge_to_streamline = {}
+        for i in range(4):
+            va, vb = i, (i + 1) % 4
+            edge_to_streamline[(va, vb)] = segments[i]
+            edge_to_streamline[(vb, va)] = segments[i][::-1]
+        
+        block_structure[surface_tag]['vertices'] = corner_vertices
+        block_structure[surface_tag]['edges'] = np.array([[0,1], [1,2], [2,3], [3,0]])
+        block_structure[surface_tag]['edge_to_streamline'] = edge_to_streamline
+        block_structure[surface_tag]['faces'] = np.array([[0], [1], [2], [3]])
+        
+    return block_structure

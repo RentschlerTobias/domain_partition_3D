@@ -58,15 +58,28 @@ Blocking applied to Case199_pre_all.stl (really slow rendering) with autmaticall
 
 ---
 
-## 3. Automated Python Workflow
+## 3. T1_9 Turbine Hub Pipeline
 
-### 3.1 Installation
+A dedicated pipeline for the T1_9 test case extracts the hub surface, remeshes it with the quasi-structured quad algorithm, and generates a coarse block structure.
+
+```bash
+python run_t1_9_hub.py
+```
+
+This produces:
+- `T1_9_hub.stl` – extracted hub surface (z=0)
+- `T1_9_hub_remeshed.msh` – quasi-structured quad mesh
+- `T1_9_hub_blocks.vtk` – coarse block structure (4-sided blocks)
+
+### 3.1 Automated Python Workflow
+
+### 3.2 Installation
 
 ```bash
 pip install -r requirements.txt
 ```
 
-The repository ships with a `requirements.txt` containing (tested using python v3.13.12):
+The repository ships with a `requirements.txt` containing (tested using python v3.12.3):
 - `numpy`
 - `gmsh` 
 - `scipy` 
@@ -75,7 +88,7 @@ The repository ships with a `requirements.txt` containing (tested using python v
 - `meshio`
 - `plotly` 
 
-### 3.2 Usage
+### 3.3 Usage
 
 ```python
 from msh_extractor import MshExtractor
@@ -122,7 +135,7 @@ faces_to_html(
 )
 ```
 
-### 3.3 Class & Function Overview
+### 3.4 Class & Function Overview
 
 | Component | Purpose |
 |-----------|---------|

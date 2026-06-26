@@ -1,0 +1,327 @@
+#!/usr/bin/env python3
+"""
+Stage 1 / Step C: Run domain_partition's 2D cross-field block partition on the
+unwrapped surface mesh.
+
+Pipeline (mirrors domain_partition/data_generator.py:get_mesh):
+    FrameField -> detect_singularities -> StreamlineGenerator_v2
+               -> StreamlinePostProcessor -> block_mesh
+
+One deviation: StreamlineGenerator_v2 hardcodes the v1 ``SeparatrixGenerator``,
+whose vector interpolation divides by a zero-norm field near singularities and
+returns ``None`` (the NACA data-gen never hit it because it filters to
+near-zero-singularity cases). We monkeypatch in ``SeparatrixGenerator_v2``,
+which guards that case. No edits to the domain_partition repo.
+
+Returns the 2D block mesh (block_mesh.x = (N,2) corners, block_mesh.faces =
+(4,B) quad blocks) plus the affine (s,t)<-[0,1]^2 transform for back-mapping.
+"""
+
+import sys
+from pathlib import Path
+
+import numpy as np
+import torch
+
+sys.path.insert(0, "/root/repos/domain_partition")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+# --- swap in our robust separatrix emanation finder ---
+# domain_partition's v1/v2 generators are buggy and untested on real
+# singularities; only the RK/Heun integrator in StreamlineGenerator_v2 is sound.
+import tools.streamline_generator_v2 as _sg2  # noqa: E402
+from clean_separatrix import CleanSeparatrixGenerator  # noqa: E402
+_sg2.SeparatrixGenerator = CleanSeparatrixGenerator
+
+from tools import FrameField, StreamlineGenerator_v2, StreamlinePostProcessor  # noqa: E402
+from tools.singularity_detector import detect_singularities  # noqa: E402
+from dp_adapter import build_dp_data  # noqa: E402
+
+
+def _robust_find_containing_face(self, point, mesh):
+    """Robust point location. The upstream version only tests faces incident to
+    the single nearest node, so a streamline stepping into a non-incident face
+    drops out of the mesh mid-domain and the separatrix dies early (-> dangling
+    stubs that never reach their target). We test faces of the k nearest nodes,
+    then fall back to a brute-force scan. Returns a face index or None."""
+    p = point.detach().numpy() if hasattr(point, "detach") else np.asarray(point)
+    nodes = mesh.x[:, 0:2].numpy()
+    faces = mesh.faces.numpy()
+    d = np.sum((nodes - p) ** 2, axis=1)
+    near = np.argsort(d)[:6]
+    cand = []
+    for nid in near:
+        cand.extend(mesh.nodes_faces_ids.get(int(nid), []))
+    for fi in dict.fromkeys(cand):
+        if _point_in_tri(p, nodes[faces[:, fi]]):
+            return fi
+    for fi in range(faces.shape[1]):  # brute fallback
+        if _point_in_tri(p, nodes[faces[:, fi]]):
+            return fi
+    return None
+
+
+def _point_in_tri(p, tri, eps=1e-9):
+    v0 = tri[2] - tri[0]
+    v1 = tri[1] - tri[0]
+    v2 = p - tri[0]
+    d00 = v0 @ v0; d01 = v0 @ v1; d02 = v0 @ v2
+    d11 = v1 @ v1; d12 = v1 @ v2
+    den = d00 * d11 - d01 * d01
+    if abs(den) < 1e-18:
+        return False
+    u = (d11 * d02 - d01 * d12) / den
+    v = (d00 * d12 - d01 * d02) / den
+    return (u >= -eps) and (v >= -eps) and (u + v <= 1 + eps)
+
+
+StreamlineGenerator_v2.find_containing_face = _robust_find_containing_face
+
+
+def _add_cross_at_boundaries_fixed(self):
+    """Corrected FrameField.add_cross_at_boundaries.
+
+    The upstream version stores the boundary Dirichlet cross at array position
+    ``i`` (the loop counter over boundary nodes), but the solver in
+    ``compute_initial_frame_field`` reads ``frame_field_coords[node_id]``. These
+    only agree when boundary node ids happen to be 0..K-1 (true for the NACA
+    gmsh meshes, false for a welded STL with scattered ids) -> scrambled BC ->
+    spurious singularities. We store at the node id instead. Geometry/angle
+    logic is verbatim from the upstream method.
+    """
+    pi = torch.pi
+    mesh = self.mesh
+    num_nodes = mesh.x.size(0)
+    mask_boundaryEdges = mesh.edge_attr == 1
+    idx_boundaryNodes = torch.unique(mesh.edge_index[0, mask_boundaryEdges])
+    boundary_edges = mesh.edge_index[:, mask_boundaryEdges]
+
+    frame_field_angle = torch.zeros((num_nodes), dtype=torch.float)
+    frame_field_coords = torch.zeros((num_nodes, 2), dtype=torch.float)
+
+    for idx_current_node in idx_boundaryNodes:
+        nid = int(idx_current_node)
+        boundary_edges_of_node = torch.where(boundary_edges[0, :] == idx_current_node)[0]
+        neighbours_idx = boundary_edges[1, boundary_edges_of_node]
+        source_node = mesh.x[idx_current_node, 0:2]
+        destination_node0 = mesh.x[neighbours_idx[0], 0:2]
+        destination_node1 = mesh.x[neighbours_idx[1], 0:2]
+
+        edge0 = destination_node0 - source_node
+        edge1 = destination_node1 - source_node
+        edge0_normalized = edge0 / torch.norm(edge0, p=2)
+        edge1_normalized = edge1 / torch.norm(edge1, p=2)
+        edge_mid_normalized = edge0_normalized + edge1_normalized
+
+        angle = torch.atan2(edge_mid_normalized[1], edge_mid_normalized[0]) % (2 * pi)
+        angle0 = torch.atan2(edge0_normalized[1], edge0_normalized[0]) % (2 * pi)
+        angle1 = torch.atan2(edge1_normalized[1], edge1_normalized[0]) % (2 * pi)
+
+        angle_diff = torch.abs((angle1 - angle0 + pi) % (2 * pi) - pi)
+        if 0.95 * (pi / 2) < angle_diff < 1.05 * (pi / 2):
+            ref_angle = self.map_cross_vectors_to_reference_vector(angle0)
+        else:
+            ref_angle = self.map_cross_vectors_to_reference_vector(angle)
+
+        frame_field_angle[nid] = ref_angle
+        frame_field_coords[nid, 0] = torch.cos(ref_angle)
+        frame_field_coords[nid, 1] = torch.sin(ref_angle)
+
+    self.mesh.frame_field_angle = frame_field_angle
+    self.mesh.frame_field_coords = frame_field_coords
+
+
+FrameField.add_cross_at_boundaries = _add_cross_at_boundaries_fixed
+
+
+def partition(stl_path, verbose=True):
+    """Run cross-field block partition on the unwrapped surface.
+
+    Returns (block_mesh, mesh, transform):
+      block_mesh.x      (Nc,2) block corner nodes in normalized [0,1]^2
+      block_mesh.faces  (4,B)  quad block connectivity
+      mesh              the triangulated mesh w/ field, separatrices, streamlines
+      transform         affine map normalized [0,1]^2 -> (s,t)
+    """
+    mesh, transform = build_dp_data(stl_path)
+
+    ff = FrameField(mesh)
+    m = detect_singularities(ff.mesh)
+    n_sing = int((m.singularities != 0).sum())
+
+    sl = StreamlineGenerator_v2(ff.mesh)
+    _snap_separatrix_endpoints(sl.mesh, radius=0.045)
+    pp = StreamlinePostProcessor(sl.mesh, verbose=False)
+    block_mesh = pp.block_mesh
+    n_blocks = block_mesh.faces.shape[1] if block_mesh.faces is not None else 0
+    if verbose:
+        print(f"[partition] singularities={n_sing}  "
+              f"separatrices={len(sl.mesh.separatrices)}  "
+              f"-> {n_blocks} quad blocks ({block_mesh.x.shape[0]} corners)")
+    return block_mesh, sl.mesh, transform
+
+
+def _termination_nodes(mesh):
+    """Targets a separatrix may end on: singularities + c0 corners."""
+    pts = [np.array(c) for c in mesh.singularities_coords.values()]
+    corners = mesh.x[mesh.x[:, 2] == 0, 0:2].numpy()
+    pts.extend(list(corners))
+    return np.array(pts) if pts else np.zeros((0, 2))
+
+
+def _project_to_polyline(p, poly):
+    """Closest point on a polyline. Returns (seg_index, t, dist, proj_point)."""
+    best = (None, 0.0, np.inf, None)
+    for i in range(len(poly) - 1):
+        a, b = poly[i], poly[i + 1]
+        ab = b - a
+        L2 = ab @ ab
+        t = 0.0 if L2 < 1e-18 else np.clip((p - a) @ ab / L2, 0.0, 1.0)
+        proj = a + t * ab
+        d = np.linalg.norm(p - proj)
+        if d < best[2]:
+            best = (i, t, d, proj)
+    return best
+
+
+def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05):
+    """Kowalski post-processing: every separatrix must end on a singularity, a
+    c0 corner, or the boundary dOmega (outer *and* the inner blade loop). The RK
+    integrator drifts past targets and the block graph only treats streamline
+    *endpoints* as nodes, so we:
+      (1) truncate+snap a separatrix to the first point-target (singularity/
+          corner) it enters, else
+      (2) snap its dangling end onto the nearest boundary polyline and *split*
+          that boundary streamline at the snap point, so the new T-junction is a
+          shared graph node and blocks can close against it (notably the blade).
+    """
+    nodes = _termination_nodes(mesh)
+    n_boundary = len(mesh.streamlines) - len(mesh.separatrices)
+    boundary = [np.asarray(s, float) for s in mesh.streamlines[:n_boundary]]
+    seps = [np.asarray(s, float) for s in mesh.streamlines[n_boundary:]]
+
+    # split points to insert on each boundary streamline (arc positions)
+    splits = {i: [] for i in range(n_boundary)}
+    out_seps = []
+    n_pt, n_bnd = 0, 0
+    for s in seps:
+        if s.ndim != 2 or len(s) < 2:
+            out_seps.append(s)
+            continue
+        origin = s[0]
+        origin_node = int(np.argmin(np.linalg.norm(nodes - origin, axis=1))) \
+            if len(nodes) else -1
+        # (1) point-target snapping along the path
+        cut = False
+        for j in range(1, len(s)):
+            if len(nodes) == 0:
+                break
+            d = np.linalg.norm(nodes - s[j], axis=1)
+            k = int(np.argmin(d))
+            if d[k] < radius and k != origin_node:
+                s = np.vstack([s[:j], nodes[k]])
+                cut = True
+                n_pt += 1
+                break
+        # (2) boundary snapping of the (still dangling) end
+        if not cut:
+            end = s[-1]
+            best = (None, None, np.inf, None)
+            for bi, poly in enumerate(boundary):
+                seg, t, dist, proj = _project_to_polyline(end, poly)
+                if dist < best[2]:
+                    best = (bi, (seg, t), dist, proj)
+            if best[0] is not None and best[2] < bnd_radius:
+                bi, (seg, t), _, proj = best
+                s = np.vstack([s[:-1], proj])
+                splits[bi].append((seg + t, proj))
+                n_bnd += 1
+        out_seps.append(s)
+
+    # rebuild boundary streamlines, split at all recorded T-junctions
+    new_boundary = []
+    for bi, poly in enumerate(boundary):
+        pts = sorted(splits[bi])
+        if not pts:
+            new_boundary.append(poly)
+            continue
+        cuts = []
+        cur = [poly[0]]
+        ptr = 0
+        for i in range(len(poly) - 1):
+            cur.append(poly[i + 1])
+            while ptr < len(pts) and seg_floor(pts[ptr][0]) == i:
+                proj = pts[ptr][1]
+                cur[-1] = proj  # end this sub-streamline at the T-junction
+                cuts.append(np.array(cur))
+                cur = [proj, poly[i + 1]]
+                ptr += 1
+        cuts.append(np.array(cur))
+        new_boundary.extend(c for c in cuts if len(c) >= 2)
+
+    mesh.streamlines = new_boundary + out_seps
+    print(f"[snap] point-snapped {n_pt}, boundary-snapped {n_bnd}; "
+          f"boundary {n_boundary}->{len(new_boundary)} segments")
+
+
+def seg_floor(x):
+    return int(np.floor(x))
+
+
+def _plot_separatrices(mesh, out_png):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    xy = mesh.x[:, 0:2].numpy()
+    tris = mesh.faces.T.numpy()
+    n_b = len(mesh.streamlines) - len(mesh.separatrices)
+    fig, ax = plt.subplots(figsize=(9, 8))
+    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.92")
+    for i, s in enumerate(mesh.streamlines):
+        s = np.asarray(s, dtype=float)
+        if s.ndim != 2 or len(s) < 2:
+            continue
+        ax.plot(s[:, 0], s[:, 1], "0.4" if i < n_b else "C3",
+                lw=1.0 if i < n_b else 1.4)
+    sc = xy[tris[mesh.singularities.numpy() != 0]].mean(axis=1)
+    ax.scatter(sc[:, 0], sc[:, 1], c="blue", s=70, zorder=6, label="singularity")
+    cm = mesh.x[:, 2].numpy() == 0
+    ax.scatter(xy[cm, 0], xy[cm, 1], c="green", s=60, marker="^", zorder=6,
+               label="c0 corner")
+    ax.set_aspect("equal")
+    ax.legend()
+    ax.set_title(f"{len(mesh.separatrices)} separatrices, "
+                 f"{int((mesh.singularities.numpy()!=0).sum())} singularities")
+    fig.savefig(out_png, dpi=140, bbox_inches="tight")
+    print(f"wrote {out_png}")
+
+
+def _plot_blocks(block_mesh, mesh, out_png):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    xy = mesh.x[:, 0:2].numpy()
+    tris = mesh.faces.T.numpy()
+    bx = block_mesh.x.numpy()
+    bf = block_mesh.faces.numpy().T  # (B,4)
+    fig, ax = plt.subplots(figsize=(9, 7))
+    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.92")
+    for quad in bf:
+        ring = bx[list(quad) + [quad[0]]]
+        ax.fill(ring[:, 0], ring[:, 1], alpha=0.25)
+        ax.plot(ring[:, 0], ring[:, 1], "C0", lw=1.3)
+    ax.scatter(bx[:, 0], bx[:, 1], c="k", s=8, zorder=5)
+    ax.set_aspect("equal")
+    ax.set_title(f"Hub quad block partition: {bf.shape[0]} blocks")
+    fig.savefig(out_png, dpi=140, bbox_inches="tight")
+    print(f"wrote {out_png}")
+
+
+if __name__ == "__main__":
+    stl = sys.argv[1] if len(sys.argv) > 1 else \
+        "/root/repos/block_structured_meshing/T1_9_hub_raw.stl"
+    out = Path("/root/repos/block_structured_meshing/output/T1_9/hub_stage1")
+    out.mkdir(parents=True, exist_ok=True)
+    block_mesh, mesh, tf = partition(stl)
+    _plot_blocks(block_mesh, mesh, out / "blocks_2d.png")
+    _plot_separatrices(mesh, out / "separatrices.png")

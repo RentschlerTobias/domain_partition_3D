@@ -93,6 +93,17 @@ def build_dp_data(stl_path, corner_angle_deg=40.0):
     mesh.face_attr = shim.add_face_attr()
     shim.getFaceCenterPoints()  # sets mesh.centerPoints
 
+    # --- corner types + blade outlines (normalized to [0,1]^2 like mesh.x) ---
+    mesh.corner_type = torch.from_numpy(u["corner_type"].astype(np.int64))
+
+    def _normalize(arr):
+        out = np.empty_like(arr, dtype=np.float64)
+        out[:, 0] = (arr[:, 0] - smin) / (smax - smin)
+        out[:, 1] = (arr[:, 1] - tmin) / (tmax - tmin)
+        return out
+
+    mesh.blade_loops = [_normalize(np.asarray(bl, float)) for bl in u["blade_loops"]]
+
     return mesh, transform
 
 
@@ -107,6 +118,9 @@ if __name__ == "__main__":
           "corners", int((mesh.x[:, 2] == 0).sum()))
     print("streamlines", len(mesh.streamlines),
           "sizes", [len(s) for s in mesh.streamlines])
+    print("corner_type: outer", int((mesh.corner_type == 0).sum()),
+          "blade-tip", int((mesh.corner_type == 1).sum()),
+          "blade_loops", [len(b) for b in mesh.blade_loops])
     print("centerPoints", tuple(mesh.centerPoints.shape),
           "face_attr sum", float(mesh.face_attr.sum()))
     print("transform", tf)

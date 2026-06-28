@@ -20,6 +20,9 @@ Outputs (returned by ``unwrap``):
     r          float  cylinder radius
     loops      list[list[int]]  ordered boundary node loops (outer first)
     node_dim   (N,)   2 = interior, 1 = boundary, 0 = corner
+    corner_type (N,)  -1 = not a corner, 0 = outer-domain corner,
+                      1 = blade-tip LE/TE corner
+    blade_loops list[(n,2)]  inner blade loop outlines in (s,t)
 
 Run directly to dump a diagnostic PNG/JSON for the hub.
 """
@@ -137,8 +140,12 @@ def unwrap(stl_path, corner_angle_deg=40.0):
     loops.sort(key=lambda lp: abs(_polygon_area(st[lp])), reverse=True)
 
     node_dim = np.full(len(pts), 2, dtype=np.int64)
+    # corner_type: -1 = not a corner, 0 = outer-domain corner (outer loop),
+    # 1 = blade-tip LE/TE corner (inner/blade loop). Lets downstream emit
+    # separatrices differently per corner kind.
+    corner_type = np.full(len(pts), -1, dtype=np.int64)
     loop_corners = []
-    for lp in loops:
+    for li, lp in enumerate(loops):
         for v in lp:
             node_dim[v] = 1
         corners = list(dict.fromkeys(_detect_corners(lp, st, corner_angle_deg)))
@@ -150,8 +157,14 @@ def unwrap(stl_path, corner_angle_deg=40.0):
                 if v not in corners:
                     corners.append(v)
         loop_corners.append(corners)
+        ctype = 0 if li == 0 else 1  # loops sorted outer-first
         for v in corners:
             node_dim[v] = 0
+            corner_type[v] = ctype
+
+    # blade_loops: the inner (blade) loop outlines as ordered (s,t) polygons,
+    # for "does this direction point into the blade profile?" tests downstream.
+    blade_loops = [st[lp] for lp in loops[1:]]
 
     return {
         "points3d": pts,
@@ -161,6 +174,8 @@ def unwrap(stl_path, corner_angle_deg=40.0):
         "loops": loops,
         "loop_corners": loop_corners,
         "node_dim": node_dim,
+        "corner_type": corner_type,
+        "blade_loops": blade_loops,
     }
 
 
@@ -169,9 +184,11 @@ def _diagnostic(stl_path, out_dir):
     out_dir.mkdir(parents=True, exist_ok=True)
     data = unwrap(stl_path)
     st, loops, node_dim = data["st"], data["loops"], data["node_dim"]
+    ctype = data["corner_type"]
     print(f"r={data['r']:.4f}  N={len(st)}  tris={len(data['tris'])}")
     print(f"loops: {[len(l) for l in loops]}  (outer first)")
     print(f"corners: {(node_dim == 0).sum()}  boundary: {(node_dim == 1).sum()}")
+    print(f"  outer corners: {(ctype == 0).sum()}  blade-tip corners: {(ctype == 1).sum()}")
 
     try:
         import matplotlib
@@ -184,8 +201,12 @@ def _diagnostic(stl_path, out_dir):
             ring = st[lp + [lp[0]]]
             ax.plot(ring[:, 0], ring[:, 1], colors[i % 4], lw=1.5,
                     label=f"loop {i} (n={len(lp)})")
-        cm = node_dim == 0
-        ax.scatter(st[cm, 0], st[cm, 1], c="red", s=40, zorder=5, label="corners")
+        outer = ctype == 0
+        tip = ctype == 1
+        ax.scatter(st[outer, 0], st[outer, 1], c="red", s=45, zorder=5,
+                   label="outer corners")
+        ax.scatter(st[tip, 0], st[tip, 1], c="magenta", s=70, marker="*",
+                   zorder=6, label="blade-tip (LE/TE)")
         ax.set_aspect("equal")
         ax.set_xlabel("s = r*theta")
         ax.set_ylabel("t = z")

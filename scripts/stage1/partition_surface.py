@@ -22,6 +22,8 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from scipy.sparse import coo_matrix
+from scipy.sparse.linalg import spsolve
 
 sys.path.insert(0, "/root/repos/domain_partition")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -35,6 +37,7 @@ _sg2.SeparatrixGenerator = CleanSeparatrixGenerator
 
 from tools import FrameField, StreamlineGenerator_v2, StreamlinePostProcessor  # noqa: E402
 from tools.singularity_detector import detect_singularities  # noqa: E402
+from tools.quad_partition_validator import QuadPartitionValidator  # noqa: E402
 from dp_adapter import build_dp_data  # noqa: E402
 
 
@@ -111,17 +114,22 @@ def _add_cross_at_boundaries_fixed(self):
         edge1 = destination_node1 - source_node
         edge0_normalized = edge0 / torch.norm(edge0, p=2)
         edge1_normalized = edge1 / torch.norm(edge1, p=2)
-        edge_mid_normalized = edge0_normalized + edge1_normalized
 
-        angle = torch.atan2(edge_mid_normalized[1], edge_mid_normalized[0]) % (2 * pi)
         angle0 = torch.atan2(edge0_normalized[1], edge0_normalized[0]) % (2 * pi)
         angle1 = torch.atan2(edge1_normalized[1], edge1_normalized[0]) % (2 * pi)
 
-        angle_diff = torch.abs((angle1 - angle0 + pi) % (2 * pi) - pi)
-        if 0.95 * (pi / 2) < angle_diff < 1.05 * (pi / 2):
-            ref_angle = self.map_cross_vectors_to_reference_vector(angle0)
-        else:
-            ref_angle = self.map_cross_vectors_to_reference_vector(angle)
+        # Average in the REPRESENTATIVE (4-theta) space, not in tangent space.
+        # The upstream code averages the two wall tangents (edge0+edge1) and only
+        # THEN maps to the cross representative. At a slanted (non-90deg) corner
+        # that tangent-space mean disagrees with both adjacent walls and forces a
+        # spurious singularity right next to each c0 corner. The cross field lives
+        # in representative space, so the mean must be taken there: map each wall
+        # tangent to its representative, then circular-mean them. For smooth
+        # boundary nodes the two edges are ~collinear and both methods coincide.
+        r0 = self.map_cross_vectors_to_reference_vector(angle0)
+        r1 = self.map_cross_vectors_to_reference_vector(angle1)
+        ref_angle = torch.atan2(torch.sin(r0) + torch.sin(r1),
+                                torch.cos(r0) + torch.cos(r1))
 
         frame_field_angle[nid] = ref_angle
         frame_field_coords[nid, 0] = torch.cos(ref_angle)
@@ -134,8 +142,82 @@ def _add_cross_at_boundaries_fixed(self):
 FrameField.add_cross_at_boundaries = _add_cross_at_boundaries_fixed
 
 
-def partition(stl_path, verbose=True):
+# --- optional soft boundary conditions (the "energy" knob) -----------------
+# BC_WEIGHT = None reproduces the upstream HARD Dirichlet BC (row-replacement).
+# A finite w adds a penalty term  w*|u - u_wall|^2  to the harmonic energy
+# instead of hard-fixing the boundary DOFs: the harmonic smoothing then governs
+# the interior more strongly and tends to merge/annihilate nearby opposite cross
+# singularities. Lower w = softer boundary = smoother interior (but weaker wall
+# alignment). Note generate_cross_field re-imposes the exact BC into
+# mesh.frame_field; mesh.u (used downstream for singularities/separatrices) keeps
+# the soft solve, which is exactly the relaxed interior we want.
+BC_WEIGHT = None
+
+
+def set_bc_weight(w):
+    global BC_WEIGHT
+    BC_WEIGHT = w
+
+
+def _compute_initial_frame_field_soft(self):
+    """FrameField.compute_initial_frame_field with optional soft (penalty) BC.
+    Verbatim assembly; only the boundary-DOF handling is parameterized by the
+    module-level BC_WEIGHT (None -> original hard Dirichlet)."""
+    num_nodes = self.mesh.x.shape[0]
+    num_elements = self.mesh.faces.shape[1]
+    nodes = self.mesh.x[:, 0:2]
+    elements = self.mesh.faces.T
+    mask_boundaryEdges = self.mesh.edge_attr == 1
+    boundary_nodes_indices = torch.unique(self.mesh.edge_index[0, mask_boundaryEdges])
+    num_dofs = num_nodes * 2
+    b = np.zeros(num_dofs)
+
+    rows, cols, vals = [], [], []
+    for e in range(num_elements):
+        nodes_indices = elements[e]
+        coords = nodes[nodes_indices]
+        A_e = self.compute_local_stiffness_matrix(coords)
+        dof_indices = np.empty(6, dtype=int)
+        for i in range(3):
+            dof_indices[2 * i] = 2 * int(nodes_indices[i])
+            dof_indices[2 * i + 1] = 2 * int(nodes_indices[i]) + 1
+        for i_local in range(6):
+            for j_local in range(6):
+                rows.append(dof_indices[i_local])
+                cols.append(dof_indices[j_local])
+                vals.append(A_e[i_local, j_local])
+
+    A = coo_matrix((vals, (rows, cols)), shape=(num_dofs, num_dofs)).tocsr().tolil()
+    for idx in boundary_nodes_indices:
+        idx = int(idx)
+        dof_x, dof_y = 2 * idx, 2 * idx + 1
+        bx = float(self.mesh.frame_field_coords[idx, 0])
+        by = float(self.mesh.frame_field_coords[idx, 1])
+        if BC_WEIGHT is None:
+            A.rows[dof_x] = [dof_x]; A.data[dof_x] = [1.0]
+            A.rows[dof_y] = [dof_y]; A.data[dof_y] = [1.0]
+            b[dof_x] = bx; b[dof_y] = by
+        else:
+            w = float(BC_WEIGHT)
+            A[dof_x, dof_x] += w
+            A[dof_y, dof_y] += w
+            b[dof_x] += w * bx
+            b[dof_y] += w * by
+
+    A_sparse = A.tocsr()
+    u = spsolve(A_sparse, b)
+    return A_sparse, b, u
+
+
+FrameField.compute_initial_frame_field = _compute_initial_frame_field_soft
+
+
+def partition(stl_path, verbose=True, bc_weight=None):
     """Run cross-field block partition on the unwrapped surface.
+
+    bc_weight: None = hard Dirichlet boundary (default); a finite float = soft
+    penalty BC (the energy knob, see set_bc_weight) that relaxes the interior to
+    merge spurious cross singularities.
 
     Returns (block_mesh, mesh, transform):
       block_mesh.x      (Nc,2) block corner nodes in normalized [0,1]^2
@@ -143,6 +225,7 @@ def partition(stl_path, verbose=True):
       mesh              the triangulated mesh w/ field, separatrices, streamlines
       transform         affine map normalized [0,1]^2 -> (s,t)
     """
+    set_bc_weight(bc_weight)
     mesh, transform = build_dp_data(stl_path)
 
     ff = FrameField(mesh)
@@ -159,6 +242,53 @@ def partition(stl_path, verbose=True):
               f"separatrices={len(sl.mesh.separatrices)}  "
               f"-> {n_blocks} quad blocks ({block_mesh.x.shape[0]} corners)")
     return block_mesh, sl.mesh, transform
+
+
+def validate(block_mesh, mesh, out_path=None):
+    """Run domain_partition's QuadPartitionValidator on the finished block_mesh.
+
+    Validation is only defined AFTER postprocessing has produced quad faces; if
+    postproc yielded nothing, that is itself a validation failure (reported, not
+    crashed). frame_field is the per-node cross representation mesh.u (cos4t/sin4t),
+    needed for the Kowalski singularity-efficiency metric."""
+    lines = []
+    if (block_mesh is None or block_mesh.faces is None
+            or block_mesh.faces.numel() == 0):
+        lines.append("VALIDATION FAIL: postprocessing produced no quad blocks.")
+        report = "\n".join(lines)
+        if out_path:
+            Path(out_path).write_text(report)
+        print(report)
+        return None
+
+    v = QuadPartitionValidator(block_mesh, mesh, frame_field=mesh.u, strict=True)
+    is_valid = v.is_valid()
+    qs = v.quality_score()
+    soft = v.passes_soft_thresholds()
+    diag = v.diagnostics()
+
+    lines.append(f"is_valid (hard checks): {is_valid}")
+    lines.append(f"passes_soft_thresholds: {soft}")
+    lines.append(f"blocks: {block_mesh.faces.shape[1]}  "
+                 f"corners: {block_mesh.x.shape[0]}")
+    exp = getattr(v, "_expected_singularities", None)
+    act = getattr(v, "_actual_singularities", None)
+    if exp is not None:
+        eff = qs.get("singularity_efficiency")
+        lines.append(f"singularities expected/actual: {exp}/{act}  "
+                     f"efficiency: {eff}")
+    lines.append("quality_score:")
+    for k, val in qs.items():
+        lines.append(f"  {k}: {val}")
+    lines.append("diagnostics:")
+    lines.extend(f"  - {d}" for d in (diag or ["(none)"]))
+
+    report = "\n".join(lines)
+    if out_path:
+        Path(out_path).write_text(report)
+        print(f"wrote {out_path}")
+    print(report)
+    return v
 
 
 def _termination_nodes(mesh):
@@ -196,17 +326,30 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05):
           shared graph node and blocks can close against it (notably the blade).
     """
     nodes = _termination_nodes(mesh)
+    n_sing = len(mesh.singularities_coords)  # nodes[:n_sing] are singularities
     n_boundary = len(mesh.streamlines) - len(mesh.separatrices)
     boundary = [np.asarray(s, float) for s in mesh.streamlines[:n_boundary]]
     seps = [np.asarray(s, float) for s in mesh.streamlines[n_boundary:]]
+    sep_dicts = list(mesh.separatrices)
 
-    # split points to insert on each boundary streamline (arc positions)
-    splits = {i: [] for i in range(n_boundary)}
-    out_seps = []
+    def _origin_sing(si):
+        """node index of a separatrix's origin if it is a field singularity."""
+        if si >= len(sep_dicts) or int(sep_dicts[si].get("face_id", -1)) < 0:
+            return None  # blade-tip / corner origin, not a field singularity
+        oc = np.asarray(sep_dicts[si]["singularity_coords"], float)
+        if n_sing == 0:
+            return None
+        k = int(np.argmin(np.linalg.norm(nodes[:n_sing] - oc, axis=1)))
+        return k
+
+    # --- pass 1: snap each separatrix, record metadata (no boundary split yet) -
+    recs = []  # per-sep: dict(poly, origin_sing, target_sing, bnd=(bi,segpos,proj))
     n_pt, n_bnd = 0, 0
-    for s in seps:
+    for si, s in enumerate(seps):
+        rec = {"poly": s, "origin_sing": _origin_sing(si),
+               "target_sing": None, "bnd": None}
         if s.ndim != 2 or len(s) < 2:
-            out_seps.append(s)
+            recs.append(rec)
             continue
         origin = s[0]
         origin_node = int(np.argmin(np.linalg.norm(nodes - origin, axis=1))) \
@@ -222,6 +365,8 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05):
                 s = np.vstack([s[:j], nodes[k]])
                 cut = True
                 n_pt += 1
+                if k < n_sing:                 # snapped onto a field singularity
+                    rec["target_sing"] = k
                 break
         # (2) boundary snapping of the (still dangling) end
         if not cut:
@@ -234,11 +379,50 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05):
             if best[0] is not None and best[2] < bnd_radius:
                 bi, (seg, t), _, proj = best
                 s = np.vstack([s[:-1], proj])
-                splits[bi].append((seg + t, proj))
+                rec["bnd"] = (bi, seg + t, proj)
                 n_bnd += 1
-        out_seps.append(s)
+        rec["poly"] = s
+        recs.append(rec)
 
-    # rebuild boundary streamlines, split at all recorded T-junctions
+    # --- dedup shared singularity-singularity connections (valence 3/5) -------
+    # When sep i runs A->B (both field singularities), the matching prong at B
+    # (the separatrix emanating from B back toward A, smallest angle deviation)
+    # is the same connection counted twice. Delete that prong so each singularity
+    # gets its correct valence (a +1/4 sing = 3 prongs, a -1/4 sing = 5 prongs)
+    # instead of every singularity appearing 5-valent.
+    drop = set()
+    for i, ri in enumerate(recs):
+        A, B = ri["origin_sing"], ri["target_sing"]
+        if A is None or B is None or A == B:
+            continue
+        dir_BA = nodes[A] - nodes[B]
+        nrm = np.linalg.norm(dir_BA)
+        if nrm < 1e-9:
+            continue
+        dir_BA /= nrm
+        best_j, best_dot = None, 0.5  # require pointing back toward A (>60 deg)
+        for j, rj in enumerate(recs):
+            if j == i or j in drop or rj["origin_sing"] != B:
+                continue
+            vj = np.asarray(sep_dicts[j]["vector"], float)
+            nv = np.linalg.norm(vj)
+            if nv < 1e-9:
+                continue
+            dot = float(np.dot(vj / nv, dir_BA))
+            if dot > best_dot:
+                best_dot, best_j = dot, j
+        if best_j is not None:
+            drop.add(best_j)
+
+    kept = [i for i in range(len(recs)) if i not in drop]
+
+    # --- pass 2: boundary T-junction splits, only from KEPT separatrices -------
+    splits = {i: [] for i in range(n_boundary)}
+    for i in kept:
+        if recs[i]["bnd"] is not None:
+            bi, segpos, proj = recs[i]["bnd"]
+            splits[bi].append((segpos, proj))
+
     new_boundary = []
     for bi, poly in enumerate(boundary):
         pts = sorted(splits[bi])
@@ -259,9 +443,12 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05):
         cuts.append(np.array(cur))
         new_boundary.extend(c for c in cuts if len(c) >= 2)
 
-    mesh.streamlines = new_boundary + out_seps
+    mesh.streamlines = new_boundary + [recs[i]["poly"] for i in kept]
+    mesh.separatrices = [sep_dicts[i] for i in kept]
     print(f"[snap] point-snapped {n_pt}, boundary-snapped {n_bnd}; "
-          f"boundary {n_boundary}->{len(new_boundary)} segments")
+          f"deduped {len(drop)} matching prongs; "
+          f"boundary {n_boundary}->{len(new_boundary)} segments, "
+          f"separatrices {len(seps)}->{len(kept)}")
 
 
 def seg_floor(x):
@@ -296,6 +483,41 @@ def _plot_separatrices(mesh, out_png):
     print(f"wrote {out_png}")
 
 
+def _block_annotations(bx, bf, ratio_max=10.0):
+    """Per-block-mesh validation annotations for plotting:
+    inverted quads, interior nodes with valence != 4, high-aspect quads."""
+    # edge topology
+    from collections import defaultdict
+    cnt = defaultdict(int)
+    deg = np.zeros(len(bx), dtype=int)
+    for quad in bf:
+        for k in range(4):
+            a, b = quad[k], quad[(k + 1) % 4]
+            cnt[(min(a, b), max(a, b))] += 1
+    for (a, b), c in cnt.items():
+        deg[a] += 1
+        deg[b] += 1
+    boundary_nodes = set()
+    for (a, b), c in cnt.items():
+        if c == 1:
+            boundary_nodes.add(a)
+            boundary_nodes.add(b)
+    irregular = [i for i in range(len(bx))
+                 if i not in boundary_nodes and deg[i] != 4]
+    inverted, high_aspect = [], []
+    for qi, quad in enumerate(bf):
+        p = bx[quad]
+        # signed area (shoelace); negative => inverted ordering
+        area = 0.5 * np.sum(p[:, 0] * np.roll(p[:, 1], -1)
+                            - np.roll(p[:, 0], -1) * p[:, 1])
+        if area <= 0:
+            inverted.append(qi)
+        elens = [np.linalg.norm(p[(k + 1) % 4] - p[k]) for k in range(4)]
+        if min(elens) > 1e-12 and max(elens) / min(elens) > ratio_max:
+            high_aspect.append(qi)
+    return irregular, inverted, high_aspect
+
+
 def _plot_blocks(block_mesh, mesh, out_png):
     import matplotlib
     matplotlib.use("Agg")
@@ -304,15 +526,36 @@ def _plot_blocks(block_mesh, mesh, out_png):
     tris = mesh.faces.T.numpy()
     bx = block_mesh.x.numpy()
     bf = block_mesh.faces.numpy().T  # (B,4)
+    irregular, inverted, high_aspect = _block_annotations(bx, bf)
     fig, ax = plt.subplots(figsize=(9, 7))
     ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.92")
-    for quad in bf:
+    for qi, quad in enumerate(bf):
         ring = bx[list(quad) + [quad[0]]]
-        ax.fill(ring[:, 0], ring[:, 1], alpha=0.25)
-        ax.plot(ring[:, 0], ring[:, 1], "C0", lw=1.3)
+        if qi in inverted:
+            ax.fill(ring[:, 0], ring[:, 1], color="red", alpha=0.4)
+            ax.plot(ring[:, 0], ring[:, 1], "red", lw=2.0)
+        elif qi in high_aspect:
+            ax.fill(ring[:, 0], ring[:, 1], color="orange", alpha=0.3)
+            ax.plot(ring[:, 0], ring[:, 1], "darkorange", lw=1.8)
+        else:
+            ax.fill(ring[:, 0], ring[:, 1], alpha=0.25)
+            ax.plot(ring[:, 0], ring[:, 1], "C0", lw=1.3)
     ax.scatter(bx[:, 0], bx[:, 1], c="k", s=8, zorder=5)
+    if irregular:
+        ax.scatter(bx[irregular, 0], bx[irregular, 1], facecolors="none",
+                   edgecolors="red", s=160, linewidths=2.0, zorder=6,
+                   label=f"irregular interior node (valence!=4): {len(irregular)}")
+    if high_aspect:
+        ax.plot([], [], "darkorange", lw=1.8,
+                label=f"aspect>10: {len(high_aspect)}")
+    if inverted:
+        ax.plot([], [], "red", lw=2.0, label=f"inverted: {len(inverted)}")
+    if irregular or high_aspect or inverted:
+        ax.legend(loc="upper left", fontsize=8)
     ax.set_aspect("equal")
-    ax.set_title(f"Hub quad block partition: {bf.shape[0]} blocks")
+    ax.set_title(f"Hub quad block partition: {bf.shape[0]} blocks  "
+                 f"(irregular={len(irregular)}, inverted={len(inverted)}, "
+                 f"aspect>10={len(high_aspect)})")
     fig.savefig(out_png, dpi=140, bbox_inches="tight")
     print(f"wrote {out_png}")
 
@@ -325,3 +568,4 @@ if __name__ == "__main__":
     block_mesh, mesh, tf = partition(stl)
     _plot_blocks(block_mesh, mesh, out / "blocks_2d.png")
     _plot_separatrices(mesh, out / "separatrices.png")
+    validate(block_mesh, mesh, out / "validation_report.txt")

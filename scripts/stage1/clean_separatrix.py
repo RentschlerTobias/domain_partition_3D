@@ -23,6 +23,17 @@ Interface (matches what StreamlineGenerator_v2 expects):
 import numpy as np
 import torch
 
+# Toggle Kowalski singularity pair annihilation (set via partition_surface).
+# Pure deletion of a +k/-k pair over-simplifies and can break the blade wrap;
+# kept switchable for comparison. Default off until the bridging-streamline
+# variant is in place.
+ANNIHILATE_PAIRS = False
+
+
+def set_annihilate_pairs(flag):
+    global ANNIHILATE_PAIRS
+    ANNIHILATE_PAIRS = bool(flag)
+
 
 def _poincare_indices(mesh):
     u = mesh.u
@@ -59,8 +70,10 @@ class CleanSeparatrixGenerator:
         mesh.singularities = _poincare_indices(mesh)
         self._coords_and_expected()
         self._delete_corner_singularities()
+        if ANNIHILATE_PAIRS:
+            self._annihilate_pairs()
         seps = self._emanate_from_singularities()
-        seps += self._emanate_from_corners()
+        seps += self._emanate_from_blade_tips()
         mesh.separatrices = seps
         self.found_separatrices = seps
 
@@ -87,6 +100,50 @@ class CleanSeparatrixGenerator:
                 removed += 1
         print(f"[clean_sep] deleted {removed} near-corner singularities, "
               f"{len(mesh.singularities_coords)} remain")
+
+    def _annihilate_pairs(self, max_dist=0.15):
+        """Kowalski-style singularity pair annihilation.
+
+        A +k and -k cross singularity close together cancel: the field between
+        them is regular up to a removable branch. We remove mutually-nearest
+        opposite-index pairs within max_dist so neither emits separatrices,
+        collapsing the spurious irregular block node they would force. (Net
+        topological index is fixed by the boundary holonomy, so only pairs that
+        actually cancel are removed; an index imbalance is left untouched.)"""
+        mesh = self.mesh
+        items = [(fid, int(mesh.singularities[fid]), np.array(c, float))
+                 for fid, c in mesh.singularities_coords.items()]
+        n = len(items)
+        if n < 2:
+            return
+
+        def nearest_opposite(i):
+            fi, ii, ci = items[i]
+            best, bestd = None, np.inf
+            for j in range(n):
+                fj, ij, cj = items[j]
+                if j == i or ij != -ii:
+                    continue
+                d = float(np.linalg.norm(ci - cj))
+                if d < bestd:
+                    bestd, best = d, j
+            return best, bestd
+
+        nn = [nearest_opposite(i) for i in range(n)]
+        removed = set()
+        for i in range(n):
+            j, d = nn[i]
+            if j is None or d > max_dist:
+                continue
+            if nn[j][0] == i:  # mutual nearest opposite-index pair
+                removed.add(items[i][0])
+                removed.add(items[j][0])
+        for fid in removed:
+            mesh.singularities[fid] = 0
+            mesh.singularities_coords.pop(fid, None)
+            mesh.expected_separatrices.pop(fid, None)
+        print(f"[clean_sep] annihilated {len(removed)} singularities in "
+              f"opposite-index pairs, {len(mesh.singularities_coords)} remain")
 
     # --- point location ---------------------------------------------------
     def _build_locator(self):
@@ -193,13 +250,43 @@ class CleanSeparatrixGenerator:
                 merged.append(a)
         return merged
 
-    def _emanate_from_corners(self):
+    # --- blade outlines (for "points into the blade profile?" test) ---------
+    def _blade_paths(self):
+        """matplotlib Paths of the inner blade loop(s), or [] if unavailable."""
+        mesh = self.mesh
+        loops = getattr(mesh, "blade_loops", None)
+        if not loops:
+            return []
+        from matplotlib.path import Path as _MplPath
+        return [_MplPath(np.asarray(bl, float)) for bl in loops]
+
+    @staticmethod
+    def _in_blade(p, blade_paths):
+        return any(bp.contains_point((float(p[0]), float(p[1]))) for bp in blade_paths)
+
+    def _emanate_from_blade_tips(self):
+        """Emit 3 separatrices from each blade-tip (LE/TE) corner.
+
+        Outer-domain corners (corner_type==0) emit NOTHING - their two incident
+        boundary edges already form the block corner (valence 2).
+
+        A blade tip (corner_type==1) must reach valence 5 = 2 blade boundary edges
+        + 3 streamline separatrices. The 4 local cross arms are: one pointing into
+        the fluid (continuing the chord, the *primary* separatrix), one pointing
+        back into the blade profile (dropped), and two orthogonal to the primary.
+        We pick the primary as the arm best aligned with the inward (into-fluid)
+        direction, then emit it plus its two EXACT +/-90 deg rotations. Using exact
+        orthogonals (not the separately-detected arms) keeps them out of the blade
+        even where the cross field is noisy near the singular tip."""
         seps = []
         mesh = self.mesh
-        corner_ids = torch.where(mesh.x[:, 2] == 0)[0].tolist()
-        for nid in corner_ids:
+        ctype = getattr(mesh, "corner_type", None)
+        if ctype is None:
+            return seps
+        ctype = ctype.numpy() if hasattr(ctype, "numpy") else np.asarray(ctype)
+        tip_ids = np.where(ctype == 1)[0].tolist()
+        for nid in tip_ids:
             c = self.nodes[nid]
-            # inward direction = mean of edges to face-neighbours minus boundary
             faces = self.n2f.get(nid, [])
             if not faces:
                 continue
@@ -216,16 +303,18 @@ class CleanSeparatrixGenerator:
             cd = self._cross_dirs(c + eps * inward)
             if cd is None:
                 continue
-            # pick the cross direction best aligned with inward
-            dots = np.cos(cd - np.arctan2(inward[1], inward[0]))
-            al = cd[int(np.argmax(dots))]
-            d = np.array([np.cos(al), np.sin(al)])
-            if np.dot(d, inward) < 0:
-                d = -d
-            seps.append({
-                "coordinates": torch.tensor(c + eps * d, dtype=torch.float),
-                "vector": torch.tensor(d, dtype=torch.float),
-                "singularity_coords": torch.tensor(c, dtype=torch.float),
-                "face_id": -1 - nid,  # negative marker = boundary-corner origin
-            })
+            # primary = cross arm most aligned with the into-fluid direction
+            arms = [np.array([np.cos(al), np.sin(al)]) for al in cd]
+            primary = max(arms, key=lambda d: float(np.dot(d, inward)))
+            ang = float(np.arctan2(primary[1], primary[0]))
+            # primary + the two orthogonal directions (drop the anti-primary arm,
+            # which points into the blade)
+            for a in (ang, ang + np.pi / 2.0, ang - np.pi / 2.0):
+                d = np.array([np.cos(a), np.sin(a)])
+                seps.append({
+                    "coordinates": torch.tensor(c + eps * d, dtype=torch.float),
+                    "vector": torch.tensor(d, dtype=torch.float),
+                    "singularity_coords": torch.tensor(c, dtype=torch.float),
+                    "face_id": -1 - nid,  # negative marker = blade-tip origin
+                })
         return seps

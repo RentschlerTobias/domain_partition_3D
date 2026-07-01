@@ -78,16 +78,25 @@ class CleanSeparatrixGenerator:
         self.found_separatrices = seps
 
     def _delete_corner_singularities(self):
-        """Drop singularities that sit right next to a c0 boundary corner.
+        """Drop singularities that sit right next to an OUTER (corner_type==0)
+        boundary corner.
 
-        Slanted (non-90deg) domain corners get a bisector Dirichlet cross that
+        Slanted (non-90deg) outer corners get a bisector Dirichlet cross that
         conflicts with the wall-aligned representative of the adjacent boundary
-        nodes, forcing a spurious singularity next to each corner. The corner
-        itself is the real topological feature (it emits a separatrix), so we
-        delete these artifacts (mirrors domain_partition's disabled
-        delete_singularities)."""
+        nodes, forcing a spurious singularity next to each corner; those are
+        artifacts and get removed.
+
+        Blade-tip (corner_type==1, LE/TE) corners are NOT swept here: with a clean
+        (e.g. periodic) field the genuine topological singularity sits exactly at
+        the tip and must be KEPT to drive the O-grid-around-blade partition
+        (Kowalski 2015). We therefore restrict the deletion to outer corners."""
         mesh = self.mesh
-        corner_xy = self.nodes[mesh.x[:, 2].numpy() == 0]
+        ct = getattr(mesh, "corner_type", None)
+        if ct is not None:
+            ct = ct.numpy() if hasattr(ct, "numpy") else np.asarray(ct)
+            corner_xy = self.nodes[ct == 0]      # outer corners only
+        else:
+            corner_xy = self.nodes[mesh.x[:, 2].numpy() == 0]
         if len(corner_xy) == 0:
             return
         removed = 0
@@ -224,8 +233,13 @@ class CleanSeparatrixGenerator:
                 # angular distance from radial direction al to nearest cross dir
                 diff = np.angle(np.exp(1j * (cd - al)))
                 g[i] = np.min(np.abs(diff))
-            # local minima of g below threshold = separatrix departure angles
-            dirs = self._local_minima_angles(alphas, g, thresh=0.12)
+            # A +1 (geometric +1/4) singularity has EXACTLY 3 separatrices, a -1
+            # (-1/4) one EXACTLY 5 (Kowalski 2015, sec 3.2.3 / Fig 8). The
+            # partition is only four-sided (Prop 9) if every singularity emits its
+            # full prong set, so we enforce the count here instead of taking
+            # however many minima a fixed threshold yields.
+            expected = mesh.expected_separatrices.get(fid)
+            dirs = self._emanation_dirs(alphas, g, expected)
             for al in dirs:
                 d = np.array([np.cos(al), np.sin(al)])
                 seps.append({
@@ -236,18 +250,42 @@ class CleanSeparatrixGenerator:
                 })
         return seps
 
+    def _emanation_dirs(self, alphas, g, expected):
+        """Return exactly ``expected`` separatrix departure angles for a
+        singularity, given the radial-misalignment profile ``g(alpha)``.
+
+        The genuine prongs are the deepest local minima of ``g`` (best radial
+        alignment of the cross field). We take the ``expected`` smallest-``g``
+        minima (merged within 10 deg). If the field is too degenerate to expose
+        that many minima we fall back to an even angular spread anchored at the
+        best minimum (3 prongs 120 deg apart for +1/4, 5 prongs 72 deg apart for
+        -1/4), so the count invariant always holds."""
+        cand = self._all_local_minima(alphas, g)  # [(angle, gval)] merged, by gval
+        if expected is None or expected <= 0:
+            # unknown index: keep the old threshold behaviour
+            return [a for a, gv in cand if gv < 0.12]
+        if len(cand) >= expected:
+            return [a for a, gv in cand[:expected]]
+        # degenerate: anchor at best minimum, fill with an even spread
+        anchor = cand[0][0] if cand else 0.0
+        return [(anchor + k * 2 * np.pi / expected) % (2 * np.pi)
+                for k in range(expected)]
+
     @staticmethod
-    def _local_minima_angles(alphas, g, thresh):
+    def _all_local_minima(alphas, g):
+        """All strict circular local minima of g, merged within 10 deg (keeping
+        the deeper one), returned as (angle, gval) sorted by increasing gval."""
         n = len(g)
         mins = []
         for i in range(n):
-            if g[i] < thresh and g[i] <= g[(i - 1) % n] and g[i] < g[(i + 1) % n]:
-                mins.append(alphas[i])
-        # merge angles closer than 10 deg
+            if g[i] <= g[(i - 1) % n] and g[i] < g[(i + 1) % n]:
+                mins.append((alphas[i], g[i]))
+        mins.sort(key=lambda x: x[1])  # deepest first
         merged = []
-        for a in mins:
-            if all(abs(np.angle(np.exp(1j * (a - m)))) > np.radians(10) for m in merged):
-                merged.append(a)
+        for a, gv in mins:
+            if all(abs(np.angle(np.exp(1j * (a - m)))) > np.radians(10)
+                   for m, _ in merged):
+                merged.append((a, gv))
         return merged
 
     # --- blade outlines (for "points into the blade profile?" test) ---------
@@ -285,8 +323,19 @@ class CleanSeparatrixGenerator:
             return seps
         ctype = ctype.numpy() if hasattr(ctype, "numpy") else np.asarray(ctype)
         tip_ids = np.where(ctype == 1)[0].tolist()
+        # If a genuine field singularity already sits at a tip (clean/periodic
+        # field), it emits its own 5 separatrices via _emanate_from_singularities;
+        # the artificial 3-prong emission would then double-count the tip. Skip
+        # those tips and only synthesize prongs where the field is flat.
+        sing_xy = (np.array(list(mesh.singularities_coords.values()), float)
+                   if getattr(mesh, "singularities_coords", None) else
+                   np.zeros((0, 2)))
+        tip_sing_radius = 0.08
         for nid in tip_ids:
             c = self.nodes[nid]
+            if len(sing_xy) and np.min(np.linalg.norm(sing_xy - c, axis=1)) \
+                    < tip_sing_radius:
+                continue  # field singularity already handles this tip
             faces = self.n2f.get(nid, [])
             if not faces:
                 continue

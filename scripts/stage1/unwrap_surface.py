@@ -34,6 +34,18 @@ from pathlib import Path
 import numpy as np
 import meshio
 
+# When False, the inner blade loop(s) are NOT given LE/TE corner nodes
+# (corner_type==1). The genuine field singularities the cross field places at
+# each tip then drive the partition instead of an artificial tip-corner. The
+# blade boundary stays a single smooth closed streamline (separatrices snapping
+# onto it create the needed T-junctions). Set via set_blade_tip_corners().
+MARK_BLADE_TIP_CORNERS = True
+
+
+def set_blade_tip_corners(flag):
+    global MARK_BLADE_TIP_CORNERS
+    MARK_BLADE_TIP_CORNERS = bool(flag)
+
 
 def _weld(points, tris, decimals=6):
     """Merge coincident STL vertices, remap triangles."""
@@ -94,6 +106,62 @@ def _chord_extremes(loop, st):
     return [loop[i], loop[j]]
 
 
+def _split_loop_segments(loop, corner_set):
+    """Split a cyclic node loop into corner->corner node segments (inclusive)."""
+    n = len(loop)
+    pos = [i for i, v in enumerate(loop) if v in corner_set]
+    segs = []
+    for k in range(len(pos)):
+        i0, i1 = pos[k], pos[(k + 1) % len(pos)]
+        seg, i = [], i0
+        while True:
+            seg.append(loop[i])
+            if i == i1:
+                break
+            i = (i + 1) % n
+        segs.append(seg)
+    return segs
+
+
+def _detect_periodic_pair(st, loop, corners, tol=1e-3):
+    """Find the pitchwise-periodic boundary pair on the outer loop.
+
+    The unwrapped passage is a sheared parallelogram: two outer sides are the
+    axial walls (constant t) and two are the theta-pitch walls. The pitch walls
+    are pure s-translates of each other (partner of (s,t) is (s+pitch, t)). We
+    locate the two corner->corner segments spanning the full t-range and, if they
+    are conforming translates, return node-id pairs (master_left, slave_right)
+    sorted by t plus the pitch. Returns ([], None) if no clean conforming pair
+    exists (e.g. non-conforming seam -> would need t-interpolation)."""
+    trange = st[:, 1].max() - st[:, 1].min()
+    if trange <= 0:
+        return [], None
+    segs = _split_loop_segments(loop, set(corners))
+    cand = [sg for sg in segs
+            if (st[sg][:, 1].max() - st[sg][:, 1].min()) > 0.8 * trange]
+    if len(cand) != 2:
+        return [], None
+    A, B = cand
+    if len(A) != len(B):
+        return [], None  # non-conforming; defer to interpolation variant
+    # order master/slave by mean s (master = left / smaller s)
+    if st[A][:, 0].mean() > st[B][:, 0].mean():
+        A, B = B, A
+    oa = np.argsort(st[A][:, 1])
+    ob = np.argsort(st[B][:, 1])
+    master = [A[i] for i in oa]
+    slave = [B[i] for i in ob]
+    sm, sl = st[master], st[slave]
+    if np.max(np.abs(sm[:, 1] - sl[:, 1])) > tol:
+        return [], None  # t does not match -> not a translate pair
+    ds = sl[:, 0] - sm[:, 0]
+    if np.std(ds) > tol:
+        return [], None  # not a pure s-translate
+    pitch = float(np.mean(ds))
+    pairs = [(int(m), int(s)) for m, s in zip(master, slave)]
+    return pairs, pitch
+
+
 def _detect_corners(loop, st, angle_thresh_deg=40.0):
     """Flag loop vertices whose turning angle exceeds threshold as corners."""
     pts = st[loop]
@@ -148,6 +216,11 @@ def unwrap(stl_path, corner_angle_deg=40.0):
     for li, lp in enumerate(loops):
         for v in lp:
             node_dim[v] = 1
+        # Inner blade loops: optionally leave them smooth (no LE/TE corners) so
+        # the field's tip singularities drive the partition instead.
+        if li >= 1 and not MARK_BLADE_TIP_CORNERS:
+            loop_corners.append([])
+            continue
         corners = list(dict.fromkeys(_detect_corners(lp, st, corner_angle_deg)))
         # Every loop must carry >=2 corners so it can be split into segments
         # whose endpoints are termination nodes (StreamlineMerging needs this).
@@ -166,6 +239,15 @@ def unwrap(stl_path, corner_angle_deg=40.0):
     # for "does this direction point into the blade profile?" tests downstream.
     blade_loops = [st[lp] for lp in loops[1:]]
 
+    # pitchwise-periodic boundary pair on the outer loop (theta walls). Empty if
+    # no clean conforming translate pair exists.
+    periodic_pairs, pitch = _detect_periodic_pair(st, loops[0], loop_corners[0])
+    if periodic_pairs:
+        print(f"[unwrap] periodic theta-pair: {len(periodic_pairs)} node pairs, "
+              f"pitch={pitch:.5f}")
+    else:
+        print("[unwrap] no conforming periodic theta-pair detected")
+
     return {
         "points3d": pts,
         "st": st,
@@ -176,6 +258,8 @@ def unwrap(stl_path, corner_angle_deg=40.0):
         "node_dim": node_dim,
         "corner_type": corner_type,
         "blade_loops": blade_loops,
+        "periodic_pairs": periodic_pairs,
+        "pitch": pitch,
     }
 
 

@@ -104,6 +104,13 @@ def build_dp_data(stl_path, corner_angle_deg=40.0):
 
     mesh.blade_loops = [_normalize(np.asarray(bl, float)) for bl in u["blade_loops"]]
 
+    # pitchwise-periodic theta-boundary node pairs (master_left, slave_right).
+    # Node ids index directly into mesh.x (build_dp_data does not renumber).
+    pp = u.get("periodic_pairs", [])
+    mesh.periodic_pairs = (torch.tensor(pp, dtype=torch.long) if pp
+                           else torch.zeros((0, 2), dtype=torch.long))
+    mesh.pitch = u.get("pitch")
+
     return mesh, transform
 
 

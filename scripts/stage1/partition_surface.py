@@ -38,7 +38,26 @@ _sg2.SeparatrixGenerator = CleanSeparatrixGenerator
 from tools import FrameField, StreamlineGenerator_v2, StreamlinePostProcessor  # noqa: E402
 from tools.singularity_detector import detect_singularities  # noqa: E402
 from tools.quad_partition_validator import QuadPartitionValidator  # noqa: E402
+from tools.streamline_merging import StreamlineMerging  # noqa: E402
 from dp_adapter import build_dp_data  # noqa: E402
+
+
+# --- enable Xiao 2020 Algorithm 2 Case 2 in StreamlineMerging -----------------
+# StreamlineMerging.find_missed_streamline_endpoints implements Case 2 (Fig 8b):
+# a streamline that PASSES a singularity (angle ~180 deg to a reference out-going
+# streamline, within 45 deg) but does not terminate there is CUT onto it. The
+# upstream __init__ defines it but never calls it, so wrap separatrices that
+# graze the opposite blade tip never connect and the O-grid ring never closes.
+# We reinstate the call between prepare and merge (no edit to domain_partition).
+def _streamline_merging_init(self, mesh, verbose=True):
+    self.verbose = verbose
+    self.Streamlines, self.Singularities = self.prepare_streamlines(mesh)
+    self.Streamlines, self.Singularities = \
+        self.find_missed_streamline_endpoints(self.Streamlines, self.Singularities)
+    self.new_streamlines = self.merge_streamlines(self.Streamlines)
+
+
+StreamlineMerging.__init__ = _streamline_merging_init
 
 
 def _robust_find_containing_face(self, point, mesh):
@@ -153,16 +172,54 @@ FrameField.add_cross_at_boundaries = _add_cross_at_boundaries_fixed
 # the soft solve, which is exactly the relaxed interior we want.
 BC_WEIGHT = None
 
+# --- pitchwise periodicity (Phase 2) ---------------------------------------
+# When True and mesh.periodic_pairs is non-empty, the two theta walls are NOT
+# wall-aligned Dirichlet boundaries; instead the seam is glued: each slave node
+# DOF is identified with its master partner (u_slave = u_master) and the slave's
+# triangle stiffness is welded onto the master, giving a true periodic Laplacian.
+# This removes the artificial wall holonomy on the pitch boundaries (Kowalski Eq
+# 14 budget) that forces extra interior singularities. Kept behind a flag so the
+# wall-BC result stays reproducible for comparison.
+PERIODIC = True
+
 
 def set_bc_weight(w):
     global BC_WEIGHT
     BC_WEIGHT = w
 
 
+def set_periodic(flag):
+    global PERIODIC
+    PERIODIC = bool(flag)
+
+
+def _seam_weld_map(mesh, num_nodes):
+    """Return (weld, seam, slave_of) for the periodic seam.
+
+    weld: (num_nodes,) int array remapping each slave node id to its master.
+    seam: set of all node ids on the seam (masters + slaves).
+    slave_of: {slave_id: master_id}."""
+    weld = np.arange(num_nodes)
+    seam, slave_of = set(), {}
+    pairs = getattr(mesh, "periodic_pairs", None)
+    if not PERIODIC or pairs is None or len(pairs) == 0:
+        return weld, seam, slave_of
+    pp = pairs.numpy() if hasattr(pairs, "numpy") else np.asarray(pairs)
+    for m, s in pp:
+        m, s = int(m), int(s)
+        weld[s] = m
+        slave_of[s] = m
+        seam.add(m); seam.add(s)
+    return weld, seam, slave_of
+
+
 def _compute_initial_frame_field_soft(self):
-    """FrameField.compute_initial_frame_field with optional soft (penalty) BC.
-    Verbatim assembly; only the boundary-DOF handling is parameterized by the
-    module-level BC_WEIGHT (None -> original hard Dirichlet)."""
+    """FrameField.compute_initial_frame_field with optional soft (penalty) BC and
+    optional pitchwise periodicity.
+
+    BC_WEIGHT: None -> hard Dirichlet wall BC, finite -> soft penalty BC.
+    PERIODIC: glue the theta-seam (weld slave stiffness onto master + constrain
+    u_slave = u_master), and skip wall-Dirichlet on seam nodes."""
     num_nodes = self.mesh.x.shape[0]
     num_elements = self.mesh.faces.shape[1]
     nodes = self.mesh.x[:, 0:2]
@@ -172,6 +229,9 @@ def _compute_initial_frame_field_soft(self):
     num_dofs = num_nodes * 2
     b = np.zeros(num_dofs)
 
+    weld, seam, slave_of = _seam_weld_map(self.mesh, num_nodes)
+    self._seam_nodes = seam
+
     rows, cols, vals = [], [], []
     for e in range(num_elements):
         nodes_indices = elements[e]
@@ -179,8 +239,9 @@ def _compute_initial_frame_field_soft(self):
         A_e = self.compute_local_stiffness_matrix(coords)
         dof_indices = np.empty(6, dtype=int)
         for i in range(3):
-            dof_indices[2 * i] = 2 * int(nodes_indices[i])
-            dof_indices[2 * i + 1] = 2 * int(nodes_indices[i]) + 1
+            wn = int(weld[int(nodes_indices[i])])  # periodic remap (identity if none)
+            dof_indices[2 * i] = 2 * wn
+            dof_indices[2 * i + 1] = 2 * wn + 1
         for i_local in range(6):
             for j_local in range(6):
                 rows.append(dof_indices[i_local])
@@ -190,6 +251,8 @@ def _compute_initial_frame_field_soft(self):
     A = coo_matrix((vals, (rows, cols)), shape=(num_dofs, num_dofs)).tocsr().tolil()
     for idx in boundary_nodes_indices:
         idx = int(idx)
+        if idx in seam:           # periodic seam: no wall Dirichlet
+            continue
         dof_x, dof_y = 2 * idx, 2 * idx + 1
         bx = float(self.mesh.frame_field_coords[idx, 0])
         by = float(self.mesh.frame_field_coords[idx, 1])
@@ -204,12 +267,50 @@ def _compute_initial_frame_field_soft(self):
             b[dof_x] += w * bx
             b[dof_y] += w * by
 
+    # periodic constraint rows: u_slave - u_master = 0 (slave stiffness already
+    # welded onto master above, so the master row carries the periodic stencil).
+    for s, m in slave_of.items():
+        for comp in (0, 1):
+            ds, dm = 2 * s + comp, 2 * m + comp
+            A.rows[ds] = [ds, dm]
+            A.data[ds] = [1.0, -1.0]
+            b[ds] = 0.0
+
     A_sparse = A.tocsr()
     u = spsolve(A_sparse, b)
     return A_sparse, b, u
 
 
 FrameField.compute_initial_frame_field = _compute_initial_frame_field_soft
+
+
+def _generate_cross_field_seam_aware(self):
+    """FrameField.generate_cross_field, but the boundary re-imposition skips the
+    periodic seam nodes. The upstream method overwrites every boundary node in
+    mesh.frame_field with its wall-aligned Dirichlet cross; on the periodic seam
+    that would reintroduce the wall holonomy into singularity detection. We keep
+    the solved periodic value on the seam instead."""
+    A, b, u = self.compute_initial_frame_field()
+    u_new = self.Linearization_Norm_Constraint(A, b, u)
+
+    u_init = torch.cat((torch.from_numpy(u[::2]).unsqueeze(1),
+                        torch.from_numpy(u[1::2]).unsqueeze(1)), dim=1)
+    u_final = torch.cat((torch.from_numpy(u_new[::2]).unsqueeze(1),
+                         torch.from_numpy(u_new[1::2]).unsqueeze(1)), dim=1)
+
+    seam = getattr(self, "_seam_nodes", set())
+    vector_field = u_final.detach().clone().to(torch.float)
+    bidx = torch.where(self.mesh.x[:, 2] != 2)[0].tolist()
+    for i in bidx:
+        if i in seam:             # periodic seam keeps the solved value
+            continue
+        vector_field[i, :] = self.mesh.frame_field_coords[i, :]
+    self.mesh.u_init = u_init
+    self.mesh.u = u_final
+    self.mesh.frame_field = vector_field
+
+
+FrameField.generate_cross_field = _generate_cross_field_seam_aware
 
 
 def partition(stl_path, verbose=True, bc_weight=None):
@@ -242,6 +343,36 @@ def partition(stl_path, verbose=True, bc_weight=None):
               f"separatrices={len(sl.mesh.separatrices)}  "
               f"-> {n_blocks} quad blocks ({block_mesh.x.shape[0]} corners)")
     return block_mesh, sl.mesh, transform
+
+
+def _validate_separatrix_counts(mesh):
+    """Check the per-singularity separatrix-count invariant (Kowalski 2015): a
+    field singularity of representation index +1 must keep EXACTLY 3 incident
+    separatrices, index -1 EXACTLY 5. A violation after postprocessing is the
+    direct cause of a non-four-sided region (irregular interior block node /
+    Euler defect). Returns (all_ok, report_lines)."""
+    sing_fids = list(getattr(mesh, "singularities_coords", {}).keys())
+    if not sing_fids:
+        return True, ["separatrix-count: no field singularities"]
+    n_sing = len(sing_fids)
+    got = {k: 0 for k in range(n_sing)}
+    for sd in mesh.separatrices:
+        for key in ("origin_sing", "target_sing"):
+            kk = sd.get(key) if isinstance(sd, dict) else None
+            if kk is not None and 0 <= kk < n_sing:
+                got[kk] += 1
+    all_ok = True
+    lines = ["separatrix-count per singularity (Kowalski 3/5 invariant):"]
+    for k, fid in enumerate(sing_fids):
+        idx = int(mesh.singularities[fid].item())
+        exp = int(mesh.expected_separatrices.get(fid, 4))
+        g = got[k]
+        ok = (g == exp)
+        all_ok = all_ok and ok
+        lines.append(f"  fid={fid} idx={idx:+d} expected={exp} got={g} "
+                     f"{'OK' if ok else 'MISMATCH'}")
+    lines.append(f"separatrix-count invariant: {'PASS' if all_ok else 'FAIL'}")
+    return all_ok, lines
 
 
 def validate(block_mesh, mesh, out_path=None):
@@ -282,6 +413,9 @@ def validate(block_mesh, mesh, out_path=None):
         lines.append(f"  {k}: {val}")
     lines.append("diagnostics:")
     lines.extend(f"  - {d}" for d in (diag or ["(none)"]))
+
+    sep_ok, sep_lines = _validate_separatrix_counts(mesh)
+    lines.extend(sep_lines)
 
     report = "\n".join(lines)
     if out_path:
@@ -384,37 +518,59 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05):
         rec["poly"] = s
         recs.append(rec)
 
-    # --- dedup shared singularity-singularity connections (valence 3/5) -------
-    # When sep i runs A->B (both field singularities), the matching prong at B
-    # (the separatrix emanating from B back toward A, smallest angle deviation)
-    # is the same connection counted twice. Delete that prong so each singularity
-    # gets its correct valence (a +1/4 sing = 3 prongs, a -1/4 sing = 5 prongs)
-    # instead of every singularity appearing 5-valent.
+    # --- blend separatrices joining two singularities (Kowalski 2015, sec 4.3) -
+    # A separatrix S0->S1 between two field singularities is integrated TWICE:
+    # once from S0 (rec i: origin S0, target S1) and once from S1 (rec j: origin
+    # S1, target S0). Round-off makes the two paths differ. Kowalski Eq 28 does
+    # NOT delete one of them; it linearly BLENDS them into a single, more accurate
+    # curve, trusting each path near the singularity it spawned from:
+    #     gamma_b(s) = (1 - s) * gamma1(s) + s * gamma2(s),   s in [0, 1]
+    # with gamma1: S0->S1 and gamma2: S1->S0 (read reversed, i.e. S0->S1). We keep
+    # the blended curve as rec i and drop rec j. This yields exactly one clean
+    # separatrix per singularity-singularity connection (correct 3/5 valence) with
+    # no duplicate and no residual integration error.
+    def _resample(poly, n):
+        poly = np.asarray(poly, float)
+        if len(poly) < 2:
+            return None
+        seg = np.linalg.norm(np.diff(poly, axis=0), axis=1)
+        d = np.concatenate([[0.0], np.cumsum(seg)])
+        if d[-1] < 1e-12:
+            return None
+        ss = np.linspace(0.0, 1.0, n)
+        return np.column_stack([np.interp(ss, d / d[-1], poly[:, 0]),
+                                np.interp(ss, d / d[-1], poly[:, 1])])
+
+    N_BLEND = 60
     drop = set()
     for i, ri in enumerate(recs):
+        if i in drop:
+            continue
         A, B = ri["origin_sing"], ri["target_sing"]
         if A is None or B is None or A == B:
             continue
-        dir_BA = nodes[A] - nodes[B]
-        nrm = np.linalg.norm(dir_BA)
-        if nrm < 1e-9:
+        # matching reverse separatrix: origin B, target A (Case 1, Fig 8a)
+        j = next((k for k, rk in enumerate(recs)
+                  if k not in drop and k != i
+                  and rk["origin_sing"] == B and rk["target_sing"] == A), None)
+        if j is None:
             continue
-        dir_BA /= nrm
-        best_j, best_dot = None, 0.5  # require pointing back toward A (>60 deg)
-        for j, rj in enumerate(recs):
-            if j == i or j in drop or rj["origin_sing"] != B:
-                continue
-            vj = np.asarray(sep_dicts[j]["vector"], float)
-            nv = np.linalg.norm(vj)
-            if nv < 1e-9:
-                continue
-            dot = float(np.dot(vj / nv, dir_BA))
-            if dot > best_dot:
-                best_dot, best_j = dot, j
-        if best_j is not None:
-            drop.add(best_j)
+        g1 = _resample(ri["poly"], N_BLEND)          # S0 -> S1
+        g2 = _resample(recs[j]["poly"], N_BLEND)     # S1 -> S0
+        if g1 is None or g2 is None:
+            continue
+        g2 = g2[::-1]                                # read as S0 -> S1
+        s = np.linspace(0.0, 1.0, N_BLEND)[:, None]
+        ri["poly"] = (1.0 - s) * g1 + s * g2         # Kowalski Eq 28 / Xiao Eq 10
+        drop.add(j)
 
     kept = [i for i in range(len(recs)) if i not in drop]
+
+    # stamp origin/target singularity back onto the surviving separatrix dicts
+    # so the count validator (and any downstream graph) can read the connectivity
+    for i in kept:
+        sep_dicts[i]["origin_sing"] = recs[i]["origin_sing"]
+        sep_dicts[i]["target_sing"] = recs[i]["target_sing"]
 
     # --- pass 2: boundary T-junction splits, only from KEPT separatrices -------
     splits = {i: [] for i in range(n_boundary)}

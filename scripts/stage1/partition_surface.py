@@ -448,7 +448,18 @@ def _project_to_polyline(p, poly):
     return best
 
 
-def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05):
+def _min_boundary_dist(p, boundary):
+    """Distance from point p to the nearest boundary polyline (incl. blade loop)."""
+    p = np.asarray(p, float)
+    best = np.inf
+    for poly in boundary:
+        d = _project_to_polyline(p, poly)[2]
+        if d < best:
+            best = d
+    return best
+
+
+def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05, end_frac=0.3):
     """Kowalski post-processing: every separatrix must end on a singularity, a
     c0 corner, or the boundary dOmega (outer *and* the inner blade loop). The RK
     integrator drifts past targets and the block graph only treats streamline
@@ -488,7 +499,21 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05):
         origin = s[0]
         origin_node = int(np.argmin(np.linalg.norm(nodes - origin, axis=1))) \
             if len(nodes) else -1
-        # (1) point-target snapping along the path
+        # (1) point-target snapping along the path.
+        # Blade-vs-neighbour guard: the two tip singularities of a cluster sit
+        # ~0.03 apart (below `radius`). A short separatrix emanating from one tip
+        # toward the blade ends ON the blade loop right between the two tips, but
+        # the neighbouring tip singularity is within `radius` of that end, so the
+        # naive nearest-node snap truncates it at the neighbour instead of letting
+        # it dock on the blade. Skip such a singularity snap when the approach
+        # point is closer to a boundary than to that singularity, lies within
+        # bnd_radius of the boundary, AND is near the END of the separatrix
+        # (little arclength remaining). The last clause is essential: a runaway
+        # multi-wrap spiral around the blade also hugs the blade, but it grazes
+        # the neighbour at its START (lots of path remaining) -- there we DO keep
+        # the sing snap so the spiral is discarded, not kept.
+        seg_all = np.linalg.norm(np.diff(s, axis=0), axis=1)
+        total_len = float(seg_all.sum())
         cut = False
         for j in range(1, len(s)):
             if len(nodes) == 0:
@@ -496,6 +521,11 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05):
             d = np.linalg.norm(nodes - s[j], axis=1)
             k = int(np.argmin(d))
             if d[k] < radius and k != origin_node:
+                if k < n_sing and total_len > 1e-9:
+                    dbl = _min_boundary_dist(s[j], boundary)
+                    rem = float(seg_all[j:].sum()) / total_len
+                    if dbl < d[k] and dbl < bnd_radius and rem < end_frac:
+                        continue               # terminates on the blade, not S_k
                 s = np.vstack([s[:j], nodes[k]])
                 cut = True
                 n_pt += 1
@@ -563,6 +593,88 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05):
         s = np.linspace(0.0, 1.0, N_BLEND)[:, None]
         ri["poly"] = (1.0 - s) * g1 + s * g2         # Kowalski Eq 28 / Xiao Eq 10
         drop.add(j)
+
+    # --- Xiao 2020 Case 2 (Fig 8b): geometric reverse-duplicate wraps -----------
+    # A wrap along one side of the blade connects a TE tip to an LE tip. Because
+    # each tip is a *cluster* of two singularities ~0.03 apart, the same physical
+    # wrap gets emitted from BOTH ends but the two integrations snap to DIFFERENT
+    # cluster-neighbours (e.g. S0->S2 one way, S3->S0 the other). The Case-1 blend
+    # above only matches the mutual A->B / B->A pair, so it misses this: the two
+    # copies survive and over-count their shared tip (Kowalski 3/5 invariant then
+    # fails, e.g. a -1 tip gets 6 separatrices instead of 5). Detect the duplicate
+    # geometrically (near-identical curve, orientation-independent Hausdorff) and
+    # drop ONE copy -- specifically the copy whose removal keeps BOTH its endpoint
+    # singularities at or above their required count (Xiao/Kowalski count-safe
+    # dedup). Blend the survivor with the reversed dropped copy for accuracy.
+    sfids = list(mesh.singularities_coords.keys())
+
+    def _expected(k):
+        if k is None or k >= len(sfids):
+            return 4
+        fid = sfids[k]
+        idx = int(mesh.singularities[fid].item())
+        return int(getattr(mesh, "expected_separatrices", {}).get(
+            fid, 3 if idx == 1 else 5 if idx == -1 else 4))
+
+    def _got(exclude=()):
+        g = {}
+        for ii, rr in enumerate(recs):
+            if ii in drop or ii in exclude:
+                continue
+            for key in ("origin_sing", "target_sing"):
+                kk = rr[key]
+                if kk is not None:
+                    g[kk] = g.get(kk, 0) + 1
+        return g
+
+    def _set_hausdorff(a, b):
+        # orientation-independent max of nearest-neighbour distances
+        d = np.linalg.norm(a[:, None, :] - b[None, :, :], axis=2)
+        return max(d.min(axis=1).max(), d.min(axis=0).max())
+
+    DUP_TOL = 0.08
+    sing_recs = [i for i, r in enumerate(recs)
+                 if i not in drop and r["origin_sing"] is not None
+                 and r["target_sing"] is not None
+                 and r["origin_sing"] != r["target_sing"]]
+    for a_i in range(len(sing_recs)):
+        i = sing_recs[a_i]
+        if i in drop:
+            continue
+        gi = _resample(recs[i]["poly"], N_BLEND)
+        if gi is None:
+            continue
+        for b_i in range(a_i + 1, len(sing_recs)):
+            j = sing_recs[b_i]
+            if j in drop:
+                continue
+            gj = _resample(recs[j]["poly"], N_BLEND)
+            if gj is None or _set_hausdorff(gi, gj) > DUP_TOL:
+                continue
+            got = _got()
+            exp = {k: _expected(k) for k in got}
+
+            def _safe_to_drop(m):
+                for key in ("origin_sing", "target_sing"):
+                    k = recs[m][key]
+                    if k is not None and got.get(k, 0) - 1 < exp.get(k, 4):
+                        return False
+                return True
+
+            victim = i if _safe_to_drop(i) else (j if _safe_to_drop(j) else None)
+            if victim is None:
+                continue
+            keep = j if victim == i else i
+            gk = _resample(recs[keep]["poly"], N_BLEND)
+            gv = _resample(recs[victim]["poly"], N_BLEND)
+            if gk is not None and gv is not None:
+                if _set_hausdorff(gk[:1], gv[:1]) > _set_hausdorff(gk[:1], gv[-1:]):
+                    gv = gv[::-1]              # align victim to survivor direction
+                ss = np.linspace(0.0, 1.0, N_BLEND)[:, None]
+                recs[keep]["poly"] = (1.0 - ss) * gk + ss * gv
+            drop.add(victim)
+            if victim == i:
+                break                          # i gone, move to next survivor
 
     kept = [i for i in range(len(recs)) if i not in drop]
 

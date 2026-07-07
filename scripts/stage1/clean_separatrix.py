@@ -330,6 +330,7 @@ class CleanSeparatrixGenerator:
             return seps
         ctype = ctype.numpy() if hasattr(ctype, "numpy") else np.asarray(ctype)
         corner_ids = np.where(ctype == 0)[0].tolist()
+        node_dim = mesh.x[:, 2].numpy()
         for nid in corner_ids:
             c = self.nodes[nid]
             faces = self.n2f.get(nid, [])
@@ -339,6 +340,19 @@ class CleanSeparatrixGenerator:
             for fi in faces:
                 nbrs.update(self.faces[fi].tolist())
             nbrs.discard(nid)
+            # Interior corner angle from the two incident boundary edges. On the
+            # periodic surface an acute and an obtuse outer corner are the SAME
+            # physical point (seam partners summing to 180 deg): only the obtuse
+            # side carries the subdividing separatrix; the acute side's arm is
+            # its one-pitch duplicate hugging the seam (and its seam crossings
+            # poison the block graph). Emit only at obtuse (>90 deg) corners.
+            bnbrs = [j for j in nbrs if node_dim[j] < 2]
+            if len(bnbrs) >= 2:
+                e = [self.nodes[j] - c for j in bnbrs[:2]]
+                cosang = np.dot(e[0], e[1]) / (
+                    np.linalg.norm(e[0]) * np.linalg.norm(e[1]) + 1e-18)
+                if np.degrees(np.arccos(np.clip(cosang, -1, 1))) <= 95.0:
+                    continue  # acute corner: no separatrix
             inward = np.mean([self.nodes[j] - c for j in nbrs], axis=0)
             ni = np.linalg.norm(inward)
             if ni < 1e-9:

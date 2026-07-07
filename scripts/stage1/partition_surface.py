@@ -334,6 +334,7 @@ def partition(stl_path, verbose=True, bc_weight=None):
     n_sing = int((m.singularities != 0).sum())
 
     sl = StreamlineGenerator_v2(ff.mesh)
+    _drop_degenerate_corner_seps(sl.mesh)
     _snap_separatrix_endpoints(sl.mesh, radius=0.045)
     pp = StreamlinePostProcessor(sl.mesh, verbose=False)
     block_mesh = pp.block_mesh
@@ -343,6 +344,45 @@ def partition(stl_path, verbose=True, bc_weight=None):
               f"separatrices={len(sl.mesh.separatrices)}  "
               f"-> {n_blocks} quad blocks ({block_mesh.x.shape[0]} corners)")
     return block_mesh, sl.mesh, transform
+
+
+def _drop_degenerate_corner_seps(mesh, min_len=0.1):
+    """Drop outer-corner separatrices whose integrated streamline never left the
+    seed neighbourhood.
+
+    ``clean_separatrix._emanate_from_outer_corners`` seeds one interior arm per
+    outer (corner_type==0) corner. At the two ACUTE parallelogram corners that arm
+    runs almost along a wall and the RK integrator exits the mesh on the first
+    step, yielding a 2-point stub (~0.04 long). Such a stub survives the snap pass
+    (which only rejects <2-point curves) and reaches QuadFaceGenerator, whose block
+    graph uses streamline ENDPOINTS as nodes: the stub becomes a graph edge to a
+    dead-end (valence-1) node, so traverse_face slits the surrounding face region
+    and the outer block is destroyed. The two OBTUSE corners emit genuine channel-
+    crossing subdividers (arclen ~0.3-0.5), which we keep. Filter is restricted to
+    corner-origin separatrices (``corner_origin`` flag) so real but short blade-tip
+    prongs are never touched; min_len=0.1 sits safely between stub and subdivider.
+    """
+    seps = mesh.separatrices
+    n_sep = len(seps)
+    n_boundary = len(mesh.streamlines) - n_sep
+    keep_sl = list(mesh.streamlines[:n_boundary])
+    keep_dicts = []
+    dropped = 0
+    for i in range(n_sep):
+        sl = mesh.streamlines[n_boundary + i]
+        if seps[i].get("corner_origin"):
+            s = np.asarray(sl, float)
+            arclen = (float(np.linalg.norm(np.diff(s, axis=0), axis=1).sum())
+                      if s.ndim == 2 and len(s) >= 2 else 0.0)
+            if arclen < min_len:
+                dropped += 1
+                continue
+        keep_sl.append(sl)
+        keep_dicts.append(seps[i])
+    mesh.streamlines = keep_sl
+    mesh.separatrices = keep_dicts
+    if dropped:
+        print(f"[corner-drop] removed {dropped} degenerate corner-stub separatrices")
 
 
 def _validate_separatrix_counts(mesh):

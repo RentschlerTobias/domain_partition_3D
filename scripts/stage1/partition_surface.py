@@ -61,25 +61,60 @@ def _streamline_merging_init(self, mesh, verbose=True):
 StreamlineMerging.__init__ = _streamline_merging_init
 
 
+# A streamline must keep integrating across the periodic theta seam until it
+# terminates on a NON-periodic boundary (inlet/outlet/blade) or a termination
+# node -- however many pitches that takes. MAX_WRAPS only guards against a
+# closed circular orbit that would never terminate (infinite loop).
+MAX_WRAPS = 4
+
+
+def _wrap_shifts(s_coord, pitchn):
+    """Candidate s-shifts k*pitch (k integer) that map a universal-cover point
+    back into the mesh's normalized s-range, nearest wrap counts first. Returns
+    [0.0] when periodicity is off; [] when the point exceeds MAX_WRAPS."""
+    if not (TILE_PERIODIC and pitchn):
+        return [0.0]
+    k_c = int(round((0.5 - s_coord) / pitchn))
+    if abs(k_c) > MAX_WRAPS:
+        return []
+    ks = {0, k_c - 1, k_c, k_c + 1}
+    return [k * pitchn for k in sorted(ks, key=abs) if abs(k) <= MAX_WRAPS]
+
+
 def _robust_find_containing_face(self, point, mesh):
     """Robust point location. The upstream version only tests faces incident to
     the single nearest node, so a streamline stepping into a non-incident face
     drops out of the mesh mid-domain and the separatrix dies early (-> dangling
     stubs that never reach their target). We test faces of the k nearest nodes,
-    then fall back to a brute-force scan. Returns a face index or None."""
+    then fall back to a brute-force scan.
+
+    Periodic wrap (Phase 2b): when the point leaves the mesh through a theta
+    seam, some +/- k-pitch image still lies inside -- the streamline physically
+    continues in a neighbour passage and must keep integrating until it reaches
+    a NON-periodic boundary or termination node. We retry the lookup at every
+    candidate wrap image (universal-cover coordinates), capped at MAX_WRAPS
+    against closed circular orbits. Returns a face index or None."""
     p = point.detach().numpy() if hasattr(point, "detach") else np.asarray(point)
     nodes = mesh.x[:, 0:2].numpy()
     faces = mesh.faces.numpy()
-    d = np.sum((nodes - p) ** 2, axis=1)
-    near = np.argsort(d)[:6]
-    cand = []
-    for nid in near:
-        cand.extend(mesh.nodes_faces_ids.get(int(nid), []))
-    for fi in dict.fromkeys(cand):
-        if _point_in_tri(p, nodes[faces[:, fi]]):
-            return fi
-    for fi in range(faces.shape[1]):  # brute fallback
-        if _point_in_tri(p, nodes[faces[:, fi]]):
+
+    def _locate(q):
+        d = np.sum((nodes - q) ** 2, axis=1)
+        near = np.argsort(d)[:6]
+        cand = []
+        for nid in near:
+            cand.extend(mesh.nodes_faces_ids.get(int(nid), []))
+        for fi in dict.fromkeys(cand):
+            if _point_in_tri(q, nodes[faces[:, fi]]):
+                return fi
+        for fi in range(faces.shape[1]):  # brute fallback
+            if _point_in_tri(q, nodes[faces[:, fi]]):
+                return fi
+        return None
+
+    for sh in _wrap_shifts(float(p[0]), getattr(mesh, "pitch_norm", None)):
+        fi = _locate(p + np.array([sh, 0.0]) if sh else p)
+        if fi is not None:
             return fi
     return None
 
@@ -99,6 +134,89 @@ def _point_in_tri(p, tri, eps=1e-9):
 
 
 StreamlineGenerator_v2.find_containing_face = _robust_find_containing_face
+
+
+def _periodic_get_best_cross_vector(self, point, previous_direction, mesh,
+                                    containing_face_idx):
+    """StreamlineGenerator_v2.get_best_cross_vector with periodic wrap: when the
+    containing face was located for the point's +/- one-pitch image (cover point
+    left the mesh through a theta seam), the barycentric interpolation must use
+    that wrapped image, not the raw cover point. We pick the candidate in
+    {p, p-pitch, p+pitch} whose barycentric coordinates lie inside the face.
+    Cross-arm construction and best-dot selection are verbatim upstream (the
+    returned direction is translation-invariant)."""
+    if containing_face_idx is None:
+        print(f'point ({point}) is not inside a face')
+        return None, mesh
+
+    face_indices = mesh.faces[:, containing_face_idx]
+    vertices = mesh.x[face_indices, 0:2]
+    ref_vecs = (mesh.u[face_indices]).to(torch.float)
+
+    pitchn = getattr(mesh, "pitch_norm", None)
+    cands = [point + torch.tensor([sh, 0.0], dtype=point.dtype) if sh else point
+             for sh in _wrap_shifts(float(point[0]), pitchn)]
+    if not cands:
+        return None, mesh
+    bary_coords, best_min = None, -torch.inf
+    for q in cands:
+        try:
+            bc = self.compute_barycentric_coordinates(q, vertices)
+        except ValueError:
+            continue
+        mn = float(bc.min())
+        if mn > best_min:
+            best_min, bary_coords = mn, bc
+        if mn >= -1e-9:
+            break  # inside; earlier candidates take precedence
+    if bary_coords is None:
+        return None, mesh
+
+    interpolated_vec = torch.einsum('i,ij->j', bary_coords, ref_vecs)
+    n = torch.norm(interpolated_vec)
+    if n < 1e-12:
+        return None, mesh
+    interpolated_vec = interpolated_vec / n
+
+    base_angle = torch.atan2(interpolated_vec[1], interpolated_vec[0]) / 4
+    max_dot, best_vector = -float('inf'), None
+    for i in range(4):
+        angle = base_angle + i * (torch.pi / 2)
+        v = torch.tensor([torch.cos(angle), torch.sin(angle)])
+        dot = torch.dot(previous_direction, v)
+        if dot > max_dot:
+            max_dot, best_vector = dot, v
+    return best_vector, mesh
+
+
+StreamlineGenerator_v2.get_best_cross_vector = _periodic_get_best_cross_vector
+
+
+def _periodic_check_termination(self, point, face_idx, origin):
+    """StreamlineGenerator_v2.check_termination_criteria with periodic wrap: a
+    streamline continuing in the neighbour passage (cover coords) must still
+    terminate on the neighbour's singularities/corners. We test the point's
+    {0, -pitch, +pitch} images against the central termination nodes and shift a
+    hit BACK into cover coordinates so the recorded polyline stays continuous."""
+    if face_idx is None:
+        return True, point
+    pitchn = getattr(self.mesh, "pitch_norm", None)
+    for sh in _wrap_shifts(float(point[0]), pitchn):
+        shv = torch.tensor([sh, 0.0], dtype=point.dtype)
+        pw = point + shv if sh else point
+        distances = torch.linalg.norm(self.streamline_termination_nodes - pw,
+                                      dim=1)
+        min_distance = torch.min(distances)
+        if min_distance < self.termination_node_range:
+            idx = torch.where(distances == min_distance)[0]
+            tn = self.streamline_termination_nodes[idx.item(), :]
+            if torch.linalg.norm(point - origin) < self.termination_node_range:
+                return False, None  # directly at the start
+            return True, (tn - shv if sh else tn)
+    return False, None
+
+
+StreamlineGenerator_v2.check_termination_criteria = _periodic_check_termination
 
 
 def _add_cross_at_boundaries_fixed(self):
@@ -212,16 +330,45 @@ def set_tile_periodic(flag):
 
 
 def _tile_streamlines_periodic(streamlines, pitch_norm):
-    """Replicate every streamline by +/- one pitch in normalized s (t unchanged),
-    yielding a 3-pitch strip (original + left copy + right copy)."""
-    tiled = []
-    for s in streamlines:
-        s = np.asarray(s, float)
-        tiled.append(s)
-        for shift in (-pitch_norm, +pitch_norm):
+    """Replicate every streamline by whole pitches in normalized s (t unchanged)
+    so that every copy overlapping the widened strip [-pitch, 1+pitch] exists.
+    Curves may span several pitches (they integrate across the seam until they
+    hit a non-periodic boundary), so the shift range is per curve, derived from
+    its s-extent -- not a fixed +/-1.
+
+    Copies that coincide with an existing curve are dropped: the left seam wall
+    is the exact -pitch translate of the right one, so tiling would lay duplicate
+    polylines on top of each other -- coincident curves make the intersection
+    splitter pathological and clutter the block graph. Key = sorted endpoints +
+    centroid, rounded to the seam-conformity tolerance (1e-3)."""
+    def _key(s):
+        a, b, m = s[0], s[-1], s.mean(axis=0)
+        if (a[0], a[1]) > (b[0], b[1]):
+            a, b = b, a
+        return tuple(np.round(np.concatenate([a, b, m]), 3))
+
+    lo, hi = -pitch_norm, 1.0 + pitch_norm      # widened strip to cover
+    orig = [np.asarray(s, float) for s in streamlines]
+    tiled = list(orig)
+    seen = {_key(s) for s in orig}
+    n_dup = 0
+    for s in orig:
+        smin, smax = s[:, 0].min(), s[:, 0].max()
+        k_lo = int(np.ceil((lo - smax) / pitch_norm))
+        k_hi = int(np.floor((hi - smin) / pitch_norm))
+        for k in range(k_lo, k_hi + 1):
+            if k == 0:
+                continue
             c = s.copy()
-            c[:, 0] = c[:, 0] + shift
+            c[:, 0] = c[:, 0] + k * pitch_norm
+            key = _key(c)
+            if key in seen:
+                n_dup += 1
+                continue
+            seen.add(key)
             tiled.append(c)
+    if n_dup:
+        print(f"[tile] deduped {n_dup} coincident copies (seam walls)")
     return tiled
 
 
@@ -615,6 +762,30 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05, end_frac=0.3
     seps = [np.asarray(s, float) for s in mesh.streamlines[n_boundary:]]
     sep_dicts = list(mesh.separatrices)
 
+    # Periodic wrap (Phase 2b): separatrix ends may now lie in the neighbour
+    # passage (cover coords). Tile the point targets and boundary polylines by
+    # +/- one pitch so those ends snap/split correctly; per-copy shifts let us
+    # map every hit back to its central entity.
+    n_nodes0, n_bnd0 = len(nodes), len(boundary)
+    pitchn = getattr(mesh, "pitch_norm", None)
+    tiled = bool(TILE_PERIODIC and pitchn and n_nodes0)
+    node_shift = np.zeros(max(n_nodes0, 1))
+    bnd_shift = [0.0] * n_bnd0
+    if tiled:
+        # cover as many wraps as the integrated curves actually reach
+        s_ext = max(abs(float(np.min([s[:, 0].min() for s in seps if s.ndim == 2]
+                                     or [0.0]))),
+                    abs(float(np.max([s[:, 0].max() for s in seps if s.ndim == 2]
+                                     or [1.0])) - 1.0)) if seps else 0.0
+        K = min(MAX_WRAPS, int(np.ceil(s_ext / pitchn)) + 1)
+        for k in [kk for k0 in range(1, K + 1) for kk in (k0, -k0)]:
+            shv = np.array([k * pitchn, 0.0])
+            nodes = np.vstack([nodes, nodes[:n_nodes0] + shv])
+            node_shift = np.concatenate([node_shift,
+                                         np.full(n_nodes0, k * pitchn)])
+            boundary = boundary + [b + shv for b in boundary[:n_bnd0]]
+            bnd_shift = bnd_shift + [k * pitchn] * n_bnd0
+
     def _origin_sing(si):
         """node index of a separatrix's origin if it is a field singularity."""
         if si >= len(sep_dicts) or int(sep_dicts[si].get("face_id", -1)) < 0:
@@ -630,7 +801,7 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05, end_frac=0.3
     n_pt, n_bnd = 0, 0
     for si, s in enumerate(seps):
         rec = {"poly": s, "origin_sing": _origin_sing(si),
-               "target_sing": None, "bnd": None}
+               "target_sing": None, "bnd": None, "tshift": 0.0}
         if s.ndim != 2 or len(s) < 2:
             recs.append(rec)
             continue
@@ -658,8 +829,9 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05, end_frac=0.3
                 break
             d = np.linalg.norm(nodes - s[j], axis=1)
             k = int(np.argmin(d))
+            k_c = k % n_nodes0 if n_nodes0 else k   # central node of a copy
             if d[k] < radius and k != origin_node:
-                if k < n_sing and total_len > 1e-9:
+                if k_c < n_sing and total_len > 1e-9:
                     dbl = _min_boundary_dist(s[j], boundary)
                     rem = float(seg_all[j:].sum()) / total_len
                     if dbl < d[k] and dbl < bnd_radius and rem < end_frac:
@@ -667,8 +839,9 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05, end_frac=0.3
                 s = np.vstack([s[:j], nodes[k]])
                 cut = True
                 n_pt += 1
-                if k < n_sing:                 # snapped onto a field singularity
-                    rec["target_sing"] = k
+                if k_c < n_sing:               # snapped onto a field singularity
+                    rec["target_sing"] = k_c   # central id; cover offset below
+                    rec["tshift"] = float(node_shift[k])
                 break
         # (2) boundary snapping of the (still dangling) end
         if not cut:
@@ -681,7 +854,13 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05, end_frac=0.3
             if best[0] is not None and best[2] < bnd_radius:
                 bi, (seg, t), _, proj = best
                 s = np.vstack([s[:-1], proj])
-                rec["bnd"] = (bi, seg + t, proj)
+                # map a hit on a +/-pitch boundary COPY back to the central
+                # polyline: split the central one at proj - shift; its tiled
+                # copy then passes exactly through proj, so the T-junction node
+                # matches the (cover-coordinate) separatrix end downstream.
+                bi_c = bi % n_bnd0 if n_bnd0 else bi
+                proj_c = proj - np.array([bnd_shift[bi], 0.0])
+                rec["bnd"] = (bi_c, seg + t, proj_c)
                 n_bnd += 1
         rec["poly"] = s
         recs.append(rec)
@@ -717,17 +896,22 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05, end_frac=0.3
         A, B = ri["origin_sing"], ri["target_sing"]
         if A is None or B is None or A == B:
             continue
-        # matching reverse separatrix: origin B, target A (Case 1, Fig 8a)
+        # matching reverse separatrix: origin B, target A (Case 1, Fig 8a).
+        # With periodic wrap the same physical connection may cross the seam:
+        # emitted as A -> B+pitch (tshift +p) one way and B -> A-pitch (-p) the
+        # other; the pair is consistent iff the cover offsets cancel.
         j = next((k for k, rk in enumerate(recs)
                   if k not in drop and k != i
-                  and rk["origin_sing"] == B and rk["target_sing"] == A), None)
+                  and rk["origin_sing"] == B and rk["target_sing"] == A
+                  and abs(rk["tshift"] + ri["tshift"]) < 1e-6), None)
         if j is None:
             continue
         g1 = _resample(ri["poly"], N_BLEND)          # S0 -> S1
         g2 = _resample(recs[j]["poly"], N_BLEND)     # S1 -> S0
         if g1 is None or g2 is None:
             continue
-        g2 = g2[::-1]                                # read as S0 -> S1
+        # read reversed as S0 -> S1, shifted into g1's cover
+        g2 = g2[::-1] + np.array([ri["tshift"], 0.0])
         s = np.linspace(0.0, 1.0, N_BLEND)[:, None]
         ri["poly"] = (1.0 - s) * g1 + s * g2         # Kowalski Eq 28 / Xiao Eq 10
         drop.add(j)
@@ -770,11 +954,29 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05, end_frac=0.3
         d = np.linalg.norm(a[:, None, :] - b[None, :, :], axis=2)
         return max(d.min(axis=1).max(), d.min(axis=0).max())
 
+    def _set_hausdorff_p(a, b):
+        # periodic variant: duplicates of the same physical curve may live in
+        # different covers (offset by whole pitches) -- compare modulo the pitch.
+        best = _set_hausdorff(a, b)
+        if tiled:
+            k_c = int(round((a[:, 0].mean() - b[:, 0].mean()) / pitchn))
+            for k in {k_c - 1, k_c, k_c + 1} - {0}:
+                best = min(best,
+                           _set_hausdorff(a, b + np.array([k * pitchn, 0.0])))
+        return best
+
     DUP_TOL = 0.08
+    # candidates: ALL separatrices. With periodic wrap the same physical curve
+    # can be integrated several times in different covers: the (1,1) corner arm
+    # is the (0.407,1) arm shifted one pitch (identical physical point), and a
+    # blade wrap is emitted from both cluster ends. Near-coincident survivors
+    # tile into stacks of duplicates and produce sliver triangles in the block
+    # graph. Count-safety below still protects field-singularity valences;
+    # corner/boundary endpoints are unconstrained.
     sing_recs = [i for i, r in enumerate(recs)
-                 if i not in drop and r["origin_sing"] is not None
-                 and r["target_sing"] is not None
-                 and r["origin_sing"] != r["target_sing"]]
+                 if i not in drop
+                 and not (r["origin_sing"] is not None
+                          and r["origin_sing"] == r["target_sing"])]
     for a_i in range(len(sing_recs)):
         i = sing_recs[a_i]
         if i in drop:
@@ -787,7 +989,7 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05, end_frac=0.3
             if j in drop:
                 continue
             gj = _resample(recs[j]["poly"], N_BLEND)
-            if gj is None or _set_hausdorff(gi, gj) > DUP_TOL:
+            if gj is None or _set_hausdorff_p(gi, gj) > DUP_TOL:
                 continue
             got = _got()
             exp = {k: _expected(k) for k in got}
@@ -805,7 +1007,10 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05, end_frac=0.3
             keep = j if victim == i else i
             gk = _resample(recs[keep]["poly"], N_BLEND)
             gv = _resample(recs[victim]["poly"], N_BLEND)
-            if gk is not None and gv is not None:
+            # blend survivor with dropped copy only when both live in the SAME
+            # cover (unshifted-close); a pitch-offset duplicate is just dropped.
+            if gk is not None and gv is not None \
+                    and _set_hausdorff(gk, gv) <= DUP_TOL:
                 if _set_hausdorff(gk[:1], gv[:1]) > _set_hausdorff(gk[:1], gv[-1:]):
                     gv = gv[::-1]              # align victim to survivor direction
                 ss = np.linspace(0.0, 1.0, N_BLEND)[:, None]
@@ -830,7 +1035,7 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05, end_frac=0.3
             splits[bi].append((segpos, proj))
 
     new_boundary = []
-    for bi, poly in enumerate(boundary):
+    for bi, poly in enumerate(boundary[:n_bnd0]):   # central originals only
         pts = sorted(splits[bi])
         if not pts:
             new_boundary.append(poly)

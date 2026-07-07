@@ -114,7 +114,7 @@ def build_dp_data(stl_path, corner_angle_deg=40.0):
     # periodicity is a pure s-translation, so a physical +pitch shift maps to a
     # +pitch_norm shift in normalized s (t unchanged). Used by the periodic block
     # tiling in partition_surface to replicate streamlines across the seam.
-    mesh.pitch_norm = (float(mesh.pitch) / (smax - smin)
+    mesh.pitch_norm = (float(float(mesh.pitch) / (smax - smin))
                        if mesh.pitch is not None else None)
 
     return mesh, transform

@@ -29,10 +29,20 @@ import torch
 # variant is in place.
 ANNIHILATE_PAIRS = False
 
+# Experiment (Step 0): emit separatrices from the OUTER (corner_type==0) domain
+# corners along their interior cross direction, to test whether that alone tiles
+# the outer channels into quads (vs the heavier periodic-tiling approach).
+EMANATE_OUTER_CORNERS = False
+
 
 def set_annihilate_pairs(flag):
     global ANNIHILATE_PAIRS
     ANNIHILATE_PAIRS = bool(flag)
+
+
+def set_emanate_outer_corners(flag):
+    global EMANATE_OUTER_CORNERS
+    EMANATE_OUTER_CORNERS = bool(flag)
 
 
 def _poincare_indices(mesh):
@@ -74,6 +84,8 @@ class CleanSeparatrixGenerator:
             self._annihilate_pairs()
         seps = self._emanate_from_singularities()
         seps += self._emanate_from_blade_tips()
+        if EMANATE_OUTER_CORNERS:
+            seps += self._emanate_from_outer_corners()
         mesh.separatrices = seps
         self.found_separatrices = seps
 
@@ -301,6 +313,64 @@ class CleanSeparatrixGenerator:
     @staticmethod
     def _in_blade(p, blade_paths):
         return any(bp.contains_point((float(p[0]), float(p[1]))) for bp in blade_paths)
+
+    def _emanate_from_outer_corners(self):
+        """Experiment: emit separatrices from OUTER (corner_type==0) domain
+        corners along the interior cross direction(s).
+
+        Mirrors the blade-tip emission but for the parallelogram's outer corners,
+        which normally emit nothing (valence-2 assumption). We take every cross
+        arm that points into the domain (positive dot with the inward direction)
+        and emit a separatrix along it, to test whether this alone splits the
+        outer channels into four-sided blocks (vs. periodic tiling)."""
+        seps = []
+        mesh = self.mesh
+        ctype = getattr(mesh, "corner_type", None)
+        if ctype is None:
+            return seps
+        ctype = ctype.numpy() if hasattr(ctype, "numpy") else np.asarray(ctype)
+        corner_ids = np.where(ctype == 0)[0].tolist()
+        for nid in corner_ids:
+            c = self.nodes[nid]
+            faces = self.n2f.get(nid, [])
+            if not faces:
+                continue
+            nbrs = set()
+            for fi in faces:
+                nbrs.update(self.faces[fi].tolist())
+            nbrs.discard(nid)
+            inward = np.mean([self.nodes[j] - c for j in nbrs], axis=0)
+            ni = np.linalg.norm(inward)
+            if ni < 1e-9:
+                continue
+            inward /= ni
+            eps = 1.2 * np.mean([self._local_scale(fi) for fi in faces])
+            cd = self._cross_dirs(c + eps * inward)
+            if cd is None:
+                continue
+            # The field is wall-aligned, so at a corner the cross arms point ALONG
+            # the two boundary walls. An arm along the inlet/outlet wall (t=const,
+            # horizontal) integrates into a useless boundary-hugging streamline; the
+            # arm that SUBDIVIDES the channel crosses it, i.e. has the largest axial
+            # (t / y) component. So emit the single interior-pointing arm with the
+            # largest |t-component|.
+            best_d, best_dy = None, -1.0
+            for al in cd:
+                d = np.array([np.cos(al), np.sin(al)])
+                if float(np.dot(d, inward)) <= 0.0:   # must point into the domain
+                    continue
+                if abs(d[1]) > best_dy:
+                    best_dy, best_d = abs(d[1]), d
+            if best_d is None:
+                continue
+            seps.append({
+                "coordinates": torch.tensor(c + eps * best_d, dtype=torch.float),
+                "vector": torch.tensor(best_d, dtype=torch.float),
+                "singularity_coords": torch.tensor(c, dtype=torch.float),
+                "face_id": -1 - nid,  # negative marker = corner origin
+                "corner_origin": True,  # flag for degenerate-stub drop downstream
+            })
+        return seps
 
     def _emanate_from_blade_tips(self):
         """Emit 3 separatrices from each blade-tip (LE/TE) corner.

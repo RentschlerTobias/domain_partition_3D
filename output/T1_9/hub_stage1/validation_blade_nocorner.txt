@@ -1,0 +1,31 @@
+is_valid (hard checks): False
+passes_soft_thresholds: False
+blocks: 3  corners: 18
+singularities expected/actual: 0/8  efficiency: 0.0
+quality_score:
+  scaled_jacobian_min: 0.7138825072740618
+  scaled_jacobian_mean: 0.7721610648307836
+  min_interior_angle: 54.509800023548685
+  max_interior_angle: 134.44830870261248
+  edge_length_ratio_max: 4.4126827582840615
+  num_quads: 3
+  num_nodes: 18
+  num_edges: 11
+  singularity_efficiency: 0.0
+  expected_singularities: 0
+  actual_singularities: 8
+diagnostics:
+  - TOPOLOGY FAIL: Euler = 10.00 != 0.00 (expected for 1 hole(s), 2 boundary loop(s))
+  - TOPOLOGY FAIL: 8 inner node(s) with valence != 4 (indices: [0, 4, 5, 6, 11, 12, 13, 14])
+  - Element OK: No inverted quads
+  - Element OK: Angles in [54.51, 134.45] deg
+  - Element OK: Max edge-length-ratio = 4.41
+  - BOUNDARY FAIL: 202 tri-boundary node(s) > 0.001 away from nearest block-boundary node (max dist = 0.4847)
+  - Quality Score: SJ_min=0.714, SJ_mean=0.772, angle=[54.5, 134.4], aspect_max=4.41
+  - Singularity Efficiency: 0.000 (expected=0, actual=8)
+separatrix-count per singularity (Kowalski 3/5 invariant):
+  fid=162 idx=-1 expected=5 got=5 OK
+  fid=207 idx=-1 expected=5 got=5 OK
+  fid=376 idx=-1 expected=5 got=5 OK
+  fid=861 idx=-1 expected=5 got=5 OK
+separatrix-count invariant: PASS

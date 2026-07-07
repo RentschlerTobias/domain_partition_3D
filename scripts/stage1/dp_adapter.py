@@ -110,6 +110,12 @@ def build_dp_data(stl_path, corner_angle_deg=40.0):
     mesh.periodic_pairs = (torch.tensor(pp, dtype=torch.long) if pp
                            else torch.zeros((0, 2), dtype=torch.long))
     mesh.pitch = u.get("pitch")
+    # pitch in NORMALIZED s (same linear s-scale as mesh.x[:,0]); the theta
+    # periodicity is a pure s-translation, so a physical +pitch shift maps to a
+    # +pitch_norm shift in normalized s (t unchanged). Used by the periodic block
+    # tiling in partition_surface to replicate streamlines across the seam.
+    mesh.pitch_norm = (float(mesh.pitch) / (smax - smin)
+                       if mesh.pitch is not None else None)
 
     return mesh, transform
 

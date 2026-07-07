@@ -24,6 +24,7 @@ import numpy as np
 import torch
 from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import spsolve
+from torch_geometric.data import Data
 
 sys.path.insert(0, "/root/repos/domain_partition")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -193,6 +194,85 @@ def set_periodic(flag):
     PERIODIC = bool(flag)
 
 
+# --- periodic block tiling (Phase 2) ---------------------------------------
+# The theta-seam is periodic in the field solve, but the block graph
+# (QuadFaceGenerator) uses streamline endpoints as nodes: the left-seam and
+# right-seam nodes are distinct (offset by one pitch in s), so block regions do
+# not close across the seam and leave irregular interior nodes. When True (and
+# mesh.pitch_norm is set) we replicate every streamline by +/- one pitch in s to
+# a 3-pitch strip, build blocks on the flat strip (still planar), then keep only
+# the faces whose centroid lies in the central pitch (the physical passage). This
+# closes the seam and needs no domain_partition edit.
+TILE_PERIODIC = True
+
+
+def set_tile_periodic(flag):
+    global TILE_PERIODIC
+    TILE_PERIODIC = bool(flag)
+
+
+def _tile_streamlines_periodic(streamlines, pitch_norm):
+    """Replicate every streamline by +/- one pitch in normalized s (t unchanged),
+    yielding a 3-pitch strip (original + left copy + right copy)."""
+    tiled = []
+    for s in streamlines:
+        s = np.asarray(s, float)
+        tiled.append(s)
+        for shift in (-pitch_norm, +pitch_norm):
+            c = s.copy()
+            c[:, 0] = c[:, 0] + shift
+            tiled.append(c)
+    return tiled
+
+
+def _central_parallelogram(mesh):
+    """matplotlib Path of the central passage = the sheared parallelogram spanned
+    by the four OUTER (corner_type==0) domain corners, ordered around the loop
+    (bottom edge left->right, top edge right->left). Used to select the central
+    pitch after tiling; robust to the shear (not an axis-aligned band)."""
+    from matplotlib.path import Path as _MplPath
+    ct = mesh.corner_type.numpy() if hasattr(mesh.corner_type, "numpy") \
+        else np.asarray(mesh.corner_type)
+    corners = mesh.x[:, 0:2].numpy()[ct == 0]
+    if len(corners) < 3:
+        return None
+    tmid = 0.5 * (corners[:, 1].min() + corners[:, 1].max())
+    bottom = corners[corners[:, 1] <= tmid]
+    top = corners[corners[:, 1] > tmid]
+    bottom = bottom[np.argsort(bottom[:, 0])]           # left -> right
+    top = top[np.argsort(-top[:, 0])]                   # right -> left
+    ring = np.vstack([bottom, top])
+    return _MplPath(ring)
+
+
+def _extract_central_blocks(block_mesh, central_path):
+    """Keep only quad faces whose centroid lies in the central parallelogram, then
+    renumber the surviving corner nodes. Rebuilds x/faces/edge_index so both the
+    validator and the plots work on the trimmed block mesh."""
+    if block_mesh.faces is None or block_mesh.faces.numel() == 0:
+        return block_mesh
+    bx = block_mesh.x.numpy()
+    bf = block_mesh.faces.numpy().T                     # (B,4)
+    cent = bx[bf].mean(axis=1)                          # (B,2)
+    keep = central_path.contains_points(cent)
+    kept = bf[keep]
+    if len(kept) == 0:
+        return block_mesh
+    used = np.unique(kept)
+    remap = {int(o): i for i, o in enumerate(used)}
+    new_x = torch.tensor(bx[used], dtype=block_mesh.x.dtype)
+    new_faces = torch.tensor(
+        np.vectorize(remap.get)(kept).T, dtype=torch.long)   # (4,B')
+    # undirected quad edges for the validator
+    e = []
+    for q in new_faces.T.tolist():
+        for k in range(4):
+            e.append((q[k], q[(k + 1) % 4]))
+    edge_index = torch.tensor(e, dtype=torch.long).T if e else \
+        torch.zeros((2, 0), dtype=torch.long)
+    return Data(x=new_x, faces=new_faces, edge_index=edge_index)
+
+
 def _seam_weld_map(mesh, num_nodes):
     """Return (weld, seam, slave_of) for the periodic seam.
 
@@ -336,8 +416,26 @@ def partition(stl_path, verbose=True, bc_weight=None):
     sl = StreamlineGenerator_v2(ff.mesh)
     _drop_degenerate_corner_seps(sl.mesh)
     _snap_separatrix_endpoints(sl.mesh, radius=0.045)
+
+    # periodic tiling: replicate streamlines +/- one pitch, build blocks on the
+    # 3-pitch strip, keep the central passage (closes the theta-seam).
+    central_path = None
+    pitch_norm = getattr(sl.mesh, "pitch_norm", None)
+    if TILE_PERIODIC and pitch_norm:
+        central_path = _central_parallelogram(sl.mesh)
+        sl.mesh.streamlines = _tile_streamlines_periodic(
+            sl.mesh.streamlines, pitch_norm)
+        print(f"[tile] periodic strip: pitch_norm={pitch_norm:.4f}, "
+              f"{len(sl.mesh.streamlines)} streamlines (x3)")
+
     pp = StreamlinePostProcessor(sl.mesh, verbose=False)
     block_mesh = pp.block_mesh
+    if central_path is not None:
+        n_all = block_mesh.faces.shape[1] if block_mesh.faces is not None else 0
+        block_mesh = _extract_central_blocks(block_mesh, central_path)
+        n_ctr = block_mesh.faces.shape[1] if block_mesh.faces is not None else 0
+        print(f"[tile] central extraction: {n_all} strip blocks -> {n_ctr} "
+              f"central blocks")
     n_blocks = block_mesh.faces.shape[1] if block_mesh.faces is not None else 0
     if verbose:
         print(f"[partition] singularities={n_sing}  "

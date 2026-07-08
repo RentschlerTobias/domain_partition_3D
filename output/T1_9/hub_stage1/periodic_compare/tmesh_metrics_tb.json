@@ -1,0 +1,28 @@
+{
+  "approach": "T-b (seam edges continued)",
+  "singularities": 4,
+  "blocks": 13,
+  "rejected_regions": 4,
+  "t_nodes_interior": 3,
+  "hanging_seam_junctions": 0,
+  "irregular_interior_nodes": 3,
+  "inverted_blocks": 0,
+  "inverted_tfi_cells": 0,
+  "total_tfi_cells": 413,
+  "shared_edges": 15,
+  "edge_conformity_dev": 6.190249446369478e-08,
+  "wall_cluster_ratio_mean": 4.999384809521227,
+  "wall_clustered_edge_ends": 8,
+  "seam_corner_lr": [
+    4,
+    6
+  ],
+  "seam_corner_dev": 0.2988355409509064,
+  "seam_tfi_nodes_lr": [
+    16,
+    14
+  ],
+  "seam_tfi_dev": 0.6072464582435357,
+  "planar": true,
+  "runtime_s": 8.9
+}

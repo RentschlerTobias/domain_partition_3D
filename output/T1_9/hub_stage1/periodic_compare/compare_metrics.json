@@ -13,33 +13,60 @@
     "seam_corner_dev": 0.0047773683263027415,
     "runtime_s": 463.0
   },
-  "tmesh": {
-    "approach": "T (wall + T-mesh + TFI)",
+  "tmesh_ta": {
+    "approach": "T-a (hanging seam T-nodes)",
     "singularities": 4,
     "blocks": 14,
     "rejected_regions": 0,
-    "t_nodes": 0,
+    "t_nodes_interior": 0,
+    "hanging_seam_junctions": 4,
     "irregular_interior_nodes": 2,
     "inverted_blocks": 0,
     "inverted_tfi_cells": 0,
-    "total_tfi_cells": 812,
+    "total_tfi_cells": 938,
+    "shared_edges": 20,
+    "edge_conformity_dev": 6.190249446369478e-08,
+    "wall_cluster_ratio_mean": 4.999302811802407,
+    "wall_clustered_edge_ends": 8,
     "seam_corner_lr": [
       4,
       4
     ],
     "seam_corner_dev": 0.3244528576456163,
     "seam_tfi_nodes_lr": [
-      30,
-      30
+      32,
+      32
     ],
     "seam_tfi_dev": 8.082978730783452e-13,
-    "seam_junctions": {
-      "n_left": 2,
-      "n_right": 2,
-      "n_union": 4,
-      "n_hanging": 4
-    },
     "planar": true,
-    "runtime_s": 6.4
+    "runtime_s": 10.1
+  },
+  "tmesh_tb": {
+    "approach": "T-b (seam edges continued)",
+    "singularities": 4,
+    "blocks": 13,
+    "rejected_regions": 4,
+    "t_nodes_interior": 3,
+    "hanging_seam_junctions": 0,
+    "irregular_interior_nodes": 3,
+    "inverted_blocks": 0,
+    "inverted_tfi_cells": 0,
+    "total_tfi_cells": 413,
+    "shared_edges": 15,
+    "edge_conformity_dev": 6.190249446369478e-08,
+    "wall_cluster_ratio_mean": 4.999384809521227,
+    "wall_clustered_edge_ends": 8,
+    "seam_corner_lr": [
+      4,
+      6
+    ],
+    "seam_corner_dev": 0.2988355409509064,
+    "seam_tfi_nodes_lr": [
+      16,
+      14
+    ],
+    "seam_tfi_dev": 0.6072464582435357,
+    "planar": true,
+    "runtime_s": 8.9
   }
 }

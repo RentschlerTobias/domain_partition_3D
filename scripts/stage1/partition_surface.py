@@ -64,8 +64,10 @@ StreamlineMerging.__init__ = _streamline_merging_init
 # A streamline must keep integrating across the periodic theta seam until it
 # terminates on a NON-periodic boundary (inlet/outlet/blade) or a termination
 # node -- however many pitches that takes. MAX_WRAPS only guards against a
-# closed circular orbit that would never terminate (infinite loop).
-MAX_WRAPS = 4
+# closed circular orbit that would never terminate (infinite loop); it must be
+# large enough for a helical spiral to CONVERGE onto its limit orbit before the
+# cap (the convergence-based merge needs a few windings of room).
+MAX_WRAPS = 8
 
 
 def _wrap_shifts(s_coord, pitchn):
@@ -329,6 +331,14 @@ def set_tile_periodic(flag):
     TILE_PERIODIC = bool(flag)
 
 
+def set_periodicity(flag):
+    """Master switch for ALL pitchwise periodicity: field seam weld (PERIODIC)
+    AND block-stage wrap integration/tiling/helix merge (TILE_PERIODIC).
+    set_periodicity(False) treats the theta walls as plain walls everywhere."""
+    set_periodic(flag)
+    set_tile_periodic(flag)
+
+
 def _tile_streamlines_periodic(streamlines, pitch_norm):
     """Replicate every streamline by whole pitches in normalized s (t unchanged)
     so that every copy overlapping the widened strip [-pitch, 1+pitch] exists.
@@ -562,6 +572,8 @@ def partition(stl_path, verbose=True, bc_weight=None):
 
     sl = StreamlineGenerator_v2(ff.mesh)
     _drop_degenerate_corner_seps(sl.mesh)
+    _close_helical_streamlines(sl.mesh)
+    _emit_dock_crossings(sl)
     _snap_separatrix_endpoints(sl.mesh, radius=0.045)
 
     # periodic tiling: replicate streamlines +/- one pitch, build blocks on the
@@ -589,6 +601,171 @@ def partition(stl_path, verbose=True, bc_weight=None):
               f"separatrices={len(sl.mesh.separatrices)}  "
               f"-> {n_blocks} quad blocks ({block_mesh.x.shape[0]} corners)")
     return block_mesh, sl.mesh, transform
+
+
+def _close_helical_streamlines(mesh, tol=0.015, align=0.9, min_wraps=2.0,
+                               ring_dup_tol=0.06):
+    """Xiao 2020 circular-streamline closing, periodic (mod-pitch) variant with
+    a CONVERGENCE criterion.
+
+    On the periodic band the LE/TE prongs heading for inlet/outlet never reach a
+    non-periodic boundary: they spiral helically around the wheel, converging to
+    a closed limit orbit. The spiral must NOT be closed at its first re-entry
+    (winding gaps are still ~0.03-0.05 there; closing that early breaks the
+    partition): it is merged onto the orbit only once it is genuinely close to
+    its own previous winding AND has already made a couple of laps:
+      - tight proximity  |P_j - (P_i + k*pitch)| < tol (~0.015),
+      - same direction   tangent dot > align (0.9),
+      - min laps         net s-drift before the hit >= min_wraps * pitch.
+
+    A helical curve then becomes TWO objects (analogous to the blade O-ring +
+    dock): (1) the finite prong P[:i+1] -- keeps ALL earlier spiral windings and
+    is later docked onto the ring by the boundary-snap pass (T-junction, ring
+    gets split); (2) the closed orbit ring P[i:j+1], closure drift distributed
+    linearly so end == start + k*pitch EXACTLY. The ring stays where the orbit
+    is (no projection onto the far-away singularity) and is inserted as a
+    BOUNDARY-type streamline, not a separatrix: it carries no singularity
+    valence and the snap pass may split it. Clone prongs from the second
+    cluster singularity converge to the SAME orbit, so near-duplicate rings are
+    created only once (ring_dup_tol, set-Hausdorff mod pitch); tiled copies
+    chain seamlessly across the strip (copy start node == neighbour end node)."""
+    pitchn = getattr(mesh, "pitch_norm", None)
+    if not (TILE_PERIODIC and pitchn):
+        return
+    n_sep = len(mesh.separatrices)
+    n_b = len(mesh.streamlines) - n_sep
+
+    def _resample(poly, n=80):
+        seg = np.linalg.norm(np.diff(poly, axis=0), axis=1)
+        d = np.concatenate([[0.0], np.cumsum(seg)])
+        if d[-1] < 1e-12:
+            return None
+        ss = np.linspace(0.0, 1.0, n)
+        return np.column_stack([np.interp(ss, d / d[-1], poly[:, 0]),
+                                np.interp(ss, d / d[-1], poly[:, 1])])
+
+    def _ring_close(a, b):
+        ra, rb = _resample(a), _resample(b)
+        if ra is None or rb is None:
+            return False
+        best = np.inf
+        k_c = int(round((ra[:, 0].mean() - rb[:, 0].mean()) / pitchn))
+        for k in (k_c - 1, k_c, k_c + 1):
+            d = np.linalg.norm(ra[:, None, :]
+                               - (rb[None, :, :] + np.array([k * pitchn, 0.0])),
+                               axis=2)
+            best = min(best, max(d.min(axis=1).max(), d.min(axis=0).max()))
+        return best < ring_dup_tol
+
+    rings, docks, closed = [], [], 0
+    for si in range(n_sep):
+        P = np.asarray(mesh.streamlines[n_b + si], float)
+        if P.ndim != 2 or len(P) < 50:
+            continue
+        T = np.gradient(P, axis=0)
+        T = T / (np.linalg.norm(T, axis=1, keepdims=True) + 1e-30)
+        A = T @ T.T
+        # "a couple of laps first": only allow the merge once the curve has
+        # drifted at least min_wraps pitches in s from its start
+        lapped = np.abs(P[:, 0] - P[0, 0]) >= min_wraps * pitchn
+        hit = None
+        for k in (1, -1, 2, -2):
+            shift = np.array([k * pitchn, 0.0])
+            D = np.linalg.norm(P[:, None, :] - (P[None, :, :] + shift), axis=2)
+            cand = (D < tol) & (A > align)
+            cand &= lapped[:, None]                      # j past min_wraps laps
+            cand &= np.tri(len(P), k=-10, dtype=bool)   # j strictly after i
+            js, iis = np.nonzero(cand)
+            if len(js):
+                j = int(js.min())                        # earliest converged hit
+                i = int(iis[js == j][int(np.argmin(D[j, iis[js == j]]))])
+                hit = (i, j, shift)
+                break
+        if hit is None:
+            continue
+        i, j, shift = hit
+        R = P[i:j + 1].copy()
+        # distribute the closure drift so R[-1] == R[0] + shift exactly
+        err = (R[0] + shift) - R[-1]
+        R = R + np.linspace(0.0, 1.0, len(R))[:, None] * err
+        # place the ring in the central cover (start s wrapped into [0, pitch))
+        R[:, 0] -= np.floor(R[0, 0] / pitchn) * pitchn
+        # truncate the source curve to the finite prong docking on the ring:
+        # end the prong EXACTLY on the ring (projection) and remember the dock
+        # so partition() can emit the orthogonal crossing there (T -> X node)
+        pe = P[i]
+        best = (None, None, np.inf, None)
+        for km in range(-MAX_WRAPS, MAX_WRAPS + 1):
+            sh = np.array([km * pitchn, 0.0])
+            seg, t, dist, proj = _project_to_polyline(pe - sh, R)
+            if dist < best[2]:
+                best = (km, (seg, t), dist, proj)
+        km, _, _, proj = best
+        dock = proj + np.array([km * pitchn, 0.0])       # in the prong's cover
+        prong = np.vstack([P[:i], dock])
+        v = P[i] - P[i - 1]
+        v = v / (np.linalg.norm(v) + 1e-30)
+        docks.append((dock, v))
+        mesh.streamlines[n_b + si] = prong
+        closed += 1
+        if any(_ring_close(R, rr) for rr in rings):
+            continue                                     # orbit already ringed
+        rings.append(R)
+    mesh.ring_docks = docks
+    if rings:
+        # insert as boundary-type streamlines (before the separatrix section)
+        mesh.streamlines = (list(mesh.streamlines[:n_b]) + rings
+                            + list(mesh.streamlines[n_b:]))
+    if closed:
+        print(f"[helix] closed {closed} helical prongs onto "
+              f"{len(rings)} periodic orbit ring(s)")
+
+
+def _emit_dock_crossings(sl, eps=0.012):
+    """Turn each helix dock into an X-node (valence 4).
+
+    A prong docking on an orbit ring is a T-junction (valence 3): the far side
+    of the ring sees the dock node as a flat 180-degree point -> five-sided
+    region -> dropped block (hole). The prong must NOT be continued straight
+    (same cross family: it would spiral back onto the two-sided attractive
+    limit orbit). Instead we emit the ORTHOGONAL cross family from the dock
+    point on both sides; it runs in t towards inlet/outlet (no periodic trap).
+    Dock valence then: ring edge 2 + prong 1 + crossing 1 = 4. Emitted BEFORE
+    the snap pass so the crossing ends get docked/snapped normally and the ring
+    is split at the dock. Near-duplicate crossings from clone-prong docks are
+    left to the Hausdorff dedup."""
+    mesh = sl.mesh
+    docks = getattr(mesh, "ring_docks", None)
+    if not docks:
+        return
+    added = 0
+    for d, v in docks:
+        d = np.asarray(d, float)
+        v = np.asarray(v, float)
+        for rot in (np.array([-v[1], v[0]]), np.array([v[1], -v[0]])):
+            p0 = torch.tensor(d + eps * rot, dtype=torch.float)
+            dir0 = torch.tensor(rot, dtype=torch.float)
+            fi = sl.find_containing_face(p0, mesh)
+            if fi is None:
+                continue
+            vec, _ = sl.get_best_cross_vector(p0, dir0, mesh, fi)
+            if vec is None:
+                continue
+            curve = [d.copy(), (d + eps * rot).copy()]
+            curve = sl.runge_kutta_heun_integrate_streamline(
+                p0, vec, mesh, curve)
+            if len(curve) < 3:
+                continue
+            mesh.streamlines.append(np.asarray(curve, float))
+            mesh.separatrices.append({
+                "coordinates": torch.tensor(d + eps * rot, dtype=torch.float),
+                "vector": dir0,
+                "singularity_coords": torch.tensor(d, dtype=torch.float),
+                "face_id": -7000 - added,   # dock-crossing marker (no valence)
+            })
+            added += 1
+    if added:
+        print(f"[dock] emitted {added} orthogonal dock crossings (T -> X)")
 
 
 def _drop_degenerate_corner_seps(mesh, min_len=0.1):

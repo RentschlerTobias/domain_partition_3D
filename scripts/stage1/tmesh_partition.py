@@ -125,6 +125,36 @@ def fix_start_kinks(mesh, angle_deg=15.0, frac=0.25, max_len=0.12):
               f"emanation direction")
 
 
+def resample_coarse_separatrices(mesh, n_min=12, seg_ratio=4.0, ds=0.004):
+    """Uniformly resample separatrices with few or very unevenly spaced
+    points. The intersection splitter fits an exact spline (splprep, s=0)
+    through every curve; on a 4-point curve whose first segment is ~8x longer
+    than the rest the spline parametrization overshoots and the straight
+    curve comes back as an arc (arclen +40%, visible as a strongly bent block
+    edge at the lower TE singularity). Uniform arclength sampling keeps
+    straight polylines straight through the spline."""
+    n_b = len(mesh.streamlines) - len(mesh.separatrices)
+    fixed = 0
+    for si in range(len(mesh.separatrices)):
+        s = np.asarray(mesh.streamlines[n_b + si], float)
+        if s.ndim != 2 or len(s) < 2:
+            continue
+        seg = np.linalg.norm(np.diff(s, axis=0), axis=1)
+        seg = seg[seg > 1e-12]
+        if len(seg) == 0:
+            continue
+        uneven = seg.max() / max(np.median(seg), 1e-12) > seg_ratio
+        if len(s) >= n_min and not uneven:
+            continue
+        n = max(n_min, int(np.ceil(_arclen(s) / ds)) + 1)
+        mesh.streamlines[n_b + si] = _resample_at(
+            s, np.linspace(0.0, 1.0, n))
+        fixed += 1
+    if fixed:
+        print(f"[resample] uniformly resampled {fixed} coarse "
+              f"separatrix(es) (splitter spline overshoot guard)")
+
+
 def straighten_sing_connectors(mesh, max_len=0.1):
     """Replace short singularity-singularity connectors by straight segments.
 
@@ -978,6 +1008,7 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
             d = min(d, tmf._dist_to_polyline(p, np.asarray(bl, float)))
         return d
 
+    resample_coarse_separatrices(sl.mesh)
     merging = StreamlineMerging(sl.mesh, verbose=False)
     splitter = StreamlineIntersectionSplitter(offset_boundingBox=0.05,
                                               num_samples=5)

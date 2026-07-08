@@ -166,50 +166,69 @@ def _fmt(v):
     return str(v)
 
 
-def main():
+def main(rerun_wrap=False):
     us.set_blade_tip_corners(False)
     cs.set_emanate_outer_corners(True)
     OUT.mkdir(parents=True, exist_ok=True)
 
-    print("=== Ansatz W (wrap) ===")
-    w = run_wrap()
+    # Ansatz W is slow (~8 min) and unchanged since round 1 -> cache metrics
+    cache = OUT / "compare_metrics.json"
+    w = None
+    if not rerun_wrap and cache.exists():
+        w = json.loads(cache.read_text()).get("wrap")
+        if w:
+            print("[wrap] reusing cached metrics (pass --rerun-wrap to redo)")
+    if w is None:
+        print("=== Ansatz W (wrap) ===")
+        w = run_wrap()
 
-    print("=== Ansatz T (wall + T-mesh + TFI) ===")
-    t_res = tp.run_tmesh(out_dir=OUT)
-    t = t_res["metrics"]
+    print("=== Ansatz T-a (hanging seam T-nodes) ===")
+    ta = tp.run_tmesh(out_dir=OUT, continue_seam_edges=False,
+                      tag="ta")["metrics"]
+    print("=== Ansatz T-b (seam edges continued) ===")
+    tb = tp.run_tmesh(out_dir=OUT, continue_seam_edges=True,
+                      tag="tb")["metrics"]
+
+    def trow(name, wk, tk, wv=None):
+        wval = w.get(wk, "n/a") if wk else (wv if wv is not None else "n/a")
+        return (name, wval, ta.get(tk), tb.get(tk))
 
     rows = [
-        ("blocks", w["blocks"], t["blocks"]),
-        ("irregular interior nodes", w["irregular_interior_nodes"],
-         t["irregular_interior_nodes"]),
-        ("inverted blocks", w["inverted_blocks"], t["inverted_blocks"]),
+        trow("blocks", "blocks", "blocks"),
+        trow("irregular interior nodes", "irregular_interior_nodes",
+             "irregular_interior_nodes"),
+        trow("inverted blocks", "inverted_blocks", "inverted_blocks"),
         ("inverted TFI cells", "n/a (no TFI)",
-         f"{t['inverted_tfi_cells']}/{t['total_tfi_cells']}"),
-        ("dropped non-quad regions (holes, central pitch)",
-         w["dropped_nonquad_central_regions"], t["rejected_regions"]),
-        ("hanging T-nodes", 0, t["t_nodes"]),
-        ("seam corners L/R", w["seam_corner_lr"], t["seam_corner_lr"]),
-        ("seam corner max dev", w["seam_corner_dev"], t["seam_corner_dev"]),
-        ("seam TFI node max dev", "n/a", t["seam_tfi_dev"]),
-        ("singularities", w["singularities"], t["singularities"]),
-        ("runtime [s]", w["runtime_s"], t["runtime_s"]),
+         f"{ta['inverted_tfi_cells']}/{ta['total_tfi_cells']}",
+         f"{tb['inverted_tfi_cells']}/{tb['total_tfi_cells']}"),
+        trow("non-quad regions (holes / rejects)",
+             "dropped_nonquad_central_regions", "rejected_regions"),
+        trow("hanging seam junctions", None, "hanging_seam_junctions", 0),
+        trow("edge conformity max dev (grid pts)", None,
+             "edge_conformity_dev", "n/a (no shared sampling)"),
+        trow("wall clustering ratio (target 5)", None,
+             "wall_cluster_ratio_mean", "n/a"),
+        trow("seam corners L/R", "seam_corner_lr", "seam_corner_lr"),
+        trow("seam corner max dev", "seam_corner_dev", "seam_corner_dev"),
+        trow("seam TFI node max dev", None, "seam_tfi_dev", "n/a"),
+        trow("singularities", "singularities", "singularities"),
+        trow("runtime [s]", "runtime_s", "runtime_s"),
     ]
     lines = ["Periodic-seam strategy comparison, T1_9 hub passage",
-             f"config: blade_tip_corners=False, emanate_outer_corners=True",
+             "config: blade_tip_corners=False, emanate_outer_corners=True",
              "",
-             f"{'metric':<48}{'Ansatz W (wrap)':<26}Ansatz T (t-mesh)"]
+             f"{'metric':<40}{'W (wrap)':<20}{'T-a (hanging)':<20}"
+             f"T-b (continued)"]
     lines.append("-" * 100)
-    for name, a, b in rows:
-        lines.append(f"{name:<48}{_fmt(a):<26}{_fmt(b)}")
-    lines.append("")
-    lines.append(f"T seam junctions: {t['seam_junctions']}")
+    for name, a, b, c in rows:
+        lines.append(f"{name:<40}{_fmt(a):<20}{_fmt(b):<20}{_fmt(c)}")
     txt = "\n".join(lines)
     (OUT / "compare.txt").write_text(txt + "\n")
     (OUT / "compare_metrics.json").write_text(
-        json.dumps({"wrap": w, "tmesh": t}, indent=2))
+        json.dumps({"wrap": w, "tmesh_ta": ta, "tmesh_tb": tb}, indent=2))
     print(txt)
     print(f"wrote {OUT}/compare.txt")
 
 
 if __name__ == "__main__":
-    main()
+    main(rerun_wrap="--rerun-wrap" in sys.argv)

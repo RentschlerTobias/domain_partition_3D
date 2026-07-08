@@ -10,20 +10,25 @@ pitch by itself; only the block stage treats the seam as a wall:
   2. seam symmetrization: junction sets of both seams are unioned mod pitch
      (DLR Sauer/Morsbach 2023 sec 2.7 master-slave: only the left seam is
      parametrized, the right seam is the exact +pitch translate). Mirrored
-     junctions without an interior curve are intentional hanging T-nodes.
+     junctions without an interior curve are hanging T-nodes -- optionally
+     (variant T-b) a block edge is CONTINUED into the domain from every
+     hanging junction (periodic continuation of the docking curve).
   3. block extraction tolerating T-junctions (tmesh_faces: a block needs
      exactly 4 REAL corners; flat ~180deg nodes are allowed on its sides)
-  4. TFI (Coons) fill per block; seam sides use the per-edge canonical
-     sampling, so the right-seam discretization is the exact translate of the
-     left one.
+  4. TFI (Coons) fill per block. Cell counts per graph edge come from an
+     integer program (opposite block sides must carry the same number of
+     cells; seam edge pairs share their count), every edge is sampled ONCE
+     (tanh-clustered towards blade/inlet/outlet) and both adjacent blocks
+     reference that sampling -> grid points are identical across every block
+     edge (CFD-conforming), hanging T-nodes become regular grid points.
 
-Outputs to output/T1_9/hub_stage1/tmesh/: tmesh_blocks.png, tmesh_tfi.png,
-tmesh_metrics.json.
+Outputs to output/T1_9/hub_stage1/tmesh/.
 """
 
 import json
 import sys
 import time
+from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -45,14 +50,84 @@ from tools.streamline_intersection_splitter import (           # noqa: E402
 STL = "/root/repos/block_structured_meshing/T1_9_hub_raw.stl"
 OUT = Path("/root/repos/block_structured_meshing/output/T1_9/hub_stage1/tmesh")
 
+H_CELL = 0.04            # target cell size (uniform reference)
+CLUSTER_RATIO = 5.0      # first wall cell ~ uniform/5 (tanh stretching)
+
 
 # --------------------------------------------------------------------------
-# seam identification + master-slave symmetrization
+# small geometry helpers
 # --------------------------------------------------------------------------
+
+def _arclen(poly):
+    return float(np.linalg.norm(np.diff(poly, axis=0), axis=1).sum())
+
+
+def _resample_at(poly, fracs):
+    """Sample a polyline at the given arclength fractions (0..1)."""
+    poly = np.asarray(poly, float)
+    seg = np.linalg.norm(np.diff(poly, axis=0), axis=1)
+    d = np.concatenate([[0.0], np.cumsum(seg)])
+    if d[-1] < 1e-15:
+        return np.repeat(poly[:1], len(fracs), axis=0)
+    ss = np.asarray(fracs, float) * d[-1]
+    return np.column_stack([np.interp(ss, d, poly[:, 0]),
+                            np.interp(ss, d, poly[:, 1])])
+
 
 def _dist_to_chain(p, chain):
     return ps._project_to_polyline(np.asarray(p, float), chain)[2]
 
+
+# --------------------------------------------------------------------------
+# start-kink repair (Xiao Case-2 dedup blend artifact)
+# --------------------------------------------------------------------------
+
+def fix_start_kinks(mesh, angle_deg=15.0, frac=0.25, max_len=0.12):
+    """Straighten separatrix starts that leave their singularity in the wrong
+    direction. The Case-2 geometric dedup in _snap_separatrix_endpoints blends
+    a surviving curve with a near-duplicate from the OTHER cluster singularity
+    (starts ~0.02 apart); the blended curve then bulges towards the victim's
+    start before turning back (S-kink). Each separatrix dict stores the exact
+    field emanation direction ("vector"); when the initial tangent deviates by
+    more than angle_deg we morph the first part of the curve back onto the
+    ray origin + a*vector (smooth quadratic weight, continuous at the far
+    end)."""
+    n_b = len(mesh.streamlines) - len(mesh.separatrices)
+    fixed = 0
+    for si, d in enumerate(mesh.separatrices):
+        v = d.get("vector")
+        o = d.get("singularity_coords")
+        if v is None or o is None:
+            continue
+        v = np.asarray(v, float)
+        v = v / (np.linalg.norm(v) + 1e-30)
+        s = np.asarray(mesh.streamlines[n_b + si], float)
+        if s.ndim != 2 or len(s) < 4:
+            continue
+        d0 = s[min(3, len(s) - 1)] - s[0]
+        n0 = np.linalg.norm(d0)
+        if n0 < 1e-12:
+            continue
+        ang = np.degrees(np.arccos(np.clip(float(d0 @ v) / n0, -1.0, 1.0)))
+        if ang <= angle_deg:
+            continue
+        seg = np.linalg.norm(np.diff(s, axis=0), axis=1)
+        cum = np.concatenate([[0.0], np.cumsum(seg)])
+        a0 = min(frac * cum[-1], max_len)
+        if a0 < 1e-9:
+            continue
+        w = np.clip(1.0 - cum / a0, 0.0, 1.0) ** 2
+        ray = s[0][None, :] + cum[:, None] * v[None, :]
+        mesh.streamlines[n_b + si] = w[:, None] * ray + (1 - w[:, None]) * s
+        fixed += 1
+    if fixed:
+        print(f"[kink] straightened {fixed} separatrix start(s) onto their "
+              f"emanation direction")
+
+
+# --------------------------------------------------------------------------
+# seam identification + master-slave symmetrization
+# --------------------------------------------------------------------------
 
 def _periodic_chains(mesh):
     """(left, right) seam node chains from mesh.periodic_pairs, sorted by t."""
@@ -164,7 +239,6 @@ def collapse_seam_wedges(mesh, gap=0.12, wall_tol=0.02):
             seg, t, dist, proj = ps._project_to_polyline(s[-1], C)
             if dist < wall_tol:
                 marks.append((side, seg + t, i, s[-1]))
-    from collections import defaultdict
     bysing = defaultdict(list)
     for side, pos, i, e in marks:
         oc = dicts[i].get("singularity_coords")
@@ -214,7 +288,8 @@ def collapse_seam_wedges(mesh, gap=0.12, wall_tol=0.02):
           f"re-joined wall at {len(freed)} junction(s)")
 
 
-def symmetrize_seam_junctions(mesh, tol_cls=0.012, tol_match=0.012):
+def symmetrize_seam_junctions(mesh, tol_cls=0.012, tol_match=0.012,
+                              verbose=True):
     """Master-slave seam conformity (DLR sec 2.7). After the snap pass both
     seam walls are split at the T-junctions of the curves that ended there.
     This unions the junction sets mod pitch: the LEFT wall is the master; every
@@ -288,33 +363,406 @@ def symmetrize_seam_junctions(mesh, tol_cls=0.012, tol_match=0.012):
 
     mesh.streamlines = other + left_segs + right_segs + seps
     n_mirror = sum(1 for c in canon if c["srcL"] is None or c["srcR"] is None)
-    print(f"[seam] junctions: L={len(JL)} R={len(JR)} union={len(canon)} "
-          f"({n_mirror} hanging mirrors); wall conformity pre={conf:.2e} "
-          f"post=0 (copy+shift); re-terminated {moved} curve ends "
-          f"(max move {max_move:.2e})")
+    if verbose:
+        print(f"[seam] junctions: L={len(JL)} R={len(JR)} union={len(canon)} "
+              f"({n_mirror} hanging mirrors); wall conformity pre={conf:.2e} "
+              f"post=0 (copy+shift); re-terminated {moved} curve ends "
+              f"(max move {max_move:.2e})")
     return {"n_left": len(JL), "n_right": len(JR), "n_union": len(canon),
             "n_hanging": n_mirror, "wall_conformity_pre": conf,
-            "max_endpoint_move": max_move, "WL": WL, "WR": WR}
+            "max_endpoint_move": max_move, "WL": WL, "WR": WR,
+            "canon": canon, "pitch": pitch}
+
+
+# --------------------------------------------------------------------------
+# variant T-b: continue block edges across the seam from hanging junctions
+# --------------------------------------------------------------------------
+
+def continue_hanging_junctions(sl, seam_info, min_len=0.02):
+    """Emit a streamline into the domain from every hanging mirrored junction:
+    the periodic continuation of the curve docking on the opposite seam (same
+    direction vector, shifted by one pitch). The emitted curve is snapped like
+    a separatrix (point target first, else boundary T-split). Returns the
+    number of curves emitted (0 = nothing hanging -> caller stops iterating)."""
+    import torch
+    mesh = sl.mesh
+    pitch = seam_info["pitch"]
+    shift = np.array([pitch, 0.0])
+    n_b = len(mesh.streamlines) - len(mesh.separatrices)
+    seps = [np.asarray(s, float) for s in mesh.streamlines[n_b:]]
+
+    emitted = 0
+    for c in seam_info["canon"]:
+        if c["srcL"] is not None and c["srcR"] is not None:
+            continue
+        hang_on = "L" if c["srcL"] is None else "R"
+        p = c["coord"] if hang_on == "L" else c["coord"] + shift
+        src_end = c["coord"] + shift if hang_on == "L" else c["coord"]
+        # tangent of the docking curve at the opposite seam (into the wall)
+        v = None
+        for s in seps:
+            if np.linalg.norm(s[-1] - src_end) < 1e-6 and len(s) >= 2:
+                v = s[-1] - s[max(0, len(s) - 4)]
+                break
+            if np.linalg.norm(s[0] - src_end) < 1e-6 and len(s) >= 2:
+                v = s[0] - s[min(len(s) - 1, 3)]
+                break
+        if v is None:
+            continue
+        n = np.linalg.norm(v)
+        if n < 1e-12:
+            continue
+        v = v / n
+        eps = 0.012
+        p0 = torch.tensor(p + eps * v, dtype=torch.float)
+        dir0 = torch.tensor(v, dtype=torch.float)
+        fi = sl.find_containing_face(p0, mesh)
+        if fi is None:
+            continue
+        vec, _ = sl.get_best_cross_vector(p0, dir0, mesh, fi)
+        if vec is None:
+            continue
+        curve = [p.copy(), (p + eps * v).copy()]
+        curve = sl.runge_kutta_heun_integrate_streamline(p0, vec, mesh, curve)
+        curve = np.asarray(curve, float)
+        if len(curve) < 3 or _arclen(curve) < min_len:
+            continue
+        curve = _dock_continuation(mesh, curve)
+        if curve is None:
+            continue
+        mesh.streamlines.append(curve)
+        mesh.separatrices.append({
+            "coordinates": torch.tensor(p + eps * v, dtype=torch.float),
+            "vector": dir0,
+            "singularity_coords": torch.tensor(p, dtype=torch.float),
+            "face_id": -8000 - emitted,      # seam-continuation marker
+        })
+        emitted += 1
+    if emitted:
+        print(f"[continue] emitted {emitted} seam-continuation curve(s)")
+    return emitted
+
+
+def _seg_intersect(p1, p2, q1, q2, eps=1e-12):
+    """Intersection of segments p1p2 and q1q2. Returns (s, t, point) with
+    s,t in [0,1] or None."""
+    r = p2 - p1
+    d = q2 - q1
+    den = r[0] * d[1] - r[1] * d[0]
+    if abs(den) < eps:
+        return None
+    dp = q1 - p1
+    s = (dp[0] * d[1] - dp[1] * d[0]) / den
+    t = (dp[0] * r[1] - dp[1] * r[0]) / den
+    if -1e-9 <= s <= 1 + 1e-9 and -1e-9 <= t <= 1 + 1e-9:
+        return s, t, p1 + s * r
+    return None
+
+
+def _first_crossing(curve, others, skip_start_len=0.03):
+    """First transversal crossing of `curve` with any polyline in `others`.
+    Returns (curve_cut_index, cross_point, other_index, other_seg_pos) or
+    None. Crossings within skip_start_len of the curve start are ignored (the
+    start sits ON the seam wall)."""
+    seg = np.linalg.norm(np.diff(curve, axis=0), axis=1)
+    cum = np.concatenate([[0.0], np.cumsum(seg)])
+    best = None
+    for oi, poly in enumerate(others):
+        poly = np.asarray(poly, float)
+        if poly.ndim != 2 or len(poly) < 2:
+            continue
+        for i in range(len(curve) - 1):
+            if cum[i] < skip_start_len:
+                continue
+            if best is not None and cum[i] > best[0]:
+                break
+            for j in range(len(poly) - 1):
+                hit = _seg_intersect(curve[i], curve[i + 1],
+                                     poly[j], poly[j + 1])
+                if hit is None:
+                    continue
+                s, t, pt = hit
+                pos = cum[i] + s * seg[i]
+                if pos < skip_start_len:
+                    continue
+                if best is None or pos < best[0]:
+                    best = (pos, i, pt, oi, j + t)
+    if best is None:
+        return None
+    _pos, i, pt, oi, segpos = best
+    return i, pt, oi, segpos
+
+
+def _dock_continuation(sl_mesh, curve, radius=0.045, bnd_radius=0.05,
+                       dup_tol=0.03):
+    """Terminate a freshly emitted seam continuation T-mesh-style:
+      1. truncate on the first point target (singularity / c0 corner),
+      2. else truncate at the FIRST transversal crossing with any existing
+         curve and split that curve there (T-junction; running on to the far
+         boundary would slice the whole passage into off-family pieces),
+      3. else (no crossing) project the end onto the nearest boundary
+         polyline and split it.
+    Near-duplicates of an existing separatrix (Hausdorff < dup_tol after
+    truncation) are discarded -- the junction stays hanging."""
+    mesh = sl_mesh
+    nodes = ps._termination_nodes(mesh)
+    origin = curve[0]
+    for j in range(3, len(curve)):
+        if len(nodes) == 0:
+            break
+        d = np.linalg.norm(nodes - curve[j], axis=1)
+        k = int(np.argmin(d))
+        if d[k] < radius and np.linalg.norm(nodes[k] - origin) > radius:
+            curve = np.vstack([curve[:j], nodes[k]])
+            break
+    else:
+        n_b = len(mesh.streamlines) - len(mesh.separatrices)
+        others = [np.asarray(s, float) for s in mesh.streamlines]
+        hit = _first_crossing(curve, others)
+        if hit is not None:
+            i, pt, oi, segpos = hit
+            curve = np.vstack([curve[:i + 1], pt])
+            poly = others[oi]
+            if min(np.linalg.norm(pt - poly[0]),
+                   np.linalg.norm(pt - poly[-1])) > 1e-9:
+                pieces = _split_polyline_at(poly, [pt])
+                if oi < n_b:                     # boundary: plain split
+                    mesh.streamlines[oi] = pieces[0]
+                    for extra in pieces[1:]:
+                        mesh.streamlines.insert(oi + 1, extra)
+                else:                            # separatrix: split + clone dict
+                    mesh.streamlines[oi] = pieces[0]
+                    si = oi - n_b
+                    base = mesh.separatrices[si]
+                    for pi, extra in enumerate(pieces[1:]):
+                        mesh.streamlines.append(extra)
+                        mesh.separatrices.append({
+                            "coordinates": base.get("coordinates"),
+                            "vector": base.get("vector"),
+                            "singularity_coords":
+                                base.get("singularity_coords"),
+                            "face_id": -8500 - si,
+                        })
+        else:
+            end = curve[-1]
+            best = (None, np.inf, None)
+            for bi in range(n_b):
+                poly = np.asarray(mesh.streamlines[bi], float)
+                seg, t, dist, proj = ps._project_to_polyline(end, poly)
+                if dist < best[1]:
+                    best = (bi, dist, proj)
+            if best[0] is None or best[1] > bnd_radius:
+                return None                      # dangling -> discard
+            bi, _, proj = best
+            poly = np.asarray(mesh.streamlines[bi], float)
+            if min(np.linalg.norm(proj - poly[0]),
+                   np.linalg.norm(proj - poly[-1])) > 1e-9:
+                pieces = _split_polyline_at(poly, [proj])
+                mesh.streamlines[bi] = pieces[0]
+                for extra in pieces[1:]:
+                    mesh.streamlines.insert(bi + 1, extra)
+            curve = np.vstack([curve[:-1], proj])
+
+    if _arclen(curve) < 0.02:
+        return None
+    # near-duplicate guard (e.g. continuation hugging an existing arm)
+    n_b = len(mesh.streamlines) - len(mesh.separatrices)
+    cs_ = curve[:: max(1, len(curve) // 30)]
+    for s in mesh.streamlines[n_b:]:
+        s = np.asarray(s, float)
+        if s.ndim != 2 or len(s) < 2:
+            continue
+        ss = s[:: max(1, len(s) // 30)]
+        d = np.linalg.norm(cs_[:, None, :] - ss[None, :, :], axis=2)
+        if max(d.min(axis=1).max(), d.min(axis=0).max()) < dup_tol:
+            return None
+    return curve
+
+
+# --------------------------------------------------------------------------
+# conforming cell counts per graph edge (integer program)
+# --------------------------------------------------------------------------
+
+def _edge_key(a, b, e2s):
+    return (a, b) if (a, b) in e2s else (b, a)
+
+
+def solve_edge_divisions(result, seam_pairs, h=H_CELL):
+    """Cells per graph edge, CFD-conforming: opposite sides of every block
+    carry the same total cell count, seam edge pairs share their count.
+    scipy MILP: minimize sum(c_e), c_e integer >= max(1, round(len_e/h))."""
+    from scipy.optimize import milp, LinearConstraint, Bounds
+    e2s = result["e2s"]
+    keys = list(e2s.keys())
+    idx = {k: i for i, k in enumerate(keys)}
+    n = len(keys)
+    lb = np.array([max(1, int(round(_arclen(e2s[k]) / h))) for k in keys],
+                  float)
+
+    rows = []
+    for blk in result["blocks"]:
+        chains = blk["side_chains"]
+        for sa, sb in ((0, 2), (1, 3)):
+            row = np.zeros(n)
+            for j in range(len(chains[sa]) - 1):
+                row[idx[_edge_key(chains[sa][j], chains[sa][j + 1], e2s)]] += 1
+            for j in range(len(chains[sb]) - 1):
+                row[idx[_edge_key(chains[sb][j], chains[sb][j + 1], e2s)]] -= 1
+            if np.any(row):
+                rows.append(row)
+    for ka, kb in seam_pairs:
+        row = np.zeros(n)
+        row[idx[ka]] += 1
+        row[idx[kb]] -= 1
+        rows.append(row)
+
+    A = np.array(rows) if rows else np.zeros((0, n))
+    res = milp(c=np.ones(n),
+               constraints=[LinearConstraint(A, 0.0, 0.0)] if len(A) else [],
+               integrality=np.ones(n),
+               bounds=Bounds(lb, np.full(n, np.inf)))
+    if not res.success:
+        print(f"[milp] WARNING: {res.message} -- falling back to lb (grid "
+              f"may be non-conforming)")
+        counts = lb
+    else:
+        counts = np.round(res.x)
+    print(f"[milp] edge divisions: {n} edges, "
+          f"cells min={int(counts.min())} max={int(counts.max())} "
+          f"total-extra={int(counts.sum() - lb.sum())} "
+          f"({'optimal' if res.success else 'FALLBACK'})")
+    return {k: int(counts[idx[k]]) for k in keys}
+
+
+# --------------------------------------------------------------------------
+# tanh-clustered edge sampling (canonical, one distribution per edge)
+# --------------------------------------------------------------------------
+
+def _bisect_beta(first_cell_of_beta, target, lo=1e-3, hi=20.0):
+    """Find beta with first_cell_of_beta(beta) ~= target (monotone falling)."""
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        if first_cell_of_beta(mid) > target:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+def edge_fractions(nc, cluster_start, cluster_end, ratio=CLUSTER_RATIO):
+    """Arclength fractions for nc cells (nc+1 points), tanh-clustered towards
+    the flagged end(s) so the first wall cell is ~uniform/ratio."""
+    x = np.linspace(0.0, 1.0, nc + 1)
+    if nc < 2 or (not cluster_start and not cluster_end):
+        return x
+    target = (1.0 / nc) / ratio
+
+    def one_sided(b):
+        """f(x) = 1 + tanh(b(x-1))/tanh(b): clusters at x=0."""
+        return 1.0 + np.tanh(b * (x - 1.0)) / np.tanh(b)
+
+    def two_sided(b):
+        """f(x) = (1 + tanh(b(2x-1))/tanh(b))/2: clusters at both ends."""
+        return 0.5 * (1.0 + np.tanh(b * (2.0 * x - 1.0)) / np.tanh(b))
+
+    if cluster_start and cluster_end:
+        b = _bisect_beta(lambda bb: two_sided(bb)[1], target)
+        f = two_sided(b)
+    elif cluster_start:
+        b = _bisect_beta(lambda bb: one_sided(bb)[1], target)
+        f = one_sided(b)
+    else:                                        # cluster at the END: mirror
+        b = _bisect_beta(lambda bb: one_sided(bb)[1], target)
+        f = 1.0 - one_sided(b)[::-1]
+    f[0], f[-1] = 0.0, 1.0
+    return f
+
+
+def _morph_ends_to(s, pa, pb, frac=0.3, max_win=0.06):
+    """Move a sampled edge's endpoints exactly onto the graph node coordinates
+    pa/pb, bridging the (node-merge tolerance) offset smoothly over the first/
+    last part of the edge. Keeps the curve watertight at block corners."""
+    s = np.asarray(s, float).copy()
+    seg = np.linalg.norm(np.diff(s, axis=0), axis=1)
+    cum = np.concatenate([[0.0], np.cumsum(seg)])
+    L = cum[-1]
+    if L < 1e-15:
+        return s
+    win = min(frac * L, max_win)
+    oa = np.asarray(pa, float) - s[0]
+    ob = np.asarray(pb, float) - s[-1]
+    wa = np.clip(1.0 - cum / win, 0.0, 1.0) ** 2 if win > 0 else \
+        (cum == 0.0).astype(float)
+    wb = np.clip(1.0 - (L - cum) / win, 0.0, 1.0) ** 2 if win > 0 else \
+        (cum == L).astype(float)
+    return s + wa[:, None] * oa[None, :] + wb[:, None] * ob[None, :]
+
+
+def build_edge_samples(result, divisions, nonper_dist_fn, seam_pairs,
+                       pitch, wall_on_tol=1e-3):
+    """One canonical sample array per graph edge. Distribution: tanh towards
+    endpoints on a non-periodic boundary (blade/inlet/outlet); edges running
+    ALONG such a boundary stay uniform; right-seam edges are the exact +pitch
+    copies of their left partners. Endpoints are morphed onto the graph node
+    coordinates (watertight corners despite the 1e-2 node-merge tolerance)."""
+    e2s = result["e2s"]
+    nodes = result["nodes"]
+    samples = {}
+    right_of = {kb: ka for ka, kb in seam_pairs}
+    for k, poly in e2s.items():
+        if k in right_of:
+            continue                              # filled from the left twin
+        nc = divisions[k]
+        poly = np.asarray(poly, float)
+        d_a = nonper_dist_fn(poly[0])
+        d_b = nonper_dist_fn(poly[-1])
+        d_m = nonper_dist_fn(poly[len(poly) // 2])
+        along = d_m < wall_on_tol                 # edge lies ON the boundary
+        cl_a = (d_a < wall_on_tol) and not along
+        cl_b = (d_b < wall_on_tol) and not along
+        s = _resample_at(poly, edge_fractions(nc, cl_a, cl_b))
+        samples[k] = _morph_ends_to(s, nodes[k[0]], nodes[k[1]])
+    shift = np.array([pitch, 0.0])
+    for ka, kb in seam_pairs:
+        src = samples[ka]
+        polyb = np.asarray(e2s[kb], float)
+        cand = src + shift
+        if np.linalg.norm(cand[0] - polyb[0]) > np.linalg.norm(
+                cand[-1] - polyb[0]):
+            cand = cand[::-1]
+        samples[kb] = cand
+    return samples
+
+
+def find_seam_edge_pairs(result, WL, WR, pitch, tol=0.01):
+    """(left_key, right_key) pairs of wall-segment edges matched mod pitch."""
+    e2s = result["e2s"]
+    shift = np.array([pitch, 0.0])
+    lefts, rights = [], []
+    for k, poly in e2s.items():
+        poly = np.asarray(poly, float)
+        sub = poly[:: max(1, len(poly) // 8)]
+        if max(_dist_to_chain(q, WL) for q in sub) < tol:
+            lefts.append(k)
+        elif max(_dist_to_chain(q, WR) for q in sub) < tol:
+            rights.append(k)
+    pairs = []
+    for ka in lefts:
+        ma = np.asarray(e2s[ka], float).mean(axis=0) + shift
+        best, bk = np.inf, None
+        for kb in rights:
+            mb = np.asarray(e2s[kb], float).mean(axis=0)
+            d = np.linalg.norm(ma - mb)
+            if d < best:
+                best, bk = d, kb
+        if bk is not None and best < 0.02:
+            pairs.append((ka, bk))
+    return pairs
 
 
 # --------------------------------------------------------------------------
 # TFI (Coons) with canonical per-edge sampling
 # --------------------------------------------------------------------------
-
-def _arclen(poly):
-    return float(np.linalg.norm(np.diff(poly, axis=0), axis=1).sum())
-
-
-def _resample(poly, n):
-    poly = np.asarray(poly, float)
-    seg = np.linalg.norm(np.diff(poly, axis=0), axis=1)
-    d = np.concatenate([[0.0], np.cumsum(seg)])
-    if d[-1] < 1e-15:
-        return np.repeat(poly[:1], n, axis=0)
-    ss = np.linspace(0.0, d[-1], n)
-    return np.column_stack([np.interp(ss, d, poly[:, 0]),
-                            np.interp(ss, d, poly[:, 1])])
-
 
 def _coons(S, N, W, E):
     """S: c0->c1, N: c3->c2 (both len n_u); W: c0->c3, E: c1->c2 (len n_v).
@@ -340,24 +788,17 @@ def _inverted_cells(X):
     return int((area <= 0).sum()), int(area.size)
 
 
-def tfi_fill(result, WL, WR, pitch, h=0.04, seam_tol=0.01):
-    """Coons patch per block. Every graph edge gets ONE canonical sample set
-    (count from its arclength); a block side is the concatenation of its edge
-    samples, so blocks sharing a full side share the discretization exactly and
-    the right-seam sides are exact +pitch translates of the left ones (walls
-    were rebuilt as copies). A side is only re-sampled when the opposite side
-    of the same block dictates a different count (T-mesh hanging refinement);
-    seam sides always keep the canonical sampling (master-slave)."""
+def tfi_fill(result, edge_samples, WL, WR, pitch, seam_tol=0.01):
+    """Coons patch per block from the canonical per-edge samples. Cell counts
+    solved conforming (solve_edge_divisions), so a block side is ALWAYS the
+    concatenation of its edge samples -- grid points are identical across
+    every block edge and across the periodic seam."""
     e2s = result["e2s"]
-    edge_samples = {}
-    for key, poly in e2s.items():
-        n = max(2, int(np.ceil(_arclen(poly) / h)) + 1)
-        edge_samples[key] = _resample(poly, n)
 
     def _edge_s(a, b):
-        if (a, b) in edge_samples:
-            return edge_samples[(a, b)]
-        return edge_samples[(b, a)][::-1]
+        k = _edge_key(a, b, e2s)
+        s = edge_samples[k]           # oriented like e2s[k]
+        return s if k == (a, b) else s[::-1]
 
     def _side_samples(chain):
         parts = [_edge_s(chain[j], chain[j + 1])
@@ -367,46 +808,38 @@ def tfi_fill(result, WL, WR, pitch, h=0.04, seam_tol=0.01):
         return np.vstack(out)
 
     def _seam_flag(poly):
-        if max(_dist_to_chain(q, WL) for q in poly[:: max(1, len(poly) // 8)]) \
-                < seam_tol and _dist_to_chain(poly[len(poly) // 2], WL) < seam_tol:
+        sub = poly[:: max(1, len(poly) // 8)]
+        if max(_dist_to_chain(q, WL) for q in sub) < seam_tol:
             return "L"
-        if max(_dist_to_chain(q, WR) for q in poly[:: max(1, len(poly) // 8)]) \
-                < seam_tol and _dist_to_chain(poly[len(poly) // 2], WR) < seam_tol:
+        if max(_dist_to_chain(q, WR) for q in sub) < seam_tol:
             return "R"
         return None
 
     grids, n_inv, n_cells = [], 0, 0
     seam_pts = {"L": [], "R": []}
+    mismatched = 0
     for blk in result["blocks"]:
         samp = [_side_samples(ch) for ch in blk["side_chains"]]
-        flag = [_seam_flag(s) for s in blk["sides"]]
-
-        def _dim(i, j):
-            if flag[i]:
-                return len(samp[i])
-            if flag[j]:
-                return len(samp[j])
-            return max(len(samp[i]), len(samp[j]))
-
-        n_u, n_v = _dim(0, 2), _dim(1, 3)
-
-        def _fit(arr, n):
-            return arr if len(arr) == n else _resample(arr, n)
-
-        S = _fit(samp[0], n_u)
-        E = _fit(samp[1], n_v)
-        N = _fit(samp[2], n_u)[::-1]      # side2: c2->c3, Coons wants c3->c2
-        W = _fit(samp[3], n_v)[::-1]      # side3: c3->c0, Coons wants c0->c3
+        if len(samp[0]) != len(samp[2]) or len(samp[1]) != len(samp[3]):
+            mismatched += 1
+            continue
+        S = samp[0]
+        E = samp[1]
+        N = samp[2][::-1]                 # side2: c2->c3, Coons wants c3->c2
+        W = samp[3][::-1]                 # side3: c3->c0, Coons wants c0->c3
         X = _coons(S, N, W, E)
         inv, tot = _inverted_cells(X)
         n_inv += inv
         n_cells += tot
         grids.append(X)
         for i in range(4):
-            if flag[i]:
-                seam_pts[flag[i]].append(samp[i])
+            f = _seam_flag(blk["sides"][i])
+            if f:
+                seam_pts[f].append(samp[i])
+    if mismatched:
+        print(f"[tfi] WARNING: {mismatched} block(s) with mismatched side "
+              f"counts skipped (MILP fallback?)")
 
-    # seam conformity of the TFI discretization
     seam_dev, n_l, n_r = None, 0, 0
     if seam_pts["L"] and seam_pts["R"]:
         Lp = np.unique(np.round(np.vstack(seam_pts["L"]), 12), axis=0)
@@ -417,14 +850,57 @@ def tfi_fill(result, WL, WR, pitch, h=0.04, seam_tol=0.01):
         seam_dev = float(max(d.min(axis=1).max(), d.min(axis=0).max()))
     return {"grids": grids, "inverted_cells": n_inv, "total_cells": n_cells,
             "seam_dev": seam_dev, "seam_nodes_lr": (n_l, n_r),
-            "seam_pts": seam_pts}
+            "seam_pts": seam_pts, "mismatched_blocks": mismatched}
+
+
+def check_edge_conformity(result, edge_samples):
+    """Grid conformity across block edges. Both adjacent blocks reference the
+    SAME canonical sample array per edge (structural conformity); what can
+    still break watertightness are the block CORNERS: build_connectivity
+    merges curve endpoints within tol 1e-2 into one node, so two edges meeting
+    at a node may end at slightly different coordinates. Returns
+    (n_shared_edges, max corner gap = max |edge sample end - node coord|)."""
+    e2s = result["e2s"]
+    nodes = result["nodes"]
+    edge_owner = defaultdict(set)
+    for bi, blk in enumerate(result["blocks"]):
+        for ch in blk["side_chains"]:
+            for j in range(len(ch) - 1):
+                edge_owner[_edge_key(ch[j], ch[j + 1], e2s)].add(bi)
+    n_shared = sum(1 for o in edge_owner.values() if len(o) >= 2)
+    max_gap = 0.0
+    for (a, b) in edge_owner:
+        s = edge_samples[(a, b)]
+        max_gap = max(max_gap,
+                      float(np.linalg.norm(s[0] - nodes[a])),
+                      float(np.linalg.norm(s[-1] - nodes[b])))
+    return n_shared, max_gap
+
+
+def wall_cell_ratio(tfi_grids_or_result, edge_samples, result, nonper_dist_fn,
+                    tol=1e-3):
+    """Mean/target check of the boundary-layer clustering: for edges STARTING
+    or ENDING on a non-periodic wall, ratio = uniform spacing / first cell."""
+    ratios = []
+    for k, s in edge_samples.items():
+        nc = len(s) - 1
+        if nc < 3:
+            continue
+        L = _arclen(s)
+        uni = L / nc
+        if nonper_dist_fn(s[0]) < tol and nonper_dist_fn(s[len(s) // 2]) >= tol:
+            ratios.append(uni / max(np.linalg.norm(s[1] - s[0]), 1e-30))
+        if nonper_dist_fn(s[-1]) < tol and nonper_dist_fn(s[len(s) // 2]) >= tol:
+            ratios.append(uni / max(np.linalg.norm(s[-1] - s[-2]), 1e-30))
+    return (float(np.mean(ratios)), len(ratios)) if ratios else (None, 0)
 
 
 # --------------------------------------------------------------------------
 # pipeline
 # --------------------------------------------------------------------------
 
-def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True):
+def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
+              continue_seam_edges=False, max_rounds=3, tag="ta"):
     ps.set_periodic(True)          # field seam weld stays ON
     ps.set_tile_periodic(False)    # block stage: seam = wall
     t0 = time.time()
@@ -437,24 +913,43 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True):
 
     sl = StreamlineGenerator_v2(ff.mesh)
     ps._drop_degenerate_corner_seps(sl.mesh)
-    ps._close_helical_streamlines(sl.mesh)     # inert (TILE_PERIODIC off)
-    ps._emit_dock_crossings(sl)                # inert (no docks)
     ps._snap_separatrix_endpoints(sl.mesh, radius=0.045)
+    fix_start_kinks(sl.mesh)
 
     collapse_seam_wedges(sl.mesh)
     seam_info = symmetrize_seam_junctions(sl.mesh)
+
+    if continue_seam_edges and seam_info:
+        for rnd in range(max_rounds):
+            emitted = continue_hanging_junctions(sl, seam_info)
+            if not emitted:
+                break
+            seam_info = symmetrize_seam_junctions(sl.mesh, verbose=False)
+        n_still = seam_info["n_hanging"]
+        print(f"[continue] after {rnd + 1} round(s): "
+              f"{n_still} hanging junction(s) remain")
+
     n_boundary = len(sl.mesh.streamlines) - len(sl.mesh.separatrices)
     boundary_ref = [np.asarray(s, float)
                     for s in sl.mesh.streamlines[:n_boundary]]
+    WL, WR = (seam_info["WL"], seam_info["WR"]) if seam_info else (None, None)
+
+    def _bdist(p):
+        return ps._min_boundary_dist(p, boundary_ref)
+
+    def _nonper_dist(p):
+        """Distance to the NON-periodic boundaries (blade, inlet, outlet)."""
+        p = np.asarray(p, float)
+        d = min(abs(p[1] - 0.0), abs(p[1] - 1.0))       # inlet/outlet t=0/1
+        for bl in mesh.blade_loops:
+            d = min(d, tmf._dist_to_polyline(p, np.asarray(bl, float)))
+        return d
 
     merging = StreamlineMerging(sl.mesh, verbose=False)
     splitter = StreamlineIntersectionSplitter(offset_boundingBox=0.05,
                                               num_samples=5)
     updated = splitter.process_streamlines(merging.new_streamlines)
 
-    # flat_tol 15: hanging seam mirrors turn by ~0.2deg, while the flattest
-    # genuine corner (a tip-cluster singularity that lost its wedge arm) still
-    # turns by ~24deg -- 15 separates the two populations with margin.
     gen = tmf.TMeshFaceGenerator(updated, blade_loops=list(mesh.blade_loops),
                                  flat_tol_deg=15.0, verbose=verbose)
     result = gen.get_blocks()
@@ -466,15 +961,21 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True):
               f"nodes={np.round(np.asarray(nds), 3).tolist()} "
               f"turns={np.round(turns, 1).tolist()}")
 
-    def _bdist(p):
-        return ps._min_boundary_dist(p, boundary_ref)
-
     regular, tnodes, irregular = tmf.node_regularity(result, _bdist)
 
-    WL, WR = (seam_info["WL"], seam_info["WR"]) if seam_info else (None, None)
-    tfi = tfi_fill(result, WL, WR, pitch) if seam_info else None
+    tfi, divisions, edge_samples, seam_pairs = None, None, None, []
+    n_shared, edge_dev, ratio, n_walledges = 0, None, None, 0
+    if seam_info and result["blocks"]:
+        seam_pairs = find_seam_edge_pairs(result, WL, WR, pitch)
+        divisions = solve_edge_divisions(result, seam_pairs)
+        edge_samples = build_edge_samples(result, divisions, _nonper_dist,
+                                          seam_pairs, pitch)
+        tfi = tfi_fill(result, edge_samples, WL, WR, pitch)
+        n_shared, edge_dev = check_edge_conformity(result, edge_samples)
+        ratio, n_walledges = wall_cell_ratio(tfi, edge_samples, result,
+                                             _nonper_dist)
 
-    # block-corner seam conformity (block corners on the seams, matched mod pitch)
+    # block-corner seam conformity (block corners on the seams, mod pitch)
     corner_dev, corner_lr = None, (0, 0)
     if seam_info and result["blocks"]:
         cn = np.unique(np.concatenate([b["corners"] for b in result["blocks"]]))
@@ -490,55 +991,66 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True):
 
     runtime = time.time() - t0
     metrics = {
-        "approach": "T (wall + T-mesh + TFI)",
+        "approach": ("T-b (seam edges continued)" if continue_seam_edges
+                     else "T-a (hanging seam T-nodes)"),
         "singularities": n_sing,
         "blocks": len(result["blocks"]),
         "rejected_regions": len(result["rejects"]),
-        "t_nodes": len(tnodes),
+        "t_nodes_interior": len(tnodes),
+        "hanging_seam_junctions": seam_info["n_hanging"] if seam_info else None,
         "irregular_interior_nodes": len(irregular),
         "inverted_blocks": sum(1 for b in result["blocks"] if b["area"] <= 0),
         "inverted_tfi_cells": tfi["inverted_cells"] if tfi else None,
         "total_tfi_cells": tfi["total_cells"] if tfi else None,
+        "shared_edges": n_shared,
+        "edge_conformity_dev": edge_dev,
+        "wall_cluster_ratio_mean": ratio,
+        "wall_clustered_edge_ends": n_walledges,
         "seam_corner_lr": list(corner_lr),
         "seam_corner_dev": corner_dev,
         "seam_tfi_nodes_lr": list(tfi["seam_nodes_lr"]) if tfi else None,
         "seam_tfi_dev": tfi["seam_dev"] if tfi else None,
-        "seam_junctions": {k: seam_info[k] for k in
-                           ("n_left", "n_right", "n_union", "n_hanging")}
-        if seam_info else None,
         "planar": result["planar"],
         "runtime_s": round(runtime, 1),
     }
     if verbose:
-        print(f"[tmesh] GATE regions!=4 real corners: "
+        print(f"[tmesh:{tag}] GATE regions!=4 real corners: "
               f"{metrics['rejected_regions']} "
               f"({'PASS' if metrics['rejected_regions'] == 0 else 'FAIL'})")
-        print(f"[tmesh] GATE seam conformity: corners {corner_lr} "
-              f"max dev={corner_dev}  TFI dev={metrics['seam_tfi_dev']}")
-        print(f"[tmesh] GATE inverted TFI cells: "
+        print(f"[tmesh:{tag}] GATE edge conformity: {n_shared} shared edges, "
+              f"dev={edge_dev}  seam TFI dev={metrics['seam_tfi_dev']}")
+        print(f"[tmesh:{tag}] GATE inverted TFI cells: "
               f"{metrics['inverted_tfi_cells']}/{metrics['total_tfi_cells']}")
-        print(f"[tmesh] {metrics['blocks']} blocks, {len(tnodes)} T-nodes, "
+        print(f"[tmesh:{tag}] wall clustering ratio ~"
+              f"{ratio if ratio is None else round(ratio, 2)} "
+              f"on {n_walledges} wall edge ends")
+        print(f"[tmesh:{tag}] {metrics['blocks']} blocks, "
+              f"{metrics['hanging_seam_junctions']} hanging seam junctions, "
               f"{len(irregular)} irregular interior, {runtime:.0f}s")
 
     if make_plots:
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         plot_blocks(result, mesh, tnodes, irregular, seam_info,
-                    out_dir / "tmesh_blocks.png")
+                    out_dir / f"tmesh_blocks_{tag}.png", tag)
         if tfi:
-            plot_tfi(tfi, result, pitch, out_dir / "tmesh_tfi.png")
-        (out_dir / "tmesh_metrics.json").write_text(
+            plot_tfi(tfi, result, pitch, out_dir / f"tmesh_tfi_{tag}.png", tag)
+            plot_tiled(result, tfi, seam_info, pitch,
+                       out_dir / f"tmesh_tiled_blocks_{tag}.png",
+                       out_dir / f"tmesh_tiled_tfi_{tag}.png", tag)
+        (out_dir / f"tmesh_metrics_{tag}.json").write_text(
             json.dumps(metrics, indent=2))
-        print(f"wrote {out_dir}/tmesh_metrics.json")
+        print(f"wrote {out_dir}/tmesh_metrics_{tag}.json")
     return {"metrics": metrics, "result": result, "tfi": tfi, "mesh": mesh,
-            "seam_info": seam_info, "boundary_ref": boundary_ref}
+            "seam_info": seam_info, "boundary_ref": boundary_ref,
+            "edge_samples": edge_samples, "divisions": divisions}
 
 
 # --------------------------------------------------------------------------
 # plots
 # --------------------------------------------------------------------------
 
-def plot_blocks(result, mesh, tnodes, irregular, seam_info, out_png):
+def plot_blocks(result, mesh, tnodes, irregular, seam_info, out_png, tag=""):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -571,47 +1083,107 @@ def plot_blocks(result, mesh, tnodes, irregular, seam_info, out_png):
     if seam_info:
         for W in (seam_info["WL"], seam_info["WR"]):
             ax.plot(W[:, 0], W[:, 1], "green", lw=0.8, alpha=0.7)
+        hang = [c for c in seam_info["canon"]
+                if c["srcL"] is None or c["srcR"] is None]
+        if hang:
+            P = []
+            for c in hang:
+                side = "L" if c["srcL"] is None else "R"
+                P.append(c["coord"] if side == "L"
+                         else c["coord"] + np.array([seam_info["pitch"], 0.0]))
+            P = np.array(P)
+            ax.scatter(P[:, 0], P[:, 1], marker="s", facecolors="none",
+                       edgecolors="purple", s=90, linewidths=1.6, zorder=7,
+                       label=f"hanging seam junction: {len(P)}")
     ax.set_aspect("equal")
-    if tnodes or irregular:
-        ax.legend(loc="upper left", fontsize=8)
-    ax.set_title(f"Ansatz T: {len(result['blocks'])} T-mesh blocks "
+    ax.legend(loc="upper left", fontsize=8)
+    ax.set_title(f"Ansatz T-{tag}: {len(result['blocks'])} T-mesh blocks "
                  f"({len(result['rejects'])} rejected, "
-                 f"{len(tnodes)} T-nodes, {len(irregular)} irregular)")
+                 f"{len(irregular)} irregular)")
     fig.savefig(out_png, dpi=140, bbox_inches="tight")
     plt.close(fig)
     print(f"wrote {out_png}")
 
 
-def plot_tfi(tfi, result, pitch, out_png):
+def plot_tfi(tfi, result, pitch, out_png, tag=""):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(10, 8))
     for X in tfi["grids"]:
         for i in range(X.shape[0]):
-            ax.plot(X[i, :, 0], X[i, :, 1], "0.4", lw=0.35)
+            ax.plot(X[i, :, 0], X[i, :, 1], "0.4", lw=0.3)
         for j in range(X.shape[1]):
-            ax.plot(X[:, j, 0], X[:, j, 1], "0.4", lw=0.35)
+            ax.plot(X[:, j, 0], X[:, j, 1], "0.4", lw=0.3)
     for blk in result["blocks"]:
         for s in blk["sides"]:
             ax.plot(s[:, 0], s[:, 1], "C0", lw=1.0)
     for sd, col in (("L", "green"), ("R", "red")):
         if tfi["seam_pts"][sd]:
             P = np.vstack(tfi["seam_pts"][sd])
-            ax.scatter(P[:, 0], P[:, 1], c=col, s=10, zorder=6,
-                       label=f"seam nodes {sd}: {len(np.unique(np.round(P, 9), axis=0))}")
+            ax.scatter(P[:, 0], P[:, 1], c=col, s=8, zorder=6,
+                       label=f"seam nodes {sd}: "
+                             f"{len(np.unique(np.round(P, 9), axis=0))}")
     ax.set_aspect("equal")
     ax.legend(loc="upper left", fontsize=8)
     dev = tfi["seam_dev"]
-    ax.set_title(f"Ansatz T TFI: {len(tfi['grids'])} blocks, "
-                 f"{tfi['inverted_cells']}/{tfi['total_cells']} inverted cells, "
+    ax.set_title(f"Ansatz T-{tag} TFI: {len(tfi['grids'])} blocks, "
+                 f"{tfi['inverted_cells']}/{tfi['total_cells']} inverted, "
                  f"seam dev={dev if dev is None else f'{dev:.1e}'}")
     fig.savefig(out_png, dpi=140, bbox_inches="tight")
     plt.close(fig)
     print(f"wrote {out_png}")
 
 
+def plot_tiled(result, tfi, seam_info, pitch, out_blocks, out_tfi, tag=""):
+    """3 hub passages side by side (shifts -pitch, 0, +pitch): the visual
+    periodicity check the user asked for -- at the interior seams of the trio
+    the grid points of neighbouring copies must coincide."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    shifts = [-pitch, 0.0, pitch]
+    cols = ["0.55", "C0", "0.55"]
+
+    fig, ax = plt.subplots(figsize=(18, 7))
+    for sh, col in zip(shifts, cols):
+        for blk in result["blocks"]:
+            for s in blk["sides"]:
+                ax.plot(s[:, 0] + sh, s[:, 1], col, lw=1.1)
+    if seam_info:
+        for W in (seam_info["WL"], seam_info["WR"]):
+            for sh in shifts:
+                ax.plot(W[:, 0] + sh, W[:, 1], "green", lw=1.0, alpha=0.8)
+    ax.set_aspect("equal")
+    ax.set_title(f"Ansatz T-{tag}: block structure, 3 passages tiled "
+                 f"(center highlighted)")
+    fig.savefig(out_blocks, dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"wrote {out_blocks}")
+
+    fig, ax = plt.subplots(figsize=(18, 7))
+    for sh, col in zip(shifts, cols):
+        for X in tfi["grids"]:
+            for i in range(X.shape[0]):
+                ax.plot(X[i, :, 0] + sh, X[i, :, 1], col, lw=0.25)
+            for j in range(X.shape[1]):
+                ax.plot(X[:, j, 0] + sh, X[:, j, 1], col, lw=0.25)
+    if seam_info:
+        for W in (seam_info["WL"], seam_info["WR"]):
+            for sh in shifts:
+                ax.plot(W[:, 0] + sh, W[:, 1], "green", lw=1.0, alpha=0.8)
+    ax.set_aspect("equal")
+    ax.set_title(f"Ansatz T-{tag}: TFI grid, 3 passages tiled")
+    fig.savefig(out_tfi, dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"wrote {out_tfi}")
+
+
 if __name__ == "__main__":
     us.set_blade_tip_corners(False)
     cs.set_emanate_outer_corners(True)
-    run_tmesh()
+    which = sys.argv[1] if len(sys.argv) > 1 else "both"
+    if which in ("ta", "both"):
+        run_tmesh(continue_seam_edges=False, tag="ta")
+    if which in ("tb", "both"):
+        run_tmesh(continue_seam_edges=True, tag="tb")

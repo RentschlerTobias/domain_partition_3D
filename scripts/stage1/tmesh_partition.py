@@ -125,6 +125,36 @@ def fix_start_kinks(mesh, angle_deg=15.0, frac=0.25, max_len=0.12):
               f"emanation direction")
 
 
+def straighten_sing_connectors(mesh, max_len=0.1):
+    """Replace short singularity-singularity connectors by straight segments.
+
+    The two integrations of a cluster connector (S0->S1 and S1->S0) are
+    blended by the snap pass (Kowalski Eq 28); around a tip cluster the two
+    paths disagree enough that the blend comes out S-shaped -- the curve first
+    heads the wrong way, then turns (user finding). At cluster distance
+    (~0.05) the field line is straight for all practical purposes, so the
+    clean fix is geometric: straight connector, endpoints untouched."""
+    n_b = len(mesh.streamlines) - len(mesh.separatrices)
+    sings = np.array(list(mesh.singularities_coords.values())) \
+        if getattr(mesh, "singularities_coords", None) else np.zeros((0, 2))
+    fixed = 0
+    for si, d in enumerate(mesh.separatrices):
+        s = np.asarray(mesh.streamlines[n_b + si], float)
+        if s.ndim != 2 or len(s) < 3 or _arclen(s) > max_len:
+            continue
+        if len(sings) == 0:
+            break
+        d0 = np.linalg.norm(sings - s[0], axis=1).min()
+        d1 = np.linalg.norm(sings - s[-1], axis=1).min()
+        if d0 < 0.02 and d1 < 0.02:
+            n = max(len(s), 8)
+            t = np.linspace(0.0, 1.0, n)[:, None]
+            mesh.streamlines[n_b + si] = (1 - t) * s[0] + t * s[-1]
+            fixed += 1
+    if fixed:
+        print(f"[kink] straightened {fixed} short sing-sing connector(s)")
+
+
 # --------------------------------------------------------------------------
 # seam identification + master-slave symmetrization
 # --------------------------------------------------------------------------
@@ -265,8 +295,9 @@ def collapse_seam_wedges(mesh, gap=0.12, wall_tol=0.02):
             drop.add(j)
             freed.append(e1 if j == i1 else e2)
 
+    mesh.dropped_wedge_arms = [seps[j].copy() for j in sorted(drop)]
     if not drop:
-        return
+        return []
     # re-join the two wall segments meeting at each freed junction
     for e in freed:
         hit = [k for k, b in enumerate(bnd)
@@ -286,6 +317,7 @@ def collapse_seam_wedges(mesh, gap=0.12, wall_tol=0.02):
     mesh.separatrices = [d for k, d in enumerate(dicts) if k not in drop]
     print(f"[wedge] collapsed {len(drop)} same-singularity seam wedge arm(s), "
           f"re-joined wall at {len(freed)} junction(s)")
+    return mesh.dropped_wedge_arms
 
 
 def symmetrize_seam_junctions(mesh, tol_cls=0.012, tol_match=0.012,
@@ -915,6 +947,7 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
     ps._drop_degenerate_corner_seps(sl.mesh)
     ps._snap_separatrix_endpoints(sl.mesh, radius=0.045)
     fix_start_kinks(sl.mesh)
+    straighten_sing_connectors(sl.mesh)
 
     collapse_seam_wedges(sl.mesh)
     seam_info = symmetrize_seam_junctions(sl.mesh)

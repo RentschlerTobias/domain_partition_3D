@@ -1,0 +1,14 @@
+Xiao + custom clipping vs. Ansatz T-a, T1_9 hub passage
+identical periodic cross field; difference = T-a seam postprocessing
+
+metric                                      X (Xiao+clipping)     T-a
+------------------------------------------------------------------------------------------
+blocks                                      14                    14
+non-quad regions (seam wedges)              2                     0
+irregular interior nodes                    4                     2
+hanging seam junctions                      n/a (no symmetrize)   4
+seam TFI conformity                         n/a                   8.1e-13
+inverted TFI cells                          n/a                   0/938
+runtime [s]                                 10.5                  6.2
+
+wedge arms deleted by T-a: 2 (dashed orange in xiao_blocks.png)

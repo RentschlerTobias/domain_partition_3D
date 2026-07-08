@@ -1,0 +1,18 @@
+Periodic-seam strategy comparison, T1_9 hub passage
+config: blade_tip_corners=False, emanate_outer_corners=True
+
+metric                                          Ansatz W (wrap)           Ansatz T (t-mesh)
+----------------------------------------------------------------------------------------------------
+blocks                                          69                        14
+irregular interior nodes                        1                         2
+inverted blocks                                 0                         0
+inverted TFI cells                              n/a (no TFI)              0/812
+dropped non-quad regions (holes, central pitch) 14                        0
+hanging T-nodes                                 0                         0
+seam corners L/R                                [6, 6]                    [4, 4]
+seam corner max dev                             4.777e-03                 0.324453
+seam TFI node max dev                           n/a                       8.083e-13
+singularities                                   4                         4
+runtime [s]                                     463                       6.4
+
+T seam junctions: {'n_left': 2, 'n_right': 2, 'n_union': 4, 'n_hanging': 4}

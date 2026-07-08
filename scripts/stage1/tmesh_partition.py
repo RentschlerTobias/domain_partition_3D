@@ -1107,7 +1107,8 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
         print(f"wrote {out_dir}/tmesh_metrics_{tag}.json")
     return {"metrics": metrics, "result": result, "tfi": tfi, "mesh": mesh,
             "seam_info": seam_info, "boundary_ref": boundary_ref,
-            "edge_samples": edge_samples, "divisions": divisions}
+            "edge_samples": edge_samples, "divisions": divisions,
+            "transform": transform, "seam_pairs": seam_pairs}
 
 
 # --------------------------------------------------------------------------

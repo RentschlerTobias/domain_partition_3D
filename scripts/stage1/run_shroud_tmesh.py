@@ -32,7 +32,6 @@ def main():
     prescribed = shroud_data["singularities"]
     print(f"[shroud] {len(prescribed)} prescribed singularities loaded")
 
-    # Run Shroud partition with prescribed singularities
     stl = str(root / "T1_9_shroud_raw.stl")
     out = root / "output" / "T1_9" / "shroud_stage1" / "tmesh"
 

@@ -57,9 +57,6 @@ def export_hub_master(run_result, out_dir, tag="ta"):
     transform = run_result["transform"]
     metrics = run_result["metrics"]
 
-    # ------------------------------------------------------------------
-    # 1. Geometry metadata
-    # ------------------------------------------------------------------
     geometry = {
         "r": float(transform.get("r", 0.0)),
         "pitch": float(mesh.pitch_norm),
@@ -69,9 +66,6 @@ def export_hub_master(run_result, out_dir, tag="ta"):
         "periodic": True,
     }
 
-    # ------------------------------------------------------------------
-    # 2. Singularities with barycentric (s,d) projection metadata
-    # ------------------------------------------------------------------
     singularities = []
     if hasattr(mesh, "singularities_coords") and mesh.singularities_coords:
         for node_id, coord in mesh.singularities_coords.items():
@@ -95,12 +89,9 @@ def export_hub_master(run_result, out_dir, tag="ta"):
 
             singularities.append(sing)
 
-    # ------------------------------------------------------------------
-    # 3. Block topology (minimal viable subset)
-    # ------------------------------------------------------------------
     blocks = []
+    nodes = result.get("nodes", np.zeros((0, 2)))
     for i, blk in enumerate(result.get("blocks", [])):
-        nodes = result.get("nodes", np.zeros((0, 2)))
         cids = blk["corners"]
         corners_st = nodes[cids].tolist() if len(cids) > 0 and len(nodes) > 0 else []
         block = {
@@ -118,15 +109,10 @@ def export_hub_master(run_result, out_dir, tag="ta"):
             ],
             "side_chains": _to_json_safe(blk.get("side_chains", [])),
             "area": float(blk.get("area", 0.0)),
-            "centroid": _to_json_safe(blk.get("centroid", [])).tolist()
-            if hasattr(_to_json_safe(blk.get("centroid", [])), "tolist")
-            else _to_json_safe(blk.get("centroid", [])),
+            "centroid": _to_json_safe(blk.get("centroid", [])),
         }
         blocks.append(block)
 
-    # ------------------------------------------------------------------
-    # 4. Invariants & validation
-    # ------------------------------------------------------------------
     index_sum = sum(s["index"] for s in singularities)
     invariants = {
         "total_singularities": len(singularities),
@@ -137,9 +123,6 @@ def export_hub_master(run_result, out_dir, tag="ta"):
         "rejected_regions": metrics.get("rejected_regions", 0),
     }
 
-    # ------------------------------------------------------------------
-    # 5. TFI grids (save to companion .npz)
-    # ------------------------------------------------------------------
     npz_path = master_dir / f"hub_master_{tag}.npz"
     if tfi and tfi.get("grids"):
         grids = tfi["grids"]
@@ -152,9 +135,6 @@ def export_hub_master(run_result, out_dir, tag="ta"):
     else:
         npz_path = None
 
-    # ------------------------------------------------------------------
-    # 6. Assemble master JSON
-    # ------------------------------------------------------------------
     master = {
         "schema_version": "1.0.0",
         "case_id": "T1_9",
@@ -193,7 +173,6 @@ def _compute_blade_parametric(coord, blade_loops, tol=1e-6):
         if loop.ndim != 2 or len(loop) < 2:
             continue
 
-        # Project point onto polyline
         seg, t, dist, proj = _project_to_polyline(p, loop)
         if dist > 0.05:  # not near this blade
             continue
@@ -243,13 +222,6 @@ def _classify_side(blk, side_idx, result):
     corners = blk["corners"]
     c1, c2 = corners[side_idx], corners[(side_idx + 1) % 4]
 
-    # Check if this side is along a seam wall
-    if result.get("seam_info"):
-        # Seam walls are periodic boundaries
-        # This is a simplified classification - full classification would check
-        # against seam_info["WL"] and seam_info["WR"]
-        pass
-
     # Check if side is along blade boundary
     if result.get("blade_regions"):
         blade_nodes = set()
@@ -266,7 +238,3 @@ def _classify_side(blk, side_idx, result):
 
     return "boundary"
 
-
-if __name__ == "__main__":
-    # Test import
-    print("export_hub_master module loaded")

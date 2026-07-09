@@ -2,3 +2,19 @@ __pycache__/
 *.pyc
 debug_*.py
 test_output.html
+
+# Generated outputs
+output/
+graphify-out/
+.omo/
+.opencode/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

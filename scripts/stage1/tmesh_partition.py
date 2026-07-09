@@ -60,10 +60,6 @@ H_CELL = 0.04            # target cell size (uniform reference)
 CLUSTER_RATIO = 5.0      # first wall cell ~ uniform/5 (tanh stretching)
 
 
-# --------------------------------------------------------------------------
-# prescribed singularity injection (Hub-Master -> Shroud-Slave)
-# --------------------------------------------------------------------------
-
 def _inject_prescribed_singularities(mesh, prescribed):
     """Replace auto-detected singularities with prescribed positions.
 
@@ -77,14 +73,9 @@ def _inject_prescribed_singularities(mesh, prescribed):
     nodes = mesh.x[:, 0:2].numpy()
     faces = mesh.faces.T.numpy()
 
-    if not hasattr(mesh, "singularities_coords"):
-        mesh.singularities_coords = {}
-    if not hasattr(mesh, "expected_separatrices"):
-        mesh.expected_separatrices = {}
-
     mesh.singularities[:] = 0
-    mesh.singularities_coords.clear()
-    mesh.expected_separatrices.clear()
+    mesh.singularities_coords = {}
+    mesh.expected_separatrices = {}
 
     for p in prescribed:
         pos = np.asarray(p["position_st"], float)

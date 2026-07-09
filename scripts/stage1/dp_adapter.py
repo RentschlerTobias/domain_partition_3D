@@ -23,7 +23,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-sys.path.insert(0, "/root/repos/domain_partition")
+_DP2D = Path(__file__).resolve().parent.parent.parent.parent / "domain_partition_2D"
+sys.path.insert(0, str(_DP2D))
 from torch_geometric.data import Data
 from tools.mesh_generator import MeshGenerator  # noqa: E402
 

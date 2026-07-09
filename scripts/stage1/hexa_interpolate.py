@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+"""3D Hexa interpolation between Hub Master and Shroud Slave.
+
+Reads hub_master.json, projects block corners onto Shroud radially,
+performs TFI interpolation in the radial direction (Hub->Shroud),
+exports VTK hexahedral blocks.
+
+Usage:
+    python hexa_interpolate.py [tag]
+"""
+
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "domain_partition_2D"))
+
+import meshio
+import unwrap_surface as us
+
+
+def load_hub_master(path):
+    with open(path) as f:
+        return json.load(f)
+
+
+def project_corners_to_shroud(hub_blocks, r_hub, r_shroud, shroud_st_path):
+    """Project Hub block corners onto Shroud radially.
+
+    For each corner (s,t) on Hub: Shroud corner is at same (s,t) but
+    with r = r_shroud. In 3D: (s,t) -> (r_shroud*cos(s/r_hub), r_shroud*sin(s/r_hub), t)
+    is WRONG because s is arc-length, not angle.
+
+    Correct: theta = s/r_hub, so Shroud s_shroud = r_shroud * theta = s * (r_shroud/r_hub)
+    But for corner correspondence, we keep the same theta and z:
+    Hub: (x,y,z) = (r_hub*cos(theta), r_hub*sin(theta), t)
+    Shroud: (x,y,z) = (r_shroud*cos(theta), r_shroud*sin(theta), t)
+    """
+    projected = []
+    for blk in hub_blocks:
+        corners_3d = []
+        for c_st in blk["corners_st"] if "corners_st" in blk else []:
+            # c_st is [s, t] in Hub unwrapped coordinates
+            s, t = c_st
+            theta = s / r_hub if r_hub > 0 else 0
+            # Project to Shroud radius
+            x = r_shroud * np.cos(theta)
+            y = r_shroud * np.sin(theta)
+            z = t
+            corners_3d.append([x, y, z])
+        projected.append({
+            "id": blk["id"],
+            "corners_3d": corners_3d,
+        })
+    return projected
+
+
+def build_hexa_block(hub_corners, shroud_corners, n_r=4):
+    """Build a 3D hexa block from Hub and Shroud quads.
+
+    hub_corners: list of 4 [x,y,z] corners on Hub
+    shroud_corners: list of 4 [x,y,z] corners on Shroud
+    n_r: number of radial layers (n_r+1 points)
+
+    Returns: (n_r+1, 4, 3) array of block vertices
+    """
+    hub = np.asarray(hub_corners, float)
+    shroud = np.asarray(shroud_corners, float)
+    assert hub.shape == (4, 3), f"Expected (4,3), got {hub.shape}"
+    assert shroud.shape == (4, 3), f"Expected (4,3), got {shroud.shape}"
+
+    # Linear interpolation in radial direction
+    # For better quality, could use TFI or spline interpolation
+    t = np.linspace(0, 1, n_r + 1)[:, None, None]
+    block = (1 - t) * hub[None, :, :] + t * shroud[None, :, :]
+    return block
+
+
+def export_vtk(hexa_blocks, out_path):
+    """Export hexahedral blocks to VTK.
+
+    hexa_blocks: list of (n_r+1, 4, 3) arrays
+    """
+    all_points = []
+    cells = []
+    offset = 0
+    for block in hexa_blocks:
+        n_layers = block.shape[0] - 1  # nr layers = nr+1 points - 1
+        # For each radial layer, create a hexa with bottom and top quad
+        for i in range(n_layers):
+            bottom = block[i]      # (4, 3)
+            top = block[i + 1]     # (4, 3)
+            hexa_points = np.vstack([bottom, top])
+            all_points.append(hexa_points)
+            cells.append(list(range(offset, offset + 8)))
+            offset += 8
+
+    if not all_points:
+        print("[hexa] no blocks to export")
+        return
+
+    points = np.vstack(all_points)
+    cell_array = np.array(cells)
+    
+    mesh = meshio.Mesh(
+        points=points,
+        cells=[("hexahedron", cell_array)],
+    )
+    mesh.write(out_path)
+    print(f"[hexa] wrote {out_path}")
+
+
+def main():
+    tag = sys.argv[1] if len(sys.argv) > 1 else "ta"
+    root = Path(__file__).resolve().parent.parent.parent
+
+    # Load Hub Master
+    hub_path = root / "output" / "T1_9" / "hub_stage1" / "tmesh" / "master" / f"hub_master_{tag}.json"
+    hub_data = load_hub_master(hub_path)
+
+    r_hub = hub_data["geometry"]["r"]
+    blocks = hub_data["blocks"]
+
+    # Load Shroud
+    shroud_stl = str(root / "T1_9_shroud_raw.stl")
+    shroud_mesh = us.unwrap(shroud_stl)
+    r_shroud = float(shroud_mesh["r"])
+
+    print(f"[hexa] Hub r={r_hub:.3f}, Shroud r={r_shroud:.3f}")
+    print(f"[hexa] {len(blocks)} Hub blocks")
+
+    # Project Hub corners to Shroud
+    # For each block, corners_st are in (s,t) coordinates
+    # We need to convert to 3D on Hub and Shroud
+    hexa_blocks = []
+    for blk in blocks:
+        if "corners_st" not in blk:
+            continue
+        hub_corners_3d = []
+        shroud_corners_3d = []
+        for c_st in blk["corners_st"]:
+            s, t = c_st
+            theta = s / r_hub if r_hub > 0 else 0
+            # Hub 3D
+            hub_corners_3d.append([
+                r_hub * np.cos(theta),
+                r_hub * np.sin(theta),
+                t
+            ])
+            # Shroud 3D
+            shroud_corners_3d.append([
+                r_shroud * np.cos(theta),
+                r_shroud * np.sin(theta),
+                t
+            ])
+
+        if len(hub_corners_3d) == 4 and len(shroud_corners_3d) == 4:
+            hexa = build_hexa_block(hub_corners_3d, shroud_corners_3d, n_r=4)
+            hexa_blocks.append(hexa)
+
+    # Export
+    out_dir = root / "output" / "T1_9" / "hexa_3d"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"hexa_blocks_{tag}.vtk"
+    export_vtk(hexa_blocks, out_path)
+
+    print(f"[hexa] exported {len(hexa_blocks)} hexa blocks")
+
+
+if __name__ == "__main__":
+    main()

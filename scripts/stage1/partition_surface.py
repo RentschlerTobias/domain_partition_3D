@@ -26,7 +26,8 @@ from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import spsolve
 from torch_geometric.data import Data
 
-sys.path.insert(0, "/root/repos/domain_partition")
+_DP2D = Path(__file__).resolve().parent.parent.parent.parent / "domain_partition_2D"
+sys.path.insert(0, str(_DP2D))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 # --- swap in our robust separatrix emanation finder ---

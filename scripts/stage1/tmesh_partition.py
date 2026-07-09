@@ -33,7 +33,8 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, "/root/repos/domain_partition")
+_DP2D = Path(__file__).resolve().parent.parent.parent.parent / "domain_partition_2D"
+sys.path.insert(0, str(_DP2D))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import unwrap_surface as us                                    # noqa: E402
@@ -47,11 +48,57 @@ from tools.streamline_merging import StreamlineMerging         # noqa: E402
 from tools.streamline_intersection_splitter import (           # noqa: E402
     StreamlineIntersectionSplitter)
 
-STL = "/root/repos/block_structured_meshing/T1_9_hub_raw.stl"
-OUT = Path("/root/repos/block_structured_meshing/output/T1_9/hub_stage1/tmesh")
+_ROOT = Path(__file__).resolve().parent.parent.parent
+# STL = str(_ROOT / "T1_9_hub_raw.stl")
+# OUT = _ROOT / "output" / "T1_9" / "hub_stage1" / "tmesh"
+
+STL = str(_ROOT / "T1_9_hub_raw.stl")
+OUT = _ROOT / "output" / "T1_9" / "hub_stage1" / "tmesh"
+
 
 H_CELL = 0.04            # target cell size (uniform reference)
 CLUSTER_RATIO = 5.0      # first wall cell ~ uniform/5 (tanh stretching)
+
+
+# --------------------------------------------------------------------------
+# prescribed singularity injection (Hub-Master -> Shroud-Slave)
+# --------------------------------------------------------------------------
+
+def _inject_prescribed_singularities(mesh, prescribed):
+    """Replace auto-detected singularities with prescribed positions.
+
+    prescribed: list of dicts with keys:
+        position_st: [s, t] coordinates in unwrapped domain
+        index: Poincaré index (+1 or -1)
+        separatrix_count: 3 or 5
+    """
+    import torch
+
+    nodes = mesh.x[:, 0:2].numpy()
+    faces = mesh.faces.T.numpy()
+
+    if not hasattr(mesh, "singularities_coords"):
+        mesh.singularities_coords = {}
+    if not hasattr(mesh, "expected_separatrices"):
+        mesh.expected_separatrices = {}
+
+    mesh.singularities[:] = 0
+    mesh.singularities_coords.clear()
+    mesh.expected_separatrices.clear()
+
+    for p in prescribed:
+        pos = np.asarray(p["position_st"], float)
+        idx = int(p["index"])
+        n_sep = int(p.get("separatrix_count", 5 if idx < 0 else 3))
+        centroids = nodes[faces].mean(axis=1)
+        d2 = np.sum((centroids - pos) ** 2, axis=1)
+        face_id = int(np.argmin(d2))
+
+        mesh.singularities[face_id] = idx
+        mesh.singularities_coords[face_id] = torch.tensor(pos, dtype=torch.float)
+        mesh.expected_separatrices[face_id] = n_sep
+
+    print(f"[prescribed] injected {len(prescribed)} singularities into mesh")
 
 
 # --------------------------------------------------------------------------
@@ -962,7 +1009,8 @@ def wall_cell_ratio(tfi_grids_or_result, edge_samples, result, nonper_dist_fn,
 # --------------------------------------------------------------------------
 
 def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
-              continue_seam_edges=False, max_rounds=3, tag="ta"):
+              continue_seam_edges=False, max_rounds=3, tag="ta",
+              prescribed_singularities=None):
     ps.set_periodic(True)          # field seam weld stays ON
     ps.set_tile_periodic(False)    # block stage: seam = wall
     t0 = time.time()
@@ -971,6 +1019,11 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
     pitch = float(mesh.pitch_norm)
     ff = FrameField(mesh)
     m = detect_singularities(ff.mesh)
+
+    if prescribed_singularities:
+        _inject_prescribed_singularities(ff.mesh, prescribed_singularities)
+        cs.CleanSeparatrixGenerator(ff.mesh)
+
     n_sing = int((m.singularities != 0).sum())
 
     sl = StreamlineGenerator_v2(ff.mesh)
@@ -1105,6 +1158,15 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
         (out_dir / f"tmesh_metrics_{tag}.json").write_text(
             json.dumps(metrics, indent=2))
         print(f"wrote {out_dir}/tmesh_metrics_{tag}.json")
+
+        from export_hub_master import export_hub_master
+        export_hub_master(
+            {"metrics": metrics, "result": result, "tfi": tfi, "mesh": mesh,
+             "seam_info": seam_info, "boundary_ref": boundary_ref,
+             "edge_samples": edge_samples, "divisions": divisions,
+             "transform": transform, "seam_pairs": seam_pairs},
+            out_dir, tag=tag)
+
     return {"metrics": metrics, "result": result, "tfi": tfi, "mesh": mesh,
             "seam_info": seam_info, "boundary_ref": boundary_ref,
             "edge_samples": edge_samples, "divisions": divisions,

@@ -1,0 +1,28 @@
+{
+  "approach": "T-a (hanging seam T-nodes)",
+  "singularities": 4,
+  "blocks": 14,
+  "rejected_regions": 0,
+  "t_nodes_interior": 0,
+  "hanging_seam_junctions": 4,
+  "irregular_interior_nodes": 2,
+  "inverted_blocks": 0,
+  "inverted_tfi_cells": 0,
+  "total_tfi_cells": 938,
+  "shared_edges": 20,
+  "edge_conformity_dev": 6.190249446369478e-08,
+  "wall_cluster_ratio_mean": 4.999306888841167,
+  "wall_clustered_edge_ends": 8,
+  "seam_corner_lr": [
+    4,
+    4
+  ],
+  "seam_corner_dev": 0.3244528576456163,
+  "seam_tfi_nodes_lr": [
+    32,
+    32
+  ],
+  "seam_tfi_dev": 8.082978730783452e-13,
+  "planar": true,
+  "runtime_s": 9.4
+}

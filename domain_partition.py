@@ -83,23 +83,17 @@ def main(argv=None):
     for part, stl in stls.items():
         out_dir = args.output / part
         print(f"\n=== {part}: {stl} -> {out_dir} ===")
-        ta_run = None
+        runs = {}
         for method in methods:
             if method == "xiao":
-                data = xiao.run_xiao(stl)
-                xiao.write_xiao_report(data, out_dir / "xiao")
+                runs[method] = xiao.run_xiao(stl)
+                xiao.write_xiao_report(runs[method], out_dir / "xiao")
             else:
-                run = tmesh.run_tmesh(
+                runs[method] = tmesh.run_tmesh(
                     stl, out_dir, tag=method,
-                    continue_seam_edges=(method == "tb"),
-                    make_plots=args.plots)
-                if method == "ta":
-                    ta_run = run
+                    continue_seam_edges=(method == "tb"))
         if args.plots:
-            if ta_run is None:
-                ta_run = tmesh.run_tmesh(stl, out_dir, tag="ta",
-                                         make_plots=False, verbose=False)
-            plotting.run_showcase(stl, out_dir / "showcase", ta_run)
+            plotting.write_plots(stl, part, runs, args.output / "plots")
 
 
 if __name__ == "__main__":

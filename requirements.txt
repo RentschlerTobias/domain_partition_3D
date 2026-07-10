@@ -1,13 +1,14 @@
-gmsh==4.15.2
-markdown-it-py==4.0.0
-mdurl==0.1.2
+# core pipeline (dp3d + domain_partition.py)
+matplotlib==3.11.0
 meshio==5.3.5
-narwhals==2.19.0
 networkx==3.6.1
+numba==0.66.0
 numpy==2.4.4
-openmesh==1.2.1
-packaging==26.0
-plotly==6.6.0
-Pygments==2.20.0
-rich==14.3.3
 scipy==1.17.1
+torch==2.13.0
+torch-geometric==2.8.0
+
+# experimentell/gmsh_pipeline
+gmsh==4.15.2
+openmesh==1.2.1
+plotly==6.6.0

@@ -1,0 +1,67 @@
+{
+  "2": {
+    "num_elements": 16000,
+    "num_components": 1,
+    "component_sizes": [
+      16000
+    ],
+    "dimension_estimate": {
+      "interior_elem": 122487,
+      "num_neighbors": 6,
+      "directions": 0,
+      "vectors": []
+    }
+  },
+  "3": {
+    "num_elements": 6400,
+    "num_components": 1,
+    "component_sizes": [
+      6400
+    ],
+    "dimension_estimate": {
+      "interior_elem": 138487,
+      "num_neighbors": 6,
+      "directions": 0,
+      "vectors": []
+    }
+  },
+  "4": {
+    "num_elements": 16000,
+    "num_components": 1,
+    "component_sizes": [
+      16000
+    ],
+    "dimension_estimate": {
+      "interior_elem": 144887,
+      "num_neighbors": 6,
+      "directions": 0,
+      "vectors": []
+    }
+  },
+  "5": {
+    "num_elements": 3200,
+    "num_components": 1,
+    "component_sizes": [
+      3200
+    ],
+    "dimension_estimate": {
+      "interior_elem": 160887,
+      "num_neighbors": 6,
+      "directions": 0,
+      "vectors": []
+    }
+  },
+  "6": {
+    "num_elements": 3200,
+    "num_components": 1,
+    "component_sizes": [
+      3200
+    ],
+    "dimension_estimate": {
+      "interior_elem": 164087,
+      "num_neighbors": 6,
+      "directions": 0,
+      "vectors": []
+    }
+  }
+}

@@ -1,0 +1,481 @@
+{
+  "parameters": {
+    "cV_n": 90.0,
+    "cV_omega": 9.42477796076938,
+    "cV_I": 0.05000000074505806,
+    "cV_U_n": 7.0,
+    "cV_U_tl": 6.300000190734863,
+    "cV_U_vl": 7.699999809265137,
+    "cV_Cmu": 0.09000000357627869,
+    "cV_L": "2*(#cV_r_shroud#-#cV_r_hub#)*0.09000000357627869**(-1/4)",
+    "cV_r_hub": 0.5,
+    "cV_r_shroud": 2.0,
+    "cV_l_ru": 2.5,
+    "cV_ru_nBlades": 4.0,
+    "cV_ru_mplane_0": 0.0,
+    "cV_ru_mplane_100": 0.10000000149011612,
+    "cV_ru_mplane_250": 0.25,
+    "cV_ru_mplane_500": 0.5,
+    "cV_ru_mplane_750": 0.75,
+    "cV_ru_mplane_900": 0.8999999761581421,
+    "cV_ru_mplane_1000": 1.0,
+    "cV_ru_alpha_1_ex_0.0": 0.0066281091421842575,
+    "cV_ru_alpha_2_ex_0.0": 0.061979103833436966,
+    "cV_ru_offsetM_ex_0.0": 1.2269339561462402,
+    "cV_ru_M_ex_0.0": 0.20000000298023224,
+    "cV_ru_offsetPhiR_ex_0.0": -0.00614971062168479,
+    "cV_ru_ratio_0.0": 0.413444846868515,
+    "cV_ru_bladeLength_0.0": 0.7991439700126648,
+    "cV_ru_alpha_1_ex_0.5": -0.06890838593244553,
+    "cV_ru_alpha_2_ex_0.5": 0.015414350666105747,
+    "cV_ru_offsetM_ex_0.5": 1.0957618951797485,
+    "cV_ru_M_ex_0.5": 0.20000000298023224,
+    "cV_ru_offsetPhiR_ex_0.5": 0.05950465425848961,
+    "cV_ru_ratio_0.5": 0.5126110315322876,
+    "cV_ru_bladeLength_0.5": 0.7440270185470581,
+    "cV_ru_alpha_1_ex_1.0": -0.06435349583625793,
+    "cV_ru_alpha_2_ex_1.0": -0.003908250480890274,
+    "cV_ru_offsetM_ex_1.0": 1.2886613607406616,
+    "cV_ru_M_ex_1.0": 0.20000000298023224,
+    "cV_ru_offsetPhiR_ex_1.0": -0.09320051968097687,
+    "cV_ru_ratio_1.0": 0.59560227394104,
+    "cV_ru_bladeLength_1.0": 0.794994056224823,
+    "cV_ru_t_le_a_0": 0.03282757103443146,
+    "cV_ru_u_le_a_0": 0.0,
+    "cV_ru_t_mid_a_0": 0.057484909892082214,
+    "cV_ru_u_mid_a_0": 0.41718894243240356,
+    "cV_ru_t_te_a_0": 0.059729963541030884,
+    "cV_ru_u_te_a_0": 1.0,
+    "cV_ru_t_le_b_0": 0.03500000014901161,
+    "cV_ru_u_le_b_0": 0.0,
+    "cV_ru_t_mid_b_0": 0.041999999433755875,
+    "cV_ru_u_mid_b_0": 0.5,
+    "cV_ru_t_te_b_0": 0.007000000216066837,
+    "cV_ru_u_te_b_0": 1.0,
+    "cV_ru_t_le_a_0.5": 0.006544517818838358,
+    "cV_ru_u_le_a_0.5": 0.0,
+    "cV_ru_t_mid_a_0.5": 0.031959984451532364,
+    "cV_ru_u_mid_a_0.5": 0.5695708990097046,
+    "cV_ru_t_te_a_0.5": 0.042776428163051605,
+    "cV_ru_u_te_a_0.5": 1.0,
+    "cV_ru_t_le_b_0.5": 0.020999999716877937,
+    "cV_ru_u_le_b_0.5": 0.0,
+    "cV_ru_t_mid_b_0.5": 0.026000000536441803,
+    "cV_ru_u_mid_b_0.5": 0.5,
+    "cV_ru_t_te_b_0.5": 0.0044999998062849045,
+    "cV_ru_u_te_b_0.5": 1.0,
+    "cV_ru_t_le_a_1": 0.009726390242576599,
+    "cV_ru_u_le_a_1": 0.0,
+    "cV_ru_t_mid_a_1": 0.014468014240264893,
+    "cV_ru_u_mid_a_1": 0.4069095551967621,
+    "cV_ru_t_te_a_1": 0.0065150479786098,
+    "cV_ru_u_te_a_1": 1.0,
+    "cV_ru_t_le_b_1": 0.008299999870359898,
+    "cV_ru_u_le_b_1": 0.0,
+    "cV_ru_t_mid_b_1": 0.00989999994635582,
+    "cV_ru_u_mid_b_1": 0.5,
+    "cV_ru_t_te_b_1": 0.0020000000949949026,
+    "cV_ru_u_te_b_1": 1.0,
+    "cV_ru_t_rounding": 0.15000000596046448,
+    "cV_ru_meshBlockThickness": 0.05999999865889549,
+    "cV_ruWithRoundingBlade_meshBlockThickness": 0.05999999865889549,
+    "cV_ruWithRoundingRounding_meshBlockThickness": 0.05999999865889549,
+    "cV_ru_divideInternalMeshBlock_0_0": 0.48500001430511475,
+    "cV_ru_divideInternalMeshBlock_0_1": 0.48500001430511475,
+    "cV_ru_divideInternalMeshBlock_1_0": 0.5149999856948853,
+    "cV_ru_divideInternalMeshBlock_1_1": 0.5149999856948853,
+    "cV_ruWithRoundingBlade_divideInternalMeshBlock_0_0": 0.48500001430511475,
+    "cV_ruWithRoundingBlade_divideInternalMeshBlock_0_1": 0.48500001430511475,
+    "cV_ruWithRoundingBlade_divideInternalMeshBlock_1_0": 0.5149999856948853,
+    "cV_ruWithRoundingBlade_divideInternalMeshBlock_1_1": 0.5149999856948853,
+    "cV_ruWithRoundingRounding_divideInternalMeshBlock_0_0": 0.48500001430511475,
+    "cV_ruWithRoundingRounding_divideInternalMeshBlock_0_1": 0.48500001430511475,
+    "cV_ruWithRoundingRounding_divideInternalMeshBlock_1_0": 0.5149999856948853,
+    "cV_ruWithRoundingRounding_divideInternalMeshBlock_1_1": 0.5149999856948853,
+    "cV_ru_in": 0.0,
+    "cV_ru_le": 0.30000001192092896,
+    "cV_ru_le>te": 0.5,
+    "cV_ru_te": 0.6000000238418579,
+    "cV_ru_out": 1.0,
+    "cV_ru_gridChannel_in_u_w0.00": 0.24887313,
+    "cV_ru_gridChannel_in_v_w0.00": 0.0,
+    "cV_ru_gridChannel_in_u_w0.50": 0.27056611,
+    "cV_ru_gridChannel_in_v_w0.50": 0.0,
+    "cV_ru_gridChannel_in_u_w1.00": 0.26892,
+    "cV_ru_gridChannel_in_v_w1.00": 0.0,
+    "cV_ru_gridChannel_le_u_w0.00": 0.33178987,
+    "cV_ru_gridChannel_le_v_w0.00": 0.3723306,
+    "cV_ru_gridChannel_le_u_w0.50": 0.29267652,
+    "cV_ru_gridChannel_le_v_w0.50": 0.39161353,
+    "cV_ru_gridChannel_le_u_w1.00": 0.27169191,
+    "cV_ru_gridChannel_le_v_w1.00": 0.4516203,
+    "cV_ru_gridChannel_le>te_u_w0.00": 0.26439756,
+    "cV_ru_gridChannel_le>te_v_w0.00": 0.47180746,
+    "cV_ru_gridChannel_le>te_u_w0.50": 0.25610789,
+    "cV_ru_gridChannel_le>te_v_w0.50": 0.46217003,
+    "cV_ru_gridChannel_le>te_u_w1.00": 0.24602005,
+    "cV_ru_gridChannel_le>te_v_w1.00": 0.50954745,
+    "cV_ru_gridChannel_te_u_w0.00": 0.14935621,
+    "cV_ru_gridChannel_te_v_w0.00": 0.59013653,
+    "cV_ru_gridChannel_te_u_w0.50": 0.20534774,
+    "cV_ru_gridChannel_te_v_w0.50": 0.53135932,
+    "cV_ru_gridChannel_te_u_w1.00": 0.2118949,
+    "cV_ru_gridChannel_te_v_w1.00": 0.55736516,
+    "cV_ru_gridChannel_out_u_w0.00": 0.16567445,
+    "cV_ru_gridChannel_out_v_w0.00": 1.0,
+    "cV_ru_gridChannel_out_u_w0.50": 0.21929087,
+    "cV_ru_gridChannel_out_v_w0.50": 1.0,
+    "cV_ru_gridChannel_out_u_w1.00": 0.23445456,
+    "cV_ru_gridChannel_out_v_w1.00": 1.0,
+    "cV_ru_gridChannel_out_u_ext": 1.0,
+    "cV_ru_gridChannel_out_v_ext": 1.0,
+    "cV_ru_nElemTangentialBlade": 10.0,
+    "cV_ru_nElemTangentialTip": 4.0,
+    "cV_ru_nElemNormalBlade": 5.0,
+    "cV_ru_nElemSpanwiseBlade": 20.0,
+    "cV_ru_nElemTrailingBlade": 2.0,
+    "cV_ru_nBoundaryLayers": 5.0,
+    "cV_ru_firstElementSize": 0.0006000000284984708,
+    "cV_ru_gridDoubleGrading": 3.25,
+    "cV_ru_gridSingleGrading": 2.700000047683716,
+    "cV_ru_firstElementSize_17": 0.004000000189989805,
+    "cV_ru_firstElementSize_18": 0.012000000104308128,
+    "cV_ru_lcIntPrec": 0.009999999776482582,
+    "cV_ru_charLMin": 0.05,
+    "cV_ru_charCLMax": 3.0,
+    "cV_ruMech_z_hub_0": 0.0,
+    "cV_ruMech_z_hub_1": 2.5,
+    "cV_ruMech_lcIntPrec": 0.009999999776482582,
+    "cV_ruMech_charLMin": 0.10000000149011612,
+    "cV_ruMech_charLMinB": 0.0825,
+    "cV_ruMech_charLMinHB": 0.03,
+    "cV_ruMech_charLMax": 0.075,
+    "cV_ruMech_distMinB": 0.03,
+    "cV_ruMech_distMaxB": 0.12,
+    "cV_ruMech_distMinHB": 0.03,
+    "cV_ruMech_distMaxHB": 0.12
+  },
+  "blocks": {
+    "aF_tV_{ii}_meshBlock_closed_te_0": {
+      "corners": [
+        [
+          "0.43+#cV_{ii}_divideInternalMeshBlock_0_0#",
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          "0.43+#cV_{ii}_divideInternalMeshBlock_0_1#",
+          0.0,
+          1.0
+        ],
+        [
+          1.0,
+          0.0,
+          1.0
+        ],
+        [
+          "0.43+#cV_{ii}_divideInternalMeshBlock_0_0#",
+          1.0,
+          0.0
+        ],
+        [
+          1.0,
+          1.0,
+          0.0
+        ],
+        [
+          "0.43+#cV_{ii}_divideInternalMeshBlock_0_1#",
+          1.0,
+          1.0
+        ],
+        [
+          1.0,
+          1.0,
+          1.0
+        ]
+      ],
+      "type": "triLinearHexa"
+    },
+    "aF_tV_{ii}_meshBlock_closed_te_1": {
+      "corners": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_1_0#-0.43",
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_1_1#-0.43",
+          0.0,
+          1.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_1_0#-0.43",
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          1.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_1_1#-0.43",
+          1.0,
+          1.0
+        ]
+      ],
+      "type": "triLinearHexa"
+    },
+    "aF_tV_{ii}_meshBlock_closed_0_0": {
+      "corners": [
+        [
+          "#cV_{ii}_divideInternalMeshBlock_1_0#-0.43",
+          0.0,
+          0.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_0_0#-0.085",
+          0.0,
+          0.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_1_1#-0.43",
+          0.0,
+          1.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_0_0#-0.085",
+          0.0,
+          1.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_1_0#-0.43",
+          1.0,
+          0.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_0_1#-0.085",
+          1.0,
+          0.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_1_1#-0.43",
+          1.0,
+          1.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_0_1#-0.085",
+          1.0,
+          1.0
+        ]
+      ],
+      "type": "triLinearHexa"
+    },
+    "aF_tV_{ii}_meshBlock_closed_0_1": {
+      "corners": [
+        [
+          "#cV_{ii}_divideInternalMeshBlock_0_0#-0.025",
+          0.0,
+          0.0
+        ],
+        [
+          "0.025+#cV_{ii}_divideInternalMeshBlock_1_0#",
+          0.0,
+          0.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_0_0#-0.025",
+          0.0,
+          1.0
+        ],
+        [
+          "0.025+#cV_{ii}_divideInternalMeshBlock_1_0#",
+          0.0,
+          1.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_0_1#-0.025",
+          1.0,
+          0.0
+        ],
+        [
+          "0.025+#cV_{ii}_divideInternalMeshBlock_1_1#",
+          1.0,
+          0.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_0_1#-0.025",
+          1.0,
+          1.0
+        ],
+        [
+          "0.025+#cV_{ii}_divideInternalMeshBlock_1_1#",
+          1.0,
+          1.0
+        ]
+      ],
+      "type": "triLinearHexa"
+    },
+    "aF_tV_{ii}_meshBlock_closed_0_2": {
+      "corners": [
+        [
+          "0.085+#cV_{ii}_divideInternalMeshBlock_1_0#",
+          0.0,
+          0.0
+        ],
+        [
+          "0.43+#cV_{ii}_divideInternalMeshBlock_0_0#",
+          0.0,
+          0.0
+        ],
+        [
+          "0.085+#cV_{ii}_divideInternalMeshBlock_1_0#",
+          0.0,
+          1.0
+        ],
+        [
+          "0.43+#cV_{ii}_divideInternalMeshBlock_0_1#",
+          0.0,
+          1.0
+        ],
+        [
+          "0.085+#cV_{ii}_divideInternalMeshBlock_1_1#",
+          1.0,
+          0.0
+        ],
+        [
+          "0.43+#cV_{ii}_divideInternalMeshBlock_0_0#",
+          1.0,
+          0.0
+        ],
+        [
+          "0.085+#cV_{ii}_divideInternalMeshBlock_1_1#",
+          1.0,
+          1.0
+        ],
+        [
+          "0.43+#cV_{ii}_divideInternalMeshBlock_0_1#",
+          1.0,
+          1.0
+        ]
+      ],
+      "type": "triLinearHexa"
+    },
+    "aF_tV_{ii}_meshBlock_closed_le_0": {
+      "corners": [
+        [
+          "#cV_{ii}_divideInternalMeshBlock_0_0#-0.085",
+          0.0,
+          0.0
+        ],
+        [
+          0.5,
+          0.0,
+          0.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_0_0#-0.085",
+          0.0,
+          1.0
+        ],
+        [
+          0.5,
+          0.0,
+          1.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_0_1#-0.085",
+          1.0,
+          0.0
+        ],
+        [
+          0.5,
+          1.0,
+          0.0
+        ],
+        [
+          "#cV_{ii}_divideInternalMeshBlock_0_1#-0.085",
+          1.0,
+          1.0
+        ],
+        [
+          0.5,
+          1.0,
+          1.0
+        ]
+      ],
+      "type": "triLinearHexa"
+    },
+    "aF_tV_{ii}_meshBlock_closed_le_1": {
+      "corners": [
+        [
+          0.5,
+          0.0,
+          0.0
+        ],
+        [
+          "0.085+#cV_{ii}_divideInternalMeshBlock_1_0#",
+          0.0,
+          0.0
+        ],
+        [
+          0.5,
+          0.0,
+          1.0
+        ],
+        [
+          "0.085+#cV_{ii}_divideInternalMeshBlock_1_0#",
+          0.0,
+          1.0
+        ],
+        [
+          0.5,
+          1.0,
+          0.0
+        ],
+        [
+          "0.085+#cV_{ii}_divideInternalMeshBlock_1_1#",
+          1.0,
+          0.0
+        ],
+        [
+          0.5,
+          1.0,
+          1.0
+        ],
+        [
+          "0.085+#cV_{ii}_divideInternalMeshBlock_1_1#",
+          1.0,
+          1.0
+        ]
+      ],
+      "type": "triLinearHexa"
+    }
+  },
+  "metadata": {
+    "source": "dtOO T2_7461",
+    "parameter_file": "T2_7461.xml",
+    "block_file": "ru_bladeRunnerMeshBlock.xml",
+    "note": "Coordinates are in parametric space [u,v,w] before mapping to physical space"
+  }
+}

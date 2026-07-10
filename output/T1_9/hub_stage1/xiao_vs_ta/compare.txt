@@ -3,12 +3,12 @@ identical periodic cross field; difference = T-a seam postprocessing
 
 metric                                      X (Xiao+clipping)     T-a
 ------------------------------------------------------------------------------------------
-blocks                                      14                    14
-non-quad regions (seam wedges)              2                     0
-irregular interior nodes                    4                     2
+blocks                                      14                    6
+non-quad regions (seam wedges)              2                     4
+irregular interior nodes                    4                     3
 hanging seam junctions                      n/a (no symmetrize)   4
-seam TFI conformity                         n/a                   8.1e-13
-inverted TFI cells                          n/a                   0/938
-runtime [s]                                 9.7                   6.7
+seam TFI conformity                         n/a                   0.0e+00
+inverted TFI cells                          n/a                   0/424
+runtime [s]                                 6.1                   4.6
 
-wedge arms deleted by T-a: 2 (dashed orange in xiao_blocks.png)
+wedge arms deleted by T-a: 0 (dashed orange in xiao_blocks.png)

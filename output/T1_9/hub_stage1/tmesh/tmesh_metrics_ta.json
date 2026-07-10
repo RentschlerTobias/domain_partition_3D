@@ -11,18 +11,18 @@
   "total_tfi_cells": 938,
   "shared_edges": 20,
   "edge_conformity_dev": 6.190249446369478e-08,
-  "wall_cluster_ratio_mean": 4.999306888841167,
+  "wall_cluster_ratio_mean": 4.99930688903128,
   "wall_clustered_edge_ends": 8,
   "seam_corner_lr": [
     4,
     4
   ],
-  "seam_corner_dev": 0.3244528576456163,
+  "seam_corner_dev": 0.3244528856357797,
   "seam_tfi_nodes_lr": [
     32,
     32
   ],
-  "seam_tfi_dev": 8.082978730783452e-13,
+  "seam_tfi_dev": 8.08315220313105e-13,
   "planar": true,
-  "runtime_s": 10.0
+  "runtime_s": 5.8
 }

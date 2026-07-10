@@ -5,34 +5,34 @@
     "blocks": 14,
     "nonquad_regions": 2,
     "irregular_interior_nodes": 4,
-    "runtime_s": 9.7
+    "runtime_s": 6.1
   },
   "ta": {
     "approach": "T-a (hanging seam T-nodes)",
     "singularities": 4,
-    "blocks": 14,
-    "rejected_regions": 0,
-    "t_nodes_interior": 0,
+    "blocks": 6,
+    "rejected_regions": 4,
+    "t_nodes_interior": 1,
     "hanging_seam_junctions": 4,
-    "irregular_interior_nodes": 2,
+    "irregular_interior_nodes": 3,
     "inverted_blocks": 0,
     "inverted_tfi_cells": 0,
-    "total_tfi_cells": 938,
-    "shared_edges": 20,
-    "edge_conformity_dev": 6.190249446369478e-08,
-    "wall_cluster_ratio_mean": 4.999306888841167,
-    "wall_clustered_edge_ends": 8,
+    "total_tfi_cells": 424,
+    "shared_edges": 6,
+    "edge_conformity_dev": 0.0,
+    "wall_cluster_ratio_mean": 4.999295901870925,
+    "wall_clustered_edge_ends": 7,
     "seam_corner_lr": [
       4,
-      4
+      1
     ],
-    "seam_corner_dev": 0.3244528576456163,
+    "seam_corner_dev": 1.0355931182303781,
     "seam_tfi_nodes_lr": [
-      32,
-      32
+      0,
+      0
     ],
-    "seam_tfi_dev": 8.082978730783452e-13,
+    "seam_tfi_dev": null,
     "planar": true,
-    "runtime_s": 6.7
+    "runtime_s": 4.6
   }
 }

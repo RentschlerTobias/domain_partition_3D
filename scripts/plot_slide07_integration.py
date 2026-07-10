@@ -151,9 +151,16 @@ def plot_integration(mesh, out_png):
 def main() -> None:
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    # --- 1. Build the mesh + cross-field (same as plot_central_streamlines.main) ---
+    # --- 1. Build the mesh + cross-field. IDENTICAL field configuration to the
+    # real partition pipeline (tmesh_partition.run_tmesh): periodic seam weld ON,
+    # block-stage tiling OFF, no blade-tip corners, emanate outer corners. This
+    # guarantees the raw streamlines below are exactly those tmesh_partition.py
+    # generates (via the same StreamlineGenerator_v2 + _drop_degenerate_corner_seps),
+    # before any merge/simplification. ---
     us.set_blade_tip_corners(False)
     cs.set_emanate_outer_corners(True)
+    ps.set_periodic(True)
+    ps.set_tile_periodic(False)
     mesh, _transform = build_dp_data(STL_PATH)
     ff = FrameField(mesh)
     m = detect_singularities(ff.mesh)

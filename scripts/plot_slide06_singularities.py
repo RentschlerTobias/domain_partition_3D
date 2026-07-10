@@ -147,17 +147,12 @@ def main() -> None:
             alpha=0.9,
         )
 
-    # Final singularity markers.
-    # Positive Poincaré index (+1): red circles.
+    # Final singularity markers: red open circle rings (same style as the
+    # non-4-valence markers in Step 9 / plot_blocks: facecolors none, red edge).
     ax.scatter(
-        sc[pos, 0], sc[pos, 1],
-        c="red", s=80, zorder=5,
-    )
-    # Negative Poincaré index (-1): blue squares (the 4 final ones are all -1).
-    ax.scatter(
-        sc[~pos, 0], sc[~pos, 1],
-        c="blue", s=80, zorder=5,
-        marker="s",
+        sc[:, 0], sc[:, 1],
+        facecolors="none", edgecolors="red", s=150, linewidths=2.0,
+        zorder=6,
     )
 
     ax.set_aspect("equal")

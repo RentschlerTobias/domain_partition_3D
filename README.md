@@ -50,9 +50,10 @@ Outputs: `output/<part>/tmesh_metrics_<tag>.json`, `output/<part>/xiao/`
 text report + metrics, `output/extracted/` STL + boundary quad VTK. With
 `--plots` a single showcase series lands in `output/plots/`: steps 01-07
 once per part (surface, unwrap, cross-field, representatives, frame field,
-singularities, streamline integration plain + labeled), steps 08-11 per
-method (simplification, final blocks, TFI grid and tiled periodicity check
--- the latter two ta/tb only).
+singularities, streamline integration plain + labeled), steps 08-09 per
+method plain + labeled (simplification, final blocks), steps 10-11 per
+method (TFI grid, tiled periodicity check -- ta/tb only). All steps share
+the faint triangulated background and the same (s,t) domain aspect.
 
 ## Layout
 

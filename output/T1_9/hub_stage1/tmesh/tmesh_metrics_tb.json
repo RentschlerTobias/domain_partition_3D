@@ -11,7 +11,7 @@
   "total_tfi_cells": 413,
   "shared_edges": 15,
   "edge_conformity_dev": 6.190249446369478e-08,
-  "wall_cluster_ratio_mean": 4.999384809521227,
+  "wall_cluster_ratio_mean": 4.999388194099057,
   "wall_clustered_edge_ends": 8,
   "seam_corner_lr": [
     4,
@@ -24,5 +24,5 @@
   ],
   "seam_tfi_dev": 0.6072464582435357,
   "planar": true,
-  "runtime_s": 12.6
+  "runtime_s": 5.2
 }

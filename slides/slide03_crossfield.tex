@@ -1,0 +1,43 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{metropolis}
+\metroset{sectionpage=none, numbering=counter, progressbar=frametitle}
+\usepackage{amsmath, amssymb}
+\usepackage[T1]{fontenc}
+
+\title{Domain-Partition Algorithm for Turbomachinery Blades}
+\subtitle{Slide 3: Boundary Crosses --- 4-RoSy Cross-Field}
+\date{\today}
+\author{}
+\institute{}
+
+\begin{document}
+
+\begin{frame}{Boundary Crosses --- 4-RoSy Cross-Field}
+
+\begin{center}
+\Large
+\[
+\mathbf{c}(x) = \bigl(\cos 4\theta(x), \; \sin 4\theta(x)\bigr)
+\]
+\end{center}
+
+\vspace{0.5em}
+\begin{itemize}
+    \item \textbf{4-RoSy field:} invariant under $90^\circ$ rotation
+    \item \textbf{Representative vector} encodes direction modulo $\pi/2$
+    \item \textbf{Boundary-aligned} via Dirichlet conditions
+\end{itemize}
+
+\vspace{0.8em}
+\small
+\textit{Literature:} Kn\"{o}ppel et al., ``Globally optimal direction fields,'' SIGGRAPH 2013 \\
+\textit{Code:} \texttt{scripts/stage1/partition\_surface.py} --- cross-field solver pipeline
+
+\note{
+Speaker notes:
+The cross-field is a 4-RoSy (4-fold Rotationally Symmetric) direction field. This means the field is invariant under 90-degree rotations. The representative vector c(x) = (cos 4theta, sin 4theta) encodes the field direction modulo pi/2, which is exactly what we need for quadrilateral meshing where four sectors meet at regular vertices. The field is solved via harmonic Laplace with Dirichlet boundary conditions to align with the surface boundaries, then normalized. This is the foundation for detecting singularities and generating streamlines in the domain-partition pipeline.
+}
+
+\end{frame}
+
+\end{document}

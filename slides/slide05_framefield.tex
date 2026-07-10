@@ -1,0 +1,43 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{metropolis}
+\metroset{sectionpage=none, numbering=counter, progressbar=frametitle}
+\usepackage{amsmath, amssymb}
+\usepackage[T1]{fontenc}
+
+\title{Domain-Partition Algorithm for Turbomachinery Blades}
+\subtitle{Slide 5: Frame Field}
+\date{\today}
+\author{}
+\institute{}
+
+\begin{document}
+
+\begin{frame}{Frame Field --- Harmonic Laplace + Dirichlet}
+
+\begin{center}
+\Large
+\[
+\Delta \theta = 0 \quad \text{s.t.} \quad \theta|_{\partial\Omega} = \theta_{\text{wall}}
+\]
+\end{center}
+
+\vspace{0.5em}
+\begin{itemize}
+    \item \textbf{Solve harmonic Laplace} for a smooth angle field inside the domain
+    \item \textbf{Dirichlet BC:} boundary values align with wall cross-vectors (4-RoSy)
+    \item \textbf{Normalize} to extract the 4-RoSy representative ($\mod \pi/2$)
+\end{itemize}
+
+\vspace{0.8em}
+\small
+\textit{Solver:} \texttt{tools/frame_field.py} \hfill
+\textit{Ref:} Kn\"{o}ppel et al., "Globally optimal direction fields", SIGGRAPH 2013
+
+\note{
+Speaker notes:
+The frame field is built in three steps. First, a harmonic Laplace solve gives the smoothest possible angle field in the interior. Second, Dirichlet boundary conditions lock the field to the wall cross-vectors computed from the surface geometry (see scripts/stage1/partition_surface.py:230--280). Third, normalization folds the continuous angle into the 4-RoSy representative space, i.e. modulo pi/2. The external solver in tools/frame_field.py performs the actual linear solve; this repo consumes the resulting field to detect singularities and integrate streamlines.
+}
+
+\end{frame}
+
+\end{document}

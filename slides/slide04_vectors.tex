@@ -1,0 +1,55 @@
+\documentclass{beamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+
+\title{Cross-Field --- Representative Vector}
+\subtitle{Domain-Partition Algorithm for Turbine Surfaces}
+\author{Domain-Partition 3D Project}
+\date{\today}
+\institute{Block-Structured Meshing Pipeline}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Cross-Field $\rightarrow$ Representative Vector}
+  \begin{columns}
+    \begin{column}{0.55\textwidth}
+      \begin{itemize}
+        \item Each cross has 4 symmetric representatives (rotated by $\pi/2$)
+        \item Pick the one closest to the desired direction
+        \item Enables streamline integration along smooth field lines
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.45\textwidth}
+      \centering
+      \footnotesize
+      \textbf{Vector mapping:}
+      \vspace{0.3cm}
+      \[
+      \mathbf{v}(x) = \arg\max_{\mathbf{c} \in \text{cross}(x)} \langle \mathbf{c}, \mathbf{d}(x) \rangle
+      \]
+      \vspace{0.2cm}
+      where $\mathbf{d}(x)$ is the desired direction.
+    \end{column}
+  \end{columns}
+
+  \vspace{0.5cm}
+  \centering
+  \footnotesize
+  Citation: Kn\"{o}ppel et al., "Globally optimal direction fields," SIGGRAPH 2013.
+\end{frame}
+
+\note{
+  Speaker notes:
+  This is slide 4 of an 11-slide presentation on the domain-partition algorithm.
+  A 4-RoSy cross-field assigns four symmetric directions at every point on the surface.
+  To integrate streamlines, we must pick one representative vector from the cross.
+  The mapping chooses the representative that maximizes the inner product with the desired direction,
+  ensuring smooth transitions and avoiding abrupt jumps between adjacent crosses.
+  This step is essential before streamline integration and singularity detection can proceed.
+}
+
+\end{document}

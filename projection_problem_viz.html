@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hub-to-Shroud Projection Problem</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #1a1a2e; }
+        #info {
+            position: absolute; top: 10px; left: 10px;
+            background: rgba(0,0,0,0.8); color: white;
+            padding: 15px; border-radius: 5px;
+            max-width: 400px; font-size: 12px;
+            z-index: 100;
+        }
+        #info h3 { margin: 0 0 10px 0; color: #ff6b6b; }
+        .warning { color: #ff9800; font-weight: bold; }
+        .stats { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; }
+        .problem { color: #ff6b6b; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>Hub-to-Shroud Projection Problem</h3>
+        <p class="warning">Direct projection along blade curves does NOT work well</p>
+        
+        <div class="stats">
+            <strong>Issues:</strong><br>
+            - Singularities are far from blade surface (0.26-0.40)<br>
+            - Blade twist is 28-32°<br>
+            - Multiple singularities project to same Shroud point<br>
+            <br>
+            <strong>Colors:</strong><br>
+            Red dots: Hub singularities<br>
+            Green dots: Shroud projected positions<br>
+            Blue lines: Blade curves (hub→shroud)<br>
+            Yellow lines: Projection paths
+        </div>
+    </div>
+
+    <script>
+        // Scene
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a1a);
+        
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 50);
+        camera.position.set(2, 2, 3);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+        
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.target.set(0.5, 0.5, 1.25);
+        
+        // Lights
+        const ambient = new THREE.AmbientLight(0x404040, 1);
+        scene.add(ambient);
+        const dir = new THREE.DirectionalLight(0xffffff, 1);
+        dir.position.set(5, 5, 5);
+        scene.add(dir);
+        
+        // Hub plane (z=0)
+        const hubGeo = new THREE.PlaneGeometry(2, 2);
+        const hubMat = new THREE.MeshBasicMaterial({ color: 0x222244, side: THREE.DoubleSide, transparent: true, opacity: 0.3 });
+        const hub = new THREE.Mesh(hubGeo, hubMat);
+        hub.rotation.x = -Math.PI / 2;
+        scene.add(hub);
+        
+        // Shroud plane (z=2.5)
+        const shroud = hub.clone();
+        shroud.position.z = 2.5;
+        scene.add(shroud);
+        
+        // Hub singularities (red)
+        const hubPoints = [{"id": "sing_0", "pos": [0.7788889408111572, 0.6822993159294128], "index": -1}, {"id": "sing_1", "pos": [0.7612911462783813, 0.7119611501693726], "index": -1}, {"id": "sing_2", "pos": [0.20660296082496643, 0.4874406158924103], "index": -1}, {"id": "sing_3", "pos": [0.21407121419906616, 0.4337241053581238], "index": -1}];
+        hubPoints.forEach(pt => {
+            const geom = new THREE.SphereGeometry(0.04, 8, 8);
+            const mat = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+            const sphere = new THREE.Mesh(geom, mat);
+            sphere.position.set(pt.pos[0], pt.pos[1], 0);
+            scene.add(sphere);
+            
+            // Label
+            const label = document.createElement('div');
+            label.className = 'label';
+            label.textContent = pt.id;
+            // Add label to scene using canvas texture
+        });
+        
+        // Shroud projected points (green)
+        const shroudPoints = [{"id": "sing_0_projected", "pos": [0.8145496434469546, 1.365262043618232], "blade_point": [0.8145496434469546, 1.365262043618232, 2.5]}, {"id": "sing_1_projected", "pos": [0.8145496434469546, 1.365262043618232], "blade_point": [0.8145496434469546, 1.365262043618232, 2.5]}, {"id": "sing_2_projected", "pos": [0.4963993110939297, -0.05989761218506126], "blade_point": [0.4963993110939297, -0.05989761218506126, 2.5]}, {"id": "sing_3_projected", "pos": [0.4963993110939297, -0.05989761218506126], "blade_point": [0.4963993110939297, -0.05989761218506126, 2.5]}];
+        shroudPoints.forEach(pt => {
+            const geom = new THREE.SphereGeometry(0.04, 8, 8);
+            const mat = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+            const sphere = new THREE.Mesh(geom, mat);
+            sphere.position.set(pt.pos[0], pt.pos[1], 2.5);
+            scene.add(sphere);
+        });
+        
+        // Blade curves (blue)
+        const bladeCurves = [{"hub": [0.9663855220356724, 0.4978857318372593, 0.0], "shroud": [0.8145496434469546, 1.365262043618232, 2.5]}, {"hub": [0.9663855220356724, 0.4978857318372593, 0.0], "shroud": [0.8145496434469546, 1.365262043618232, 2.5]}, {"hub": [0.46551163012949, 0.1824799227701086, 0.0], "shroud": [0.4963993110939297, -0.05989761218506126, 2.5]}, {"hub": [0.46551163012949, 0.1824799227701086, 0.0], "shroud": [0.4963993110939297, -0.05989761218506126, 2.5]}];
+        bladeCurves.forEach(curve => {
+            const geom = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(curve.hub[0], curve.hub[1], curve.hub[2]),
+                new THREE.Vector3(curve.shroud[0], curve.shroud[1], curve.shroud[2])
+            ]);
+            const mat = new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 2 });
+            const line = new THREE.Line(geom, mat);
+            scene.add(line);
+        });
+        
+        // Projection paths (yellow dashed)
+        for (let i = 0; i < hubPoints.length; i++) {
+            const hub = hubPoints[i].pos;
+            const shroud = shroudPoints[i].pos;
+            
+            const geom = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(hub[0], hub[1], 0),
+                new THREE.Vector3(shroud[0], shroud[1], 2.5)
+            ]);
+            const mat = new THREE.LineDashedMaterial({
+                color: 0xffff00,
+                dashSize: 0.1,
+                gapSize: 0.05,
+                linewidth: 2
+            });
+            const line = new THREE.Line(geom, mat);
+            line.computeLineDistances();
+            scene.add(line);
+        }
+        
+        // Axes
+        const axes = new THREE.AxesHelper(1);
+        scene.add(axes);
+        
+        // Grid
+        const grid = new THREE.GridHelper(3, 10, 0x444444, 0x222222);
+        scene.add(grid);
+        
+        // Animation
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+        
+        // Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

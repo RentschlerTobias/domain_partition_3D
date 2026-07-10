@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>T1_9 Turbine: Blocks + Mesh Geometry</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+        #info {
+            position: absolute; top: 10px; left: 10px;
+            background: rgba(0,0,0,0.7); color: white;
+            padding: 15px; border-radius: 5px;
+            max-width: 300px; font-size: 12px;
+            z-index: 100;
+        }
+        #info h3 { margin: 0 0 10px 0; }
+        .legend-item { display: flex; align-items: center; margin: 5px 0; }
+        .color-box { width: 20px; height: 12px; margin-right: 8px; }
+        #loading {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #333; font-size: 18px; font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading mesh data...</div>
+    <div id="info" style="display:none;">
+        <h3>T1_9 Turbine Block Structure</h3>
+        <div class="legend-item">
+            <div class="color-box" style="background: #ff7f0e;"></div>
+            <span>Leading Edge Blocks</span>
+        </div>
+        <div class="legend-item">
+            <div class="color-box" style="background: #2ca02c;"></div>
+            <span>Main Passage Blocks</span>
+        </div>
+        <div class="legend-item">
+            <div class="color-box" style="background: #1f77b4;"></div>
+            <span>Trailing Edge Blocks</span>
+        </div>
+        <div class="legend-item">
+            <div class="color-box" style="background: #ff0000;"></div>
+            <span>Blade Surface (from .msh)</span>
+        </div>
+        <div class="legend-item">
+            <div class="color-box" style="background: #cccccc;"></div>
+            <span>Hex Mesh Centers (from .msh)</span>
+        </div>
+        <p><strong>Controls:</strong><br>
+        Left click: Rotate<br>
+        Right click: Pan<br>
+        Scroll: Zoom</p>
+        <p>28 blocks = 7 types × 4 rotations</p>
+        <p><strong>Corner labels:</strong> Hover over spheres to see block corner IDs</p>
+    </div>
+
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf5f5f5);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(4, 4, 4);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+        
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(5, 10, 7);
+        scene.add(directionalLight);
+        
+        // Grid helper
+        const gridHelper = new THREE.GridHelper(5, 10, 0x888888, 0xdddddd);
+        scene.add(gridHelper);
+        
+        // Colors for blocks
+        const colors = { 'te': '#1f77b4', '0': '#2ca02c', 'le': '#ff7f0e' };
+        
+        // Function to create a block wireframe with corner labels
+        function createBlock(corners, name, color) {
+            const group = new THREE.Group();
+            
+            // Create edges
+            const edges = [
+                [0,1], [1,3], [3,2], [2,0],  // Bottom
+                [4,5], [5,7], [7,6], [6,4],  // Top
+                [0,4], [1,5], [2,6], [3,7]   // Vertical
+            ];
+            
+            edges.forEach(edge => {
+                const geometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(corners[edge[0]][0], corners[edge[0]][1], corners[edge[0]][2]),
+                    new THREE.Vector3(corners[edge[1]][0], corners[edge[1]][1], corners[edge[1]][2])
+                ]);
+                const material = new THREE.LineBasicMaterial({ color: color, linewidth: 2, transparent: true, opacity: 0.8 });
+                const line = new THREE.Line(geometry, material);
+                group.add(line);
+            });
+            
+            // Add corner spheres with labels
+            corners.forEach((corner, i) => {
+                const sphere = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.025, 8, 8),
+                    new THREE.MeshPhongMaterial({ color: color, shininess: 100 })
+                );
+                sphere.position.set(corner[0], corner[1], corner[2]);
+                sphere.userData = { label: `${name}_c${i}`, corner: true };
+                group.add(sphere);
+            });
+            
+            // Add center marker
+            const center = corners.reduce((a, b) => [a[0]+b[0], a[1]+b[1], a[2]+b[2]], [0,0,0])
+                .map(v => v / 8);
+            const centerSphere = new THREE.Mesh(
+                new THREE.SphereGeometry(0.03, 8, 8),
+                new THREE.MeshPhongMaterial({ color: 0x000000 })
+            );
+            centerSphere.position.set(center[0], center[1], center[2]);
+            centerSphere.userData = { label: name, center: true };
+            group.add(centerSphere);
+            
+            return group;
+        }
+        
+        // Load mesh geometry data
+        async function loadMeshData() {
+            try {
+                const response = await fetch('mesh_geometry.json');
+                const data = await response.json();
+                
+                // Add hex centers as point cloud
+                const hexGeometry = new THREE.BufferGeometry();
+                const hexPositions = new Float32Array(data.hex_centers.length * 3);
+                data.hex_centers.forEach((center, i) => {
+                    hexPositions[i*3] = center[0];
+                    hexPositions[i*3+1] = center[1];
+                    hexPositions[i*3+2] = center[2];
+                });
+                hexGeometry.setAttribute('position', new THREE.BufferAttribute(hexPositions, 3));
+                const hexMaterial = new THREE.PointsMaterial({ 
+                    color: 0xcccccc, 
+                    size: 0.03, 
+                    transparent: true, 
+                    opacity: 0.4 
+                });
+                const hexPoints = new THREE.Points(hexGeometry, hexMaterial);
+                scene.add(hexPoints);
+                
+                // Add blade surface as point cloud
+                const bladeGeometry = new THREE.BufferGeometry();
+                const bladePositions = new Float32Array(data.blade_surface.length * 3);
+                data.blade_surface.forEach((coord, i) => {
+                    bladePositions[i*3] = coord[0];
+                    bladePositions[i*3+1] = coord[1];
+                    bladePositions[i*3+2] = coord[2];
+                });
+                bladeGeometry.setAttribute('position', new THREE.BufferAttribute(bladePositions, 3));
+                const bladeMaterial = new THREE.PointsMaterial({ 
+                    color: 0xff0000, 
+                    size: 0.05, 
+                    transparent: true, 
+                    opacity: 0.6 
+                });
+                const bladePoints = new THREE.Points(bladeGeometry, bladeMaterial);
+                scene.add(bladePoints);
+                
+                console.log(`Loaded ${data.hex_centers.length} hex centers and ${data.blade_surface.length} blade surface points`);
+                
+            } catch (error) {
+                console.error('Error loading mesh data:', error);
+                console.log('Continuing with blocks only...');
+            }
+        }
+        
+        // Generate 28 block instances
+        const params = {
+            p00: 0.48500001430511475, p01: 0.48500001430511475,
+            p10: 0.5149999856948853, p11: 0.5149999856948853,
+            r_hub: 0.5, r_shroud: 1.9, z_length: 2.5
+        };
+        
+        function mapParamToPhys(u, v, w) {
+            const r = params.r_hub + u * (params.r_shroud - params.r_hub);
+            const theta = v * Math.PI / 2;
+            return [r * Math.cos(theta), r * Math.sin(theta), w * params.z_length];
+        }
+        
+        function rotate90(point, n) {
+            const angle = n * Math.PI / 2;
+            const x = point[0], y = point[1], z = point[2];
+            return [x * Math.cos(angle) - y * Math.sin(angle), x * Math.sin(angle) + y * Math.cos(angle), z];
+        }
+        
+        const base = 0.495;
+        const baseBlocks = {
+            'te_0': [[base+params.p00,0,0],[1.0,0,0],[base+params.p01,0,1],[1.0,0,1],
+                     [base+params.p00,1,0],[1.0,1,0],[base+params.p01,1,1],[1.0,1,1]],
+            'te_1': [[0,0,0],[params.p10-base,0,0],[0,0,1],[params.p11-base,0,1],
+                     [0,1,0],[params.p10-base,1,0],[0,1,1],[params.p11-base,1,1]],
+            '0_0': [[params.p10-0.43,0,0],[params.p00-0.025,0,0],[params.p11-0.43,0,1],[params.p01-0.025,0,1],
+                    [params.p10-0.43,1,0],[params.p00-0.025,1,0],[params.p11-0.43,1,1],[params.p01-0.025,1,1]],
+            '0_1': [[params.p00-0.025,0,0],[0.025+params.p10,0,0],[params.p01-0.025,0,1],[0.025+params.p11,0,1],
+                    [params.p00-0.025,1,0],[0.025+params.p10,1,0],[params.p01-0.025,1,1],[0.025+params.p11,1,1]],
+            '0_2': [[0.085+params.p10,0,0],[0.43+params.p00,0,0],[0.085+params.p11,0,1],[0.43+params.p01,0,1],
+                    [0.085+params.p10,1,0],[0.43+params.p00,1,0],[0.085+params.p11,1,1],[0.43+params.p01,1,1]],
+            'le_0': [[params.p00-0.085,0,0],[0.5,0,0],[params.p01-0.085,0,1],[0.5,0,1],
+                     [params.p00-0.085,1,0],[0.5,1,0],[params.p01-0.085,1,1],[0.5,1,1]],
+            'le_1': [[0.5,0,0],[0.085+params.p10,0,0],[0.5,0,1],[0.085+params.p11,0,1],
+                     [0.5,1,0],[0.085+params.p10,1,0],[0.5,1,1],[0.085+params.p11,1,1]]
+        };
+        
+        // Add all 28 block instances
+        Object.entries(baseBlocks).forEach(([blockName, corners]) => {
+            const color = colors[blockName.substring(0, 2)] || '#9467bd';
+            
+            for (let rot = 0; rot < 4; rot++) {
+                const physCorners = corners.map(p => {
+                    const phys = mapParamToPhys(p[0], p[1], p[2]);
+                    return rotate90(phys, rot);
+                });
+                
+                const block = createBlock(physCorners, `${blockName}_rot${rot*90}`, color);
+                scene.add(block);
+            }
+        });
+        
+        // Add coordinate axes
+        const axesHelper = new THREE.AxesHelper(2);
+        scene.add(axesHelper);
+        
+        // Hide loading, show info
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('info').style.display = 'block';
+        
+        // Load mesh data
+        loadMeshData();
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Mouse hover for labels
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const tooltip = document.createElement('div');
+        tooltip.style.cssText = `
+            position: absolute; background: rgba(0,0,0,0.8); color: white;
+            padding: 8px; border-radius: 4px; font-size: 12px; pointer-events: none;
+            display: none; z-index: 1000;
+        `;
+        document.body.appendChild(tooltip);
+        
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+            
+            if (intersects.length > 0) {
+                const obj = intersects[0].object;
+                if (obj.userData && obj.userData.label) {
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = event.clientX + 15 + 'px';
+                    tooltip.style.top = event.clientY + 15 + 'px';
+                    tooltip.textContent = obj.userData.label;
+                } else {
+                    tooltip.style.display = 'none';
+                }
+            } else {
+                tooltip.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

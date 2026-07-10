@@ -23,3 +23,10 @@ gmsh_pkg/
 # OS
 .DS_Store
 Thumbs.db
+# LaTeX build artifacts
+slides/*.aux
+slides/*.log
+slides/*.nav
+slides/*.out
+slides/*.snm
+slides/*.toc

@@ -49,40 +49,50 @@ def project_onto_shroud(hub_data, shroud_stl_path):
     prescribed = []
     for sing in hub_data["singularities"]:
         bp = sing.get("blade_parametric")
-        if not bp:
-            print(f"[warn] singularity {sing['id']} has no blade_parametric, skipping")
-            continue
+        if bp:
+            s = bp["s"]
+            d_hub = bp["d"]
+            d_shroud = d_hub * radius_ratio
+            blade_loop_id = bp.get("blade_loop_id", 0)
+            side = bp.get("side", "suction")
 
-        s = bp["s"]          # position along blade profile [0,1]
-        d_hub = bp["d"]
-        d_shroud = d_hub * radius_ratio
-        blade_loop_id = bp.get("blade_loop_id", 0)
-        side = bp.get("side", "suction")
+            if blade_loop_id >= len(shroud_blade):
+                print(f"[warn] blade_loop_id {blade_loop_id} out of range, using 0")
+                blade_loop_id = 0
 
-        if blade_loop_id >= len(shroud_blade):
-            print(f"[warn] blade_loop_id {blade_loop_id} out of range, using 0")
-            blade_loop_id = 0
+            shroud_loop = np.asarray(shroud_blade[blade_loop_id], float)
+            pos_shroud, dist_err = _project_on_loop(s, d_shroud, shroud_loop, side, r_shroud)
 
-        shroud_loop = np.asarray(shroud_blade[blade_loop_id], float)
-        pos_shroud, dist_err = _project_on_loop(s, d_shroud, shroud_loop, side, r_shroud)
-
-        prescribed.append({
-            "id": sing["id"],
-            "hub_node_id": sing["node_id"],
-            "index": sing["index"],
-            "separatrix_count": sing["separatrix_count"],
-            "position_st": pos_shroud.tolist(),
-            "position_st_3d": _st_to_3d(pos_shroud, r_shroud).tolist(),
-            "blade_parametric": {
-                "s": s,
-                "d": d_shroud,
-                "d_hub": d_hub,
-                "radius_ratio": radius_ratio,
-                "blade_loop_id": blade_loop_id,
-                "side": side,
-            },
-            "projection_error": float(dist_err),
-        })
+            prescribed.append({
+                "id": sing["id"],
+                "hub_node_id": sing["node_id"],
+                "index": sing["index"],
+                "separatrix_count": sing["separatrix_count"],
+                "position_st": pos_shroud.tolist(),
+                "position_st_3d": _st_to_3d(pos_shroud, r_shroud).tolist(),
+                "blade_parametric": {
+                    "s": s,
+                    "d": d_shroud,
+                    "d_hub": d_hub,
+                    "radius_ratio": radius_ratio,
+                    "blade_loop_id": blade_loop_id,
+                    "side": side,
+                },
+                "projection_error": float(dist_err),
+            })
+        else:
+            # Interior singularity not near blade: radially scale (s,t) coordinates
+            pos_hub = np.asarray(sing["position_st"], float)
+            pos_shroud = pos_hub * radius_ratio
+            prescribed.append({
+                "id": sing["id"],
+                "hub_node_id": sing["node_id"],
+                "index": sing["index"],
+                "separatrix_count": sing["separatrix_count"],
+                "position_st": pos_shroud.tolist(),
+                "position_st_3d": _st_to_3d(pos_shroud, r_shroud).tolist(),
+                "projection_error": 0.0,
+            })
 
     return {
         "schema_version": "1.0.0",

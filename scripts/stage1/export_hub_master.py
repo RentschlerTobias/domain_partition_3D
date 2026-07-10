@@ -86,6 +86,10 @@ def export_hub_master(run_result, out_dir, tag="ta"):
             blade_param = _compute_blade_parametric(coord, mesh.blade_loops)
             if blade_param:
                 sing["blade_parametric"] = blade_param
+            else:
+                # Interior singularities not near blade: store raw (s,t) for
+                # radial projection to Shroud
+                sing["position_st_raw"] = _to_json_safe(coord)
 
             singularities.append(sing)
 

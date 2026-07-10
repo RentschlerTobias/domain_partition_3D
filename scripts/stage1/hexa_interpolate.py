@@ -75,8 +75,8 @@ def export_vtk(hexa_blocks, out_path):
         points=points,
         cells=[("hexahedron", cell_array)],
     )
-    mesh.write(out_path)
-    print(f"[hexa] wrote {out_path}")
+    mesh.write(out_path, file_format="vtk", binary=False)
+    print(f"[hexa] wrote {out_path} (ASCII VTK)")
 
 
 def main():

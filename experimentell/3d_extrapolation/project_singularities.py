@@ -15,11 +15,10 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "domain_partition_2D"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-import unwrap_surface as us
-import partition_surface as ps
+from dp3d import unwrap_surface as us
+from dp3d import partition_surface as ps
 
 
 def load_hub_master(path):

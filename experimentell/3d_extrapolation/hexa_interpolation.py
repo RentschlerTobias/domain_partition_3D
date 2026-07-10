@@ -33,15 +33,15 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, "/root/repos/domain_partition")
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-import unwrap_surface as us                                    # noqa: E402
-import clean_separatrix as cs                                  # noqa: E402
-import partition_surface as ps                                 # noqa: E402
-import tmesh_faces as tmf                                      # noqa: E402
-import tmesh_partition as tp                                   # noqa: E402
-from dp_adapter import build_dp_data                           # noqa: E402
+from dp3d import unwrap_surface as us                                    # noqa: E402
+from dp3d import clean_separatrix as cs                                  # noqa: E402
+from dp3d import partition_surface as ps                                 # noqa: E402
+from dp3d import tmesh_faces as tmf                                      # noqa: E402
+from dp3d import tmesh as tp                                   # noqa: E402
+from dp3d.dp_adapter import build_dp_data                           # noqa: E402
 
 HUB_STL = "/root/repos/block_structured_meshing/T1_9_hub_raw.stl"
 SHROUD_STL = "/root/repos/block_structured_meshing/T1_9_shroud_raw.stl"

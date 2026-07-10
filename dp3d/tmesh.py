@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Ansatz T: periodic seam as WALL + master-slave junctions + T-mesh blocks + TFI.
 
 Alternative to the wrap approach (partition_surface.partition with periodicity
@@ -15,49 +14,30 @@ pitch by itself; only the block stage treats the seam as a wall:
      hanging junction (periodic continuation of the docking curve).
   3. block extraction tolerating T-junctions (tmesh_faces: a block needs
      exactly 4 REAL corners; flat ~180deg nodes are allowed on its sides)
-  4. TFI (Coons) fill per block. Cell counts per graph edge come from an
-     integer program (opposite block sides must carry the same number of
-     cells; seam edge pairs share their count), every edge is sampled ONCE
-     (tanh-clustered towards blade/inlet/outlet) and both adjacent blocks
-     reference that sampling -> grid points are identical across every block
-     edge (CFD-conforming), hanging T-nodes become regular grid points.
-
-Outputs to output/T1_9/hub_stage1/tmesh/.
+  4. TFI (Coons) fill per block + Thomas-Middlecoff elliptic smoothing.
+     Cell counts per graph edge come from an integer program (opposite block
+     sides must carry the same number of cells; seam edge pairs share their
+     count), every edge is sampled ONCE (tanh-clustered towards the blade
+     boundary layer) and both adjacent blocks reference that sampling ->
+     grid points are identical across every block edge (CFD-conforming),
+     hanging T-nodes become regular grid points.
 """
 
 import json
-import sys
 import time
 from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
 
-_DP2D = Path(__file__).resolve().parent.parent.parent.parent / "domain_partition_2D"
-sys.path.insert(0, str(_DP2D))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-import unwrap_surface as us                                    # noqa: E402
-import clean_separatrix as cs                                  # noqa: E402
-import partition_surface as ps                                 # noqa: E402
-import tmesh_faces as tmf                                      # noqa: E402
-from dp_adapter import build_dp_data                           # noqa: E402
-from tools import FrameField, StreamlineGenerator_v2           # noqa: E402
-from tools.singularity_detector import detect_singularities    # noqa: E402
-from tools.streamline_merging import StreamlineMerging         # noqa: E402
-from tools.streamline_intersection_splitter import (           # noqa: E402
-    StreamlineIntersectionSplitter)
-
-_ROOT = Path(__file__).resolve().parent.parent.parent
-
-part = "hub"
-if len(sys.argv) > 1 and sys.argv[1] in ("hub", "shroud"):
-    part = sys.argv[1]
-    sys.argv.pop(1)
-
-STL = str(_ROOT / f"T1_9_{part}_raw.stl")
-OUT = _ROOT / "output" /  f"tmesh_{part}"
-
+from . import partition_surface as ps
+from . import tmesh_faces as tmf
+from . import plotting
+from .dp_adapter import build_dp_data
+from .field import FrameField, StreamlineGenerator_v2
+from .field.singularity_detector import detect_singularities
+from .field.streamline_merging import StreamlineMerging
+from .field.streamline_intersection_splitter import StreamlineIntersectionSplitter
 
 H_CELL = 0.04            # target cell size (uniform reference)
 CLUSTER_RATIO = 5.0      # generic wall: first cell ~ uniform/5 (tanh stretching)
@@ -1115,7 +1095,7 @@ def wall_cell_ratio(tfi_grids_or_result, edge_samples, result, nonper_dist_fn,
 # pipeline
 # --------------------------------------------------------------------------
 
-def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
+def run_tmesh(stl, out_dir, verbose=True, make_plots=True,
               continue_seam_edges=False, max_rounds=3, tag="ta",
               prescribed_singularities=None, flat_tol_deg=15.0):
     ps.set_periodic(True)          # field seam weld stays ON
@@ -1128,7 +1108,7 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
     m = detect_singularities(ff.mesh)
 
     if prescribed_singularities:
-        import field_solver as fs
+        from . import field_solver as fs
         ff.mesh = fs.enforce_singularities(ff.mesh, prescribed_singularities, transform)
         n_sing = int((ff.mesh.singularities != 0).sum())
     else:
@@ -1144,7 +1124,7 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
     if make_plots:
         _od = Path(out_dir)
         _od.mkdir(parents=True, exist_ok=True)
-        plot_streamlines_clean(
+        plotting.plot_streamlines_clean(
             sl.mesh, _od / f"tmesh_streamlines_pre_hanging_{tag}.png", tag)
     seam_info = symmetrize_seam_junctions(sl.mesh)
 
@@ -1272,191 +1252,23 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
               f"{metrics['hanging_seam_junctions']} hanging seam junctions, "
               f"{len(irregular)} irregular interior, {runtime:.0f}s")
 
-    if make_plots:
-        out_dir = Path(out_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        plot_blocks(result, mesh, tnodes, irregular, seam_info,
-                    out_dir / f"tmesh_blocks_{tag}.png", tag)
-        if tfi:
-            plot_tfi(tfi, result, pitch, out_dir / f"tmesh_tfi_{tag}.png", tag)
-            plot_tiled(result, tfi, seam_info, pitch,
-                       out_dir / f"tmesh_tiled_blocks_{tag}.png",
-                       out_dir / f"tmesh_tiled_tfi_{tag}.png", tag)
-        (out_dir / f"tmesh_metrics_{tag}.json").write_text(
-            json.dumps(metrics, indent=2))
-        print(f"wrote {out_dir}/tmesh_metrics_{tag}.json")
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"tmesh_metrics_{tag}.json").write_text(
+        json.dumps(metrics, indent=2))
+    print(f"wrote {out_dir}/tmesh_metrics_{tag}.json")
 
-        from export_hub_master import export_hub_master
-        export_hub_master(
-            {"metrics": metrics, "result": result, "tfi": tfi, "mesh": mesh,
-             "seam_info": seam_info, "boundary_ref": boundary_ref,
-             "edge_samples": edge_samples, "divisions": divisions,
-             "transform": transform, "seam_pairs": seam_pairs},
-            out_dir, tag=tag)
+    if make_plots:
+        plotting.plot_blocks(result, mesh, tnodes, irregular, seam_info,
+                             out_dir / f"tmesh_blocks_{tag}.png", tag)
+        if tfi:
+            plotting.plot_tfi(tfi, result, pitch,
+                              out_dir / f"tmesh_tfi_{tag}.png", tag)
+            plotting.plot_tiled(result, tfi, seam_info, pitch,
+                                out_dir / f"tmesh_tiled_blocks_{tag}.png",
+                                out_dir / f"tmesh_tiled_tfi_{tag}.png", tag)
 
     return {"metrics": metrics, "result": result, "tfi": tfi, "mesh": mesh,
             "seam_info": seam_info, "boundary_ref": boundary_ref,
             "edge_samples": edge_samples, "divisions": divisions,
             "transform": transform, "seam_pairs": seam_pairs}
-
-
-# --------------------------------------------------------------------------
-# plots
-# --------------------------------------------------------------------------
-
-def plot_blocks(result, mesh, tnodes, irregular, seam_info, out_png, tag=""):
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    xy = mesh.x[:, 0:2].numpy()
-    tris = mesh.faces.T.numpy()
-    nodes = result["nodes"]
-    fig, ax = plt.subplots(figsize=(10, 8))
-    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.92")
-    for blk in result["blocks"]:
-        ring = blk["ring"]
-        ax.fill(ring[:, 0], ring[:, 1], alpha=0.22, color="0.9")
-        for s in blk["sides"]:
-            ax.plot(s[:, 0], s[:, 1], "k", lw=1.2)
-        c = nodes[blk["corners"]]
-        ax.scatter(c[:, 0], c[:, 1], c="k", s=14, zorder=6)
-    for rej in result["rejects"]:
-        if rej.get("ring") is not None:
-            r = rej["ring"]
-            ax.plot(r[:, 0], r[:, 1], "red", lw=1.8)
-            ax.fill(r[:, 0], r[:, 1], color="red", alpha=0.25)
-    if tnodes:
-        ax.scatter(nodes[tnodes, 0], nodes[tnodes, 1], marker="s",
-                   facecolors="none", edgecolors="darkorange", s=70,
-                   linewidths=1.6, zorder=7,
-                   label=f"T-node (hanging): {len(tnodes)}")
-    if irregular:
-        ax.scatter(nodes[irregular, 0], nodes[irregular, 1],
-                   facecolors="none", edgecolors="red", s=150, linewidths=2.0,
-                   zorder=7, label=f"irregular interior: {len(irregular)}")
-    if seam_info:
-        for W in (seam_info["WL"], seam_info["WR"]):
-            ax.plot(W[:, 0], W[:, 1], "green", lw=0.8, alpha=0.7)
-        hang = [c for c in seam_info["canon"]
-                if c["srcL"] is None or c["srcR"] is None]
-        if hang:
-            P = []
-            for c in hang:
-                side = "L" if c["srcL"] is None else "R"
-                P.append(c["coord"] if side == "L"
-                         else c["coord"] + np.array([seam_info["pitch"], 0.0]))
-            P = np.array(P)
-            ax.scatter(P[:, 0], P[:, 1], marker="s", facecolors="none",
-                       edgecolors="purple", s=90, linewidths=1.6, zorder=7,
-                       label=f"hanging seam junction: {len(P)}")
-    ax.set_aspect("equal")
-    ax.axis("off")
-    fig.savefig(out_png, dpi=200, bbox_inches="tight", transparent=True)
-    plt.close(fig)
-    print(f"wrote {out_png}")
-
-
-def plot_tfi(tfi, result, pitch, out_png, tag=""):
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(10, 8))
-    for X in tfi["grids"]:
-        for i in range(X.shape[0]):
-            ax.plot(X[i, :, 0], X[i, :, 1], "0.4", lw=0.3)
-        for j in range(X.shape[1]):
-            ax.plot(X[:, j, 0], X[:, j, 1], "0.4", lw=0.3)
-    for blk in result["blocks"]:
-        for s in blk["sides"]:
-            ax.plot(s[:, 0], s[:, 1], "black", lw=1.0)
-    ax.set_aspect("equal")
-    ax.set_axis_off()
-    fig.savefig(out_png, dpi=200, bbox_inches="tight", transparent=True)
-    plt.close(fig)
-    print(f"wrote {out_png}")
-
-
-def plot_tiled(result, tfi, seam_info, pitch, out_blocks, out_tfi, tag=""):
-    """3 hub passages side by side (shifts -pitch, 0, +pitch): the visual
-    periodicity check the user asked for -- at the interior seams of the trio
-    the grid points of neighbouring copies must coincide."""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    shifts = [-pitch, 0.0, pitch]
-    cols = ["0.55", "black", "0.55"]
-
-    fig, ax = plt.subplots(figsize=(18, 7))
-    for sh, col in zip(shifts, cols):
-        for blk in result["blocks"]:
-            for s in blk["sides"]:
-                ax.plot(s[:, 0] + sh, s[:, 1], col, lw=1.1)
-    ax.set_aspect("equal")
-    ax.set_axis_off()
-    fig.savefig(out_blocks, dpi=200, bbox_inches="tight", transparent=True)
-    plt.close(fig)
-    print(f"wrote {out_blocks}")
-
-    fig, ax = plt.subplots(figsize=(18, 7))
-    for sh, col in zip(shifts, cols):
-        for X in tfi["grids"]:
-            for i in range(X.shape[0]):
-                ax.plot(X[i, :, 0] + sh, X[i, :, 1], col, lw=0.25)
-            for j in range(X.shape[1]):
-                ax.plot(X[:, j, 0] + sh, X[:, j, 1], col, lw=0.25)
-    ax.set_aspect("equal")
-    ax.set_axis_off()
-    fig.savefig(out_tfi, dpi=200, bbox_inches="tight", transparent=True)
-    plt.close(fig)
-    print(f"wrote {out_tfi}")
-
-
-def plot_streamlines_clean(mesh, out_png, tag=""):
-    """Presentation plot of the current streamline/separatrix state in the
-    style of slides 1-6: pure image, no title/axes/legend, transparent
-    background. Mesh triangulation light gray, boundary curves black,
-    separatrices light blue (#87CEEB), singularities red circles (+index)
-    / blue squares (-index). No folding -- Ansatz T ends curves on the seam
-    (seam = wall), so curves are drawn as-is."""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    xy = mesh.x[:, 0:2].numpy()
-    tris = mesh.faces.T.numpy()
-    n_b = len(mesh.streamlines) - len(mesh.separatrices)
-
-    fig, ax = plt.subplots(figsize=(4, 6))  # portrait, like slides 1-6
-    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
-    for i, s in enumerate(mesh.streamlines):
-        s = np.asarray(s, float)
-        if s.ndim != 2 or len(s) < 2:
-            continue
-        if i < n_b:
-            ax.plot(s[:, 0], s[:, 1], color="black", lw=1.5)
-        else:
-            ax.plot(s[:, 0], s[:, 1], color="#87CEEB", lw=1.3)
-
-    sing = mesh.singularities.numpy()
-    sfaces = np.where(sing != 0)[0]
-    if len(sfaces):
-        sc = xy[tris[sfaces]].mean(axis=1)
-        pos = sing[sfaces] > 0
-        ax.scatter(sc[pos, 0], sc[pos, 1], c="red", s=60, zorder=6)
-        ax.scatter(sc[~pos, 0], sc[~pos, 1], c="blue", s=60, zorder=6,
-                   marker="s")
-
-    ax.set_aspect("equal")
-    ax.set_axis_off()
-    fig.savefig(out_png, dpi=200, bbox_inches="tight", transparent=True)
-    plt.close(fig)
-    print(f"wrote {out_png}")
-
-
-if __name__ == "__main__":
-    us.set_blade_tip_corners(False)
-    cs.set_emanate_outer_corners(True)
-    which = sys.argv[1] if len(sys.argv) > 1 else "both"
-    if which in ("ta", "both"):
-        run_tmesh(continue_seam_edges=False, tag="ta")
-    if which in ("tb", "both"):
-        run_tmesh(continue_seam_edges=True, tag="tb")

@@ -316,15 +316,18 @@ def _fold_boundary(ax, s, pitch, s_left, ring_tol=0.02, **kw):
         ax.plot(s[:, 0], s[:, 1], **kw)
 
 
-def showcase_integration(mesh, out_png):
+def showcase_integration(mesh, out_png, aspect):
     """step07: raw streamline integration state (pre-snap, full spirals),
     folded into the fundamental pitch."""
     pitch = mesh.pitch_norm
     s_left = _seam_left_fn(mesh)
     n_b = len(mesh.streamlines) - len(mesh.separatrices)
     _ends_ok = _ends_ok_fn(mesh)
+    xy = mesh.x[:, 0:2].numpy()
+    tris = mesh.faces.T.numpy()
 
     fig, ax = plt.subplots(figsize=(4, 6))
+    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
     for i, s in enumerate(mesh.streamlines):
         s = np.asarray(s, float)
         if s.ndim != 2 or len(s) < 2:
@@ -338,12 +341,12 @@ def showcase_integration(mesh, out_png):
                 segs = segs[:-1]
             for seg in segs:
                 ax.plot(seg[:, 0], seg[:, 1], color="#87CEEB", lw=1.3)
-    ax.set_aspect("equal")
+    ax.set_aspect(aspect)
     ax.set_axis_off()
     _save(fig, out_png)
 
 
-def showcase_integration_labeled(mesh, out_png):
+def showcase_integration_labeled(mesh, out_png, aspect):
     """step07 labeled: every curve in its own color with an index label on
     its longest folded segment; singularities as color-coded stars with
     'S1 (x, y)' legend entries instead of in-plot text boxes."""
@@ -355,7 +358,7 @@ def showcase_integration_labeled(mesh, out_png):
     tris = mesh.faces.T.numpy()
 
     fig, ax = plt.subplots(figsize=(6, 9))
-    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.06, color="0.96")
+    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
 
     cmap = plt.cm.tab20
     for i, s in enumerate(mesh.streamlines):
@@ -396,7 +399,7 @@ def showcase_integration_labeled(mesh, out_png):
 
     ax.plot([], [], "-", color="0.5", lw=0.7, alpha=0.5, label="boundary")
     ax.plot([], [], "-", color="0.3", lw=2.0, label="separatrix")
-    ax.set_aspect("equal")
+    ax.set_aspect(aspect)
     ax.set_axis_off()
     ax.legend(loc="upper left", fontsize=8)
     _save(fig, out_png)
@@ -406,7 +409,18 @@ def showcase_integration_labeled(mesh, out_png):
 # steps 8-11: per method
 # --------------------------------------------------------------------------
 
-def showcase_simplification(mesh, merged_streamlines, wedge_arms, out_png):
+def _singularity_legend(ax, mesh):
+    """Color-coded singularity stars with 'S1 (x, y)' legend entries."""
+    sing_cmap = plt.cm.tab10
+    for si, (name, data) in enumerate(get_singularities(mesh).items()):
+        c = data["coords"]
+        ax.scatter(c[0], c[1], c=[sing_cmap(si % 10)], s=180, marker="*",
+                   zorder=8, edgecolors="black", linewidths=0.8,
+                   label=f"{name} ({c[0]:.3f}, {c[1]:.3f})")
+
+
+def showcase_simplification(mesh, merged_streamlines, wedge_arms, out_png,
+                            aspect):
     """step08: streamlines after the Xiao merge (Alg. 2 cases 1-3). For ta/tb
     the wedge arms that the seam postprocessing deletes are shown dashed
     orange; pass an empty ``wedge_arms`` for xiao."""
@@ -414,8 +428,11 @@ def showcase_simplification(mesh, merged_streamlines, wedge_arms, out_png):
     s_left = _seam_left_fn(mesh)
     n_b = len(mesh.streamlines) - len(mesh.separatrices)
     boundary = [np.asarray(b, float) for b in mesh.streamlines[:n_b]]
+    xy = mesh.x[:, 0:2].numpy()
+    tris = mesh.faces.T.numpy()
 
     fig, ax = plt.subplots(figsize=(4, 6))
+    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
     for s in merged_streamlines:
         s = np.asarray(s, float)
         if s.ndim != 2 or len(s) < 2:
@@ -434,24 +451,84 @@ def showcase_simplification(mesh, merged_streamlines, wedge_arms, out_png):
         for seg in fold_curve(arm, pitch, s_left):
             ax.plot(seg[:, 0], seg[:, 1], "--", color="darkorange",
                     lw=2.0, zorder=7)
-    ax.set_aspect("equal")
+    ax.set_aspect(aspect)
     ax.set_axis_off()
     _save(fig, out_png)
 
 
-def showcase_postprocessing(run, out_png):
-    """step09: final block structure of one method; wedge streamlines deleted
-    at the seam (ta/tb) drawn red with their source singularities ringed."""
+def showcase_simplification_labeled(mesh, merged_streamlines, wedge_arms,
+                                    out_png, aspect):
+    """step08 labeled: each merged streamline in its own color with an index
+    label; boundary walls as-is, deleted wedge arms dashed orange; color-coded
+    singularity stars with legend."""
+    pitch = mesh.pitch_norm
+    s_left = _seam_left_fn(mesh)
+    n_b = len(mesh.streamlines) - len(mesh.separatrices)
+    boundary = [np.asarray(b, float) for b in mesh.streamlines[:n_b]]
+    xy = mesh.x[:, 0:2].numpy()
+    tris = mesh.faces.T.numpy()
+
+    fig, ax = plt.subplots(figsize=(6, 9))
+    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
+    for b in boundary:
+        b = np.asarray(b, float)
+        if b.ndim != 2 or len(b) < 2:
+            continue
+        _fold_boundary(ax, b, pitch, s_left, color="0.5", lw=0.7, alpha=0.5,
+                       zorder=2)
+
+    cmap = plt.cm.tab20
+    for i, s in enumerate(merged_streamlines):
+        s = np.asarray(s, float)
+        if s.ndim != 2 or len(s) < 2:
+            continue
+        color = cmap(i % 20 / 20.0)
+        segs = fold_curve(s, pitch, s_left)
+        for seg in segs:
+            ax.plot(seg[:, 0], seg[:, 1], color=color, lw=1.6, zorder=5)
+        if segs:
+            longest = max(segs, key=len)
+            mid = longest[len(longest) // 2]
+            ax.text(mid[0], mid[1], str(i), fontsize=7, color="black",
+                    ha="center", va="center",
+                    bbox=dict(boxstyle="round,pad=0.15", facecolor="white",
+                              edgecolor="none", alpha=0.7), zorder=6)
+
+    for arm in wedge_arms:
+        arm = np.asarray(arm, float)
+        if arm.ndim != 2 or len(arm) < 2:
+            continue
+        for seg in fold_curve(arm, pitch, s_left):
+            ax.plot(seg[:, 0], seg[:, 1], "--", color="darkorange",
+                    lw=2.0, zorder=7)
+    if len(wedge_arms):
+        ax.plot([], [], "--", color="darkorange", lw=2.0,
+                label="deleted wedge arm")
+
+    _singularity_legend(ax, mesh)
+    ax.set_aspect(aspect)
+    ax.set_axis_off()
+    ax.legend(loc="upper left", fontsize=8)
+    _save(fig, out_png)
+
+
+def _postproc_data(run):
+    """Blocks, boundary_ref, irregular interior nodes and deleted wedge arms
+    for the final partition of one run."""
     result = run["result"]
     mesh = run["mesh"]
     boundary_ref = run["boundary_ref"]
-    nodes = result["nodes"]
     wedge_arms = getattr(mesh, "dropped_wedge_arms", []) or []
+    _r, _t, irregular = tmf.node_regularity(
+        result, lambda p: ps._min_boundary_dist(p, boundary_ref))
+    return result, mesh, boundary_ref, irregular, wedge_arms
 
-    def _bdist(p):
-        return ps._min_boundary_dist(p, boundary_ref)
 
-    _regular, _tnodes, irregular = tmf.node_regularity(result, _bdist)
+def showcase_postprocessing(run, out_png, aspect):
+    """step09: final block structure of one method; wedge streamlines deleted
+    at the seam (ta/tb) drawn red with their source singularities ringed."""
+    result, mesh, boundary_ref, irregular, wedge_arms = _postproc_data(run)
+    nodes = result["nodes"]
 
     xy = mesh.x[:, 0:2].numpy()
     tris = mesh.faces.T.numpy()
@@ -488,12 +565,53 @@ def showcase_postprocessing(run, out_png):
         ax.scatter(sing_xy[si, 0], sing_xy[si, 1], facecolors="none",
                    edgecolors="red", s=170, linewidths=2.2, zorder=9)
 
-    ax.set_aspect("equal")
+    ax.set_aspect(aspect)
     ax.set_axis_off()
     _save(fig, out_png)
 
 
-def showcase_tfi(tfi, result, out_png):
+def showcase_postprocessing_labeled(run, out_png, aspect):
+    """step09 labeled: final blocks numbered at their centroid; irregular
+    interior nodes (valence != 4) ringed red with a legend entry."""
+    result, mesh, boundary_ref, irregular, _wedge = _postproc_data(run)
+    nodes = result["nodes"]
+
+    xy = mesh.x[:, 0:2].numpy()
+    tris = mesh.faces.T.numpy()
+    fig, ax = plt.subplots(figsize=(6, 9))
+    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
+
+    cmap = plt.cm.tab20
+    for i, blk in enumerate(result["blocks"]):
+        ring = blk["ring"]
+        ax.fill(ring[:, 0], ring[:, 1], alpha=0.25, color=cmap(i % 20 / 20.0))
+        for s in blk["sides"]:
+            ax.plot(s[:, 0], s[:, 1], color="0.3", lw=1.0, zorder=3)
+        c = nodes[blk["corners"]]
+        ax.scatter(c[:, 0], c[:, 1], c="black", s=10, zorder=5)
+        cen = ring[:-1].mean(axis=0) if len(ring) > 1 else ring.mean(axis=0)
+        ax.text(cen[0], cen[1], str(i), fontsize=9, fontweight="bold",
+                color="black", ha="center", va="center",
+                bbox=dict(boxstyle="round,pad=0.2", facecolor="white",
+                          edgecolor="none", alpha=0.75), zorder=7)
+
+    for b in boundary_ref:
+        b = np.asarray(b, float)
+        if b.ndim == 2 and len(b) >= 2:
+            ax.plot(b[:, 0], b[:, 1], color="black", lw=1.6, zorder=4)
+
+    if irregular:
+        ax.scatter(nodes[irregular, 0], nodes[irregular, 1],
+                   facecolors="none", edgecolors="red", s=150, linewidths=2.0,
+                   zorder=9, label=f"irregular interior ({len(irregular)})")
+        ax.legend(loc="upper left", fontsize=8)
+
+    ax.set_aspect(aspect)
+    ax.set_axis_off()
+    _save(fig, out_png)
+
+
+def showcase_tfi(tfi, result, out_png, aspect):
     """step10: TFI grid (ta/tb only)."""
     fig, ax = plt.subplots(figsize=(4, 6))
     for X in tfi["grids"]:
@@ -504,12 +622,12 @@ def showcase_tfi(tfi, result, out_png):
     for blk in result["blocks"]:
         for s in blk["sides"]:
             ax.plot(s[:, 0], s[:, 1], "black", lw=1.0)
-    ax.set_aspect("equal")
+    ax.set_aspect(aspect)
     ax.set_axis_off()
     _save(fig, out_png)
 
 
-def showcase_tiled(result, tfi, pitch, out_png):
+def showcase_tiled(result, tfi, pitch, out_png, aspect):
     """step11: TFI grid tiled over 3 passages (shifts -pitch, 0, +pitch), the
     visual periodicity check -- grid points of neighbouring copies must
     coincide at the interior seams."""
@@ -526,7 +644,7 @@ def showcase_tiled(result, tfi, pitch, out_png):
         for blk in result["blocks"]:
             for s in blk["sides"]:
                 ax.plot(s[:, 0] + sh, s[:, 1], col, lw=0.8)
-    ax.set_aspect("equal")
+    ax.set_aspect(aspect)
     ax.set_axis_off()
     _save(fig, out_png)
 
@@ -560,9 +678,14 @@ def write_plots(stl, part, runs, out_dir):
                        out_dir / f"step02_unwrapped_{part}.png")
 
     # fresh field state, same config as the runs
-    mesh, _tf = build_dp_data(stl)
+    mesh, transform = build_dp_data(stl)
     ff = FrameField(mesh)
     detect_singularities(ff.mesh)
+
+    # steps 7-11 draw in normalized [0,1]^2; the normalization is a pure
+    # per-axis scale, so this aspect renders the true (s,t) shape of steps 1-6
+    aspect = ((transform["tmax"] - transform["tmin"]) /
+              (transform["smax"] - transform["smin"]))
 
     showcase_crossfield(mesh, st, tris, loops,
                         out_dir / f"step03_crossfield_{part}.png")
@@ -595,10 +718,12 @@ def write_plots(stl, part, runs, out_dir):
     sl = StreamlineGenerator_v2(ff.mesh)
     ps._drop_degenerate_corner_seps(sl.mesh)
     showcase_integration(
-        sl.mesh, out_dir / f"step07_streamline_integration_{part}.png")
+        sl.mesh, out_dir / f"step07_streamline_integration_{part}.png",
+        aspect)
     showcase_integration_labeled(
         sl.mesh,
-        out_dir / f"step07_streamline_integration_{part}_labeled.png")
+        out_dir / f"step07_streamline_integration_{part}_labeled.png",
+        aspect)
 
     ps._snap_separatrix_endpoints(sl.mesh, radius=0.045)
     merging = StreamlineMerging(sl.mesh, verbose=False)
@@ -608,12 +733,21 @@ def write_plots(stl, part, runs, out_dir):
         wedge_arms = getattr(run["mesh"], "dropped_wedge_arms", []) or []
         showcase_simplification(
             sl.mesh, merged, wedge_arms,
-            out_dir / f"step08_simplification_{part}_{method}.png")
+            out_dir / f"step08_simplification_{part}_{method}.png", aspect)
+        showcase_simplification_labeled(
+            sl.mesh, merged, wedge_arms,
+            out_dir / f"step08_simplification_{part}_{method}_labeled.png",
+            aspect)
         showcase_postprocessing(
-            run, out_dir / f"step09_postprocessing_{part}_{method}.png")
+            run, out_dir / f"step09_postprocessing_{part}_{method}.png",
+            aspect)
+        showcase_postprocessing_labeled(
+            run, out_dir / f"step09_postprocessing_{part}_{method}_labeled.png",
+            aspect)
         tfi = run.get("tfi")
         if tfi and tfi["grids"]:
             showcase_tfi(tfi, run["result"],
-                         out_dir / f"step10_tfi_{part}_{method}.png")
+                         out_dir / f"step10_tfi_{part}_{method}.png", aspect)
             showcase_tiled(run["result"], tfi, float(run["mesh"].pitch_norm),
-                           out_dir / f"step11_tiled_{part}_{method}.png")
+                           out_dir / f"step11_tiled_{part}_{method}.png",
+                           aspect)

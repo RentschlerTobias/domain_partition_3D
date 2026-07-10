@@ -49,11 +49,14 @@ from tools.streamline_intersection_splitter import (           # noqa: E402
     StreamlineIntersectionSplitter)
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
-# STL = str(_ROOT / "T1_9_hub_raw.stl")
-# OUT = _ROOT / "output" / "T1_9" / "hub_stage1" / "tmesh"
 
-STL = str(_ROOT / "T1_9_hub_raw.stl")
-OUT = _ROOT / "output" / "T1_9" / "hub_stage1" / "tmesh"
+part = "hub"
+if len(sys.argv) > 1 and sys.argv[1] in ("hub", "shroud"):
+    part = sys.argv[1]
+    sys.argv.pop(1)
+
+STL = str(_ROOT / f"T1_9_{part}_raw.stl")
+OUT = _ROOT / "output" /  f"tmesh_{part}"
 
 
 H_CELL = 0.04            # target cell size (uniform reference)
@@ -77,16 +80,27 @@ def _inject_prescribed_singularities(mesh, prescribed):
     mesh.singularities_coords = {}
     mesh.expected_separatrices = {}
 
+    # Compute normalization from mesh bounds to match mesh.x [0,1] coordinates
+    smin, smax = nodes[:, 0].min(), nodes[:, 0].max()
+    tmin, tmax = nodes[:, 1].min(), nodes[:, 1].max()
+
     for p in prescribed:
         pos = np.asarray(p["position_st"], float)
         idx = int(p["index"])
         n_sep = int(p.get("separatrix_count", 5 if idx < 0 else 3))
+
+        # Normalize physical (s,t) to [0,1] to match mesh.x coordinates
+        pos_norm = np.array([
+            (pos[0] - smin) / (smax - smin),
+            (pos[1] - tmin) / (tmax - tmin)
+        ])
+
         centroids = nodes[faces].mean(axis=1)
-        d2 = np.sum((centroids - pos) ** 2, axis=1)
+        d2 = np.sum((centroids - pos_norm) ** 2, axis=1)
         face_id = int(np.argmin(d2))
 
         mesh.singularities[face_id] = idx
-        mesh.singularities_coords[face_id] = torch.tensor(pos, dtype=torch.float)
+        mesh.singularities_coords[face_id] = torch.tensor(pos_norm, dtype=torch.float)
         mesh.expected_separatrices[face_id] = n_sep
 
     print(f"[prescribed] injected {len(prescribed)} singularities into mesh")
@@ -1001,7 +1015,7 @@ def wall_cell_ratio(tfi_grids_or_result, edge_samples, result, nonper_dist_fn,
 
 def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
               continue_seam_edges=False, max_rounds=3, tag="ta",
-              prescribed_singularities=None):
+              prescribed_singularities=None, flat_tol_deg=15.0):
     ps.set_periodic(True)          # field seam weld stays ON
     ps.set_tile_periodic(False)    # block stage: seam = wall
     t0 = time.time()
@@ -1012,10 +1026,11 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
     m = detect_singularities(ff.mesh)
 
     if prescribed_singularities:
-        _inject_prescribed_singularities(ff.mesh, prescribed_singularities)
-        cs.CleanSeparatrixGenerator(ff.mesh)
-
-    n_sing = int((m.singularities != 0).sum())
+        import field_solver as fs
+        ff.mesh = fs.enforce_singularities(ff.mesh, prescribed_singularities, transform)
+        n_sing = int((ff.mesh.singularities != 0).sum())
+    else:
+        n_sing = int((m.singularities != 0).sum())
 
     sl = StreamlineGenerator_v2(ff.mesh)
     ps._drop_degenerate_corner_seps(sl.mesh)
@@ -1059,7 +1074,7 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
     updated = splitter.process_streamlines(merging.new_streamlines)
 
     gen = tmf.TMeshFaceGenerator(updated, blade_loops=list(mesh.blade_loops),
-                                 flat_tol_deg=15.0, verbose=verbose)
+                                 flat_tol_deg=flat_tol_deg, verbose=verbose)
     result = gen.get_blocks()
     for rej in result["rejects"]:
         nds = result["nodes"][rej["cycle"]] if rej.get("cycle") else []

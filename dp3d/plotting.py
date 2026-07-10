@@ -17,17 +17,29 @@ from pathlib import Path
 from . import partition_surface as ps
 from . import tmesh_faces as tmf
 
-# Left seam of the hub runs (0,0)->(0.407,1): s_seam(t) = SEAM_SLOPE * t.
-SEAM_SLOPE = 0.407
+def _seam_left_fn(mesh):
+    """Left-seam profile s_left(t) from the periodic node pairs (master =
+    left seam). The theta periodicity is a pure s-translation, so the domain
+    column at height t is [s_left(t), s_left(t) + pitch_norm]. The real seam
+    is curved, so this must not be approximated by a straight line."""
+    pp = getattr(mesh, "periodic_pairs", None)
+    if pp is None or len(pp) == 0:
+        return lambda t: np.zeros_like(np.asarray(t, float))
+    left = mesh.x[pp[:, 0], 0:2].numpy()
+    o = np.argsort(left[:, 1])
+    ts, ss = left[o, 1], left[o, 0]
+    return lambda t: np.interp(np.asarray(t, float), ts, ss)
 
 
-def fold_curve(s, pitch, seam_slope=SEAM_SLOPE):
-    """Fold a cover-coordinate polyline into the fundamental pitch, splitting
-    it wherever it crosses a seam. The crossing point is interpolated exactly
-    and appended to BOTH adjacent segments, so every winding is drawn
-    seam-to-seam with no visual gap."""
+def fold_curve(s, pitch, s_left):
+    """Fold a cover-coordinate polyline into the fundamental pitch column,
+    splitting it wherever it crosses a seam. The column coordinate
+    ``u = s - s_left(t)`` uses the true (curved) seam profile, so every folded
+    point lands exactly in [s_left(t), s_left(t) + pitch]. The crossing point
+    is interpolated and appended to BOTH adjacent segments, so every winding
+    is drawn seam-to-seam with no visual gap."""
     s = np.asarray(s, float)
-    u = s[:, 0] - seam_slope * s[:, 1]
+    u = s[:, 0] - s_left(s[:, 1])
     k = np.floor(u / pitch).astype(int)
     segs, cur = [], [s[0]]
     for i in range(1, len(s)):
@@ -293,11 +305,12 @@ def _ends_ok_fn(mesh):
     return _ends_ok
 
 
-def _fold_boundary(ax, s, pitch, **kw):
-    """Boundary curve: rings spanning >= 1 pitch are folded, walls drawn
-    as-is."""
-    if abs(s[-1, 0] - s[0, 0]) > 0.5 * pitch:
-        for seg in fold_curve(s, pitch):
+def _fold_boundary(ax, s, pitch, s_left, ring_tol=0.02, **kw):
+    """Boundary curve: closed curves (winding orbits, blade outline) are
+    seam-folded; open wall segments (seams, axial walls) are drawn as-is so
+    the domain outline stays true (folding a wall would shift it off-domain)."""
+    if np.linalg.norm(s[0] - s[-1]) < ring_tol:
+        for seg in fold_curve(s, pitch, s_left):
             ax.plot(seg[:, 0], seg[:, 1], **kw)
     else:
         ax.plot(s[:, 0], s[:, 1], **kw)
@@ -307,6 +320,7 @@ def showcase_integration(mesh, out_png):
     """step07: raw streamline integration state (pre-snap, full spirals),
     folded into the fundamental pitch."""
     pitch = mesh.pitch_norm
+    s_left = _seam_left_fn(mesh)
     n_b = len(mesh.streamlines) - len(mesh.separatrices)
     _ends_ok = _ends_ok_fn(mesh)
 
@@ -316,9 +330,9 @@ def showcase_integration(mesh, out_png):
         if s.ndim != 2 or len(s) < 2:
             continue
         if i < n_b:
-            _fold_boundary(ax, s, pitch, color="black", lw=1.5)
+            _fold_boundary(ax, s, pitch, s_left, color="black", lw=1.5)
         else:
-            segs = fold_curve(s, pitch)
+            segs = fold_curve(s, pitch, s_left)
             # drop the trailing partial winding of a MAX_WRAPS-capped helix
             if segs and not _ends_ok(s[-1]):
                 segs = segs[:-1]
@@ -334,6 +348,7 @@ def showcase_integration_labeled(mesh, out_png):
     its longest folded segment; singularities as color-coded stars with
     'S1 (x, y)' legend entries instead of in-plot text boxes."""
     pitch = mesh.pitch_norm
+    s_left = _seam_left_fn(mesh)
     n_b = len(mesh.streamlines) - len(mesh.separatrices)
     _ends_ok = _ends_ok_fn(mesh)
     xy = mesh.x[:, 0:2].numpy()
@@ -351,9 +366,14 @@ def showcase_integration_labeled(mesh, out_png):
         lw = 2.0 if i >= n_b else 0.7
         alpha = 1.0 if i >= n_b else 0.5
         zorder = 5 if i >= n_b else 2
-        segs = fold_curve(s, pitch)
-        if i >= n_b and segs and not _ends_ok(s[-1]):
-            segs = segs[:-1]
+        # open boundary walls stay as-is (folding would shift them off-domain);
+        # separatrices and closed orbits are seam-folded
+        if i < n_b and np.linalg.norm(s[0] - s[-1]) >= 0.02:
+            segs = [s]
+        else:
+            segs = fold_curve(s, pitch, s_left)
+            if i >= n_b and segs and not _ends_ok(s[-1]):
+                segs = segs[:-1]
         for seg in segs:
             ax.plot(seg[:, 0], seg[:, 1], color=color, lw=lw, alpha=alpha,
                     zorder=zorder)
@@ -391,6 +411,7 @@ def showcase_simplification(mesh, merged_streamlines, wedge_arms, out_png):
     the wedge arms that the seam postprocessing deletes are shown dashed
     orange; pass an empty ``wedge_arms`` for xiao."""
     pitch = mesh.pitch_norm
+    s_left = _seam_left_fn(mesh)
     n_b = len(mesh.streamlines) - len(mesh.separatrices)
     boundary = [np.asarray(b, float) for b in mesh.streamlines[:n_b]]
 
@@ -399,18 +420,18 @@ def showcase_simplification(mesh, merged_streamlines, wedge_arms, out_png):
         s = np.asarray(s, float)
         if s.ndim != 2 or len(s) < 2:
             continue
-        for seg in fold_curve(s, pitch):
+        for seg in fold_curve(s, pitch, s_left):
             ax.plot(seg[:, 0], seg[:, 1], color="#87CEEB", lw=1.3, zorder=2)
     for b in boundary:
         b = np.asarray(b, float)
         if b.ndim != 2 or len(b) < 2:
             continue
-        _fold_boundary(ax, b, pitch, color="black", lw=1.5, zorder=4)
+        _fold_boundary(ax, b, pitch, s_left, color="black", lw=1.5, zorder=4)
     for arm in wedge_arms:
         arm = np.asarray(arm, float)
         if arm.ndim != 2 or len(arm) < 2:
             continue
-        for seg in fold_curve(arm, pitch):
+        for seg in fold_curve(arm, pitch, s_left):
             ax.plot(seg[:, 0], seg[:, 1], "--", color="darkorange",
                     lw=2.0, zorder=7)
     ax.set_aspect("equal")

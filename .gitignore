@@ -6,8 +6,13 @@ test_output.html
 # Generated outputs
 output/
 graphify-out/
+html_files/
 .omo/
 .opencode/
+
+# Local binary deps / envs
+gmsh_pkg/
+.venv/
 
 # IDE
 .vscode/

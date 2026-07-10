@@ -29,7 +29,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, "/root/repos/domain_partition")
+sys.path.insert(0, "/home/t1dde/Duty/projects/domain_partition/domain_partition_2D")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import unwrap_surface as us                                    # noqa: E402
@@ -44,8 +44,8 @@ from tools.streamline_merging import StreamlineMerging         # noqa: E402
 from tools.streamline_intersection_splitter import (           # noqa: E402
     StreamlineIntersectionSplitter)
 
-STL = "/root/repos/block_structured_meshing/T1_9_hub_raw.stl"
-OUT = Path("/root/repos/block_structured_meshing/output/T1_9/hub_stage1/"
+STL = "/home/t1dde/Duty/projects/domain_partition/domain_partition_3D/T1_9_shroud_raw.stl"
+OUT = Path("/home/t1dde/Duty/projects/domain_partition/domain_partition_3D/output/T1_9/shroud_stage1/"
            "xiao_vs_ta")
 
 
@@ -183,7 +183,7 @@ def main():
         f"{tm['irregular_interior_nodes']}",
         f"{'hanging seam junctions':<44}{'n/a (no symmetrize)':<22}"
         f"{tm['hanging_seam_junctions']}",
-        f"{'seam TFI conformity':<44}{'n/a':<22}{tm['seam_tfi_dev']:.1e}",
+        f"{'seam TFI conformity':<44}{'n/a':<22}{(tm['seam_tfi_dev'] or 0):.1e}",
         f"{'inverted TFI cells':<44}{'n/a':<22}"
         f"{tm['inverted_tfi_cells']}/{tm['total_tfi_cells']}",
         f"{'runtime [s]':<44}{x['metrics']['runtime_s']:<22}"

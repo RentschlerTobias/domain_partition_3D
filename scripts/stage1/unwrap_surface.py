@@ -34,6 +34,8 @@ from pathlib import Path
 import numpy as np
 import meshio
 
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
 # When False, the inner blade loop(s) are NOT given LE/TE corner nodes
 # (corner_type==1). The genuine field singularities the cross field places at
 # each tip then drive the partition instead of an artificial tip-corner. The
@@ -52,6 +54,45 @@ def _weld(points, tris, decimals=6):
     key = np.round(points, decimals)
     uniq, inv = np.unique(key, axis=0, return_inverse=True)
     return uniq, inv[tris]
+
+
+def _ensure_ccw_winding(pts, tris):
+    """Detect clockwise winding and flip triangles to counter-clockwise.
+
+    For a cylindrical surface centered at the origin, CCW vertex ordering
+    produces outward-pointing normals (radially away from the z-axis).  If
+    the mesh has CW ordering (inward normals), each triangle [a,b,c] is
+    rewritten as [a,c,b] so that the normal flips outward.
+    """
+    v0 = pts[tris[:, 0]]
+    v1 = pts[tris[:, 1]]
+    v2 = pts[tris[:, 2]]
+
+    # Normal from cross product of edges
+    normals = np.cross(v1 - v0, v2 - v0)
+
+    # Radial direction at triangle centroid (xy-plane only)
+    centroids = (v0 + v1 + v2) / 3.0
+    radial = centroids[:, :2]
+    r_norm = np.linalg.norm(radial, axis=1, keepdims=True)
+    r_norm[r_norm == 0] = 1.0
+    radial = radial / r_norm
+
+    # Positive dot => normal points outward => CCW
+    dot = np.einsum("ij,ij->i", normals[:, :2], radial)
+
+    n_total = len(tris)
+    n_cw = int(np.sum(dot < 0))
+    n_ccw = n_total - n_cw
+
+    if n_cw > n_ccw:
+        print(f"[unwrap] CW winding detected ({n_cw}/{n_total}), flipping to CCW")
+        tris = tris.copy()
+        tris[:, [1, 2]] = tris[:, [2, 1]]
+        return tris
+    else:
+        print(f"[unwrap] CCW winding confirmed ({n_ccw}/{n_total})")
+        return tris
 
 
 def _boundary_edges(tris):
@@ -188,6 +229,7 @@ def unwrap(stl_path, corner_angle_deg=40.0):
     raw_pts = mesh.points
     tris_raw = np.vstack([c.data for c in mesh.cells if c.type == "triangle"])
     pts, tris = _weld(raw_pts, tris_raw)
+    tris = _ensure_ccw_winding(pts, tris)
 
     r_per = np.sqrt(pts[:, 0] ** 2 + pts[:, 1] ** 2)
     r = float(np.mean(r_per))
@@ -315,7 +357,7 @@ def _diagnostic(stl_path, out_dir):
 if __name__ == "__main__":
     import sys
     stl = sys.argv[1] if len(sys.argv) > 1 else \
-        "/root/repos/block_structured_meshing/T1_9_hub_raw.stl"
+        str(REPO_ROOT / "T1_9_hub_raw.stl")
     out = sys.argv[2] if len(sys.argv) > 2 else \
-        "/root/repos/block_structured_meshing/output/T1_9/hub_stage1"
+        str(REPO_ROOT / "output" / "T1_9" / "hub_stage1")
     _diagnostic(stl, out)

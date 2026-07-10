@@ -9,7 +9,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-sys.path.insert(0, "/root/repos/domain_partition")
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(REPO_ROOT.parent / "domain_partition_2D"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 # pull in the boundary-BC fix + monkeypatches
@@ -67,6 +68,6 @@ def main(stl, out_dir):
 
 if __name__ == "__main__":
     stl = sys.argv[1] if len(sys.argv) > 1 else \
-        "/root/repos/block_structured_meshing/T1_9_hub_raw.stl"
-    out = "/root/repos/block_structured_meshing/output/T1_9/hub_stage1"
+        str(REPO_ROOT / "T1_9_hub_raw.stl")
+    out = str(REPO_ROOT / "output" / "T1_9" / "hub_stage1")
     main(stl, out)

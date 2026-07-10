@@ -14,7 +14,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-sys.path.insert(0, "/root/repos/domain_partition")
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(REPO_ROOT.parent / "domain_partition_2D"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import unwrap_surface as us
@@ -24,8 +25,8 @@ from dp_adapter import build_dp_data
 from tools import FrameField, StreamlineGenerator_v2
 from tools.singularity_detector import detect_singularities
 
-STL = "/root/repos/block_structured_meshing/T1_9_hub_raw.stl"
-OUT = Path("/root/repos/block_structured_meshing/output/T1_9/hub_stage1")
+STL = str(REPO_ROOT / "T1_9_hub_raw.stl")
+OUT = REPO_ROOT / "output" / "T1_9" / "hub_stage1"
 
 # left seam runs (0,0)->(0.407,1): s_seam(t) = SEAM_SLOPE * t
 SEAM_SLOPE = 0.407

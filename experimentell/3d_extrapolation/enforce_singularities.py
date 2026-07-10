@@ -17,12 +17,11 @@ from pathlib import Path
 import numpy as np
 import torch
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "domain_partition_2D"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from dp_adapter import build_dp_data
-from tools import FrameField
-from tools.singularity_detector import detect_singularities
+from dp3d.dp_adapter import build_dp_data
+from dp3d.field import FrameField
+from dp3d.field.singularity_detector import detect_singularities
 
 
 def solve_field_with_singularities(mesh, prescribed_singularities, n_iters=50):

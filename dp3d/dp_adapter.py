@@ -17,19 +17,12 @@ native 2D case. Coordinates are normalized to [0,1]^2; the affine transform is
 returned so blocks can be mapped back to (s,t) and then onto the 3D cylinder.
 """
 
-import sys
-from pathlib import Path
-
 import numpy as np
 import torch
-
-_DP2D = Path(__file__).resolve().parent.parent.parent.parent / "domain_partition_2D"
-sys.path.insert(0, str(_DP2D))
 from torch_geometric.data import Data
-from tools.mesh_generator import MeshGenerator  # noqa: E402
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from unwrap_surface import unwrap  # noqa: E402
+from .field.mesh_generator import MeshGenerator
+from .unwrap_surface import unwrap
 
 
 def _split_loop_at_corners(loop, corner_set):
@@ -121,20 +114,3 @@ def build_dp_data(stl_path, corner_angle_deg=40.0):
     return mesh, transform
 
 
-if __name__ == "__main__":
-    stl = sys.argv[1] if len(sys.argv) > 1 else \
-        "/root/repos/block_structured_meshing/T1_9_hub_raw.stl"
-    mesh, tf = build_dp_data(stl)
-    print("x", tuple(mesh.x.shape),
-          "faces", tuple(mesh.faces.shape),
-          "edges", tuple(mesh.edge_index.shape))
-    print("boundary edges", int((mesh.edge_attr == 1).sum()),
-          "corners", int((mesh.x[:, 2] == 0).sum()))
-    print("streamlines", len(mesh.streamlines),
-          "sizes", [len(s) for s in mesh.streamlines])
-    print("corner_type: outer", int((mesh.corner_type == 0).sum()),
-          "blade-tip", int((mesh.corner_type == 1).sum()),
-          "blade_loops", [len(b) for b in mesh.blade_loops])
-    print("centerPoints", tuple(mesh.centerPoints.shape),
-          "face_attr sum", float(mesh.face_attr.sum()))
-    print("transform", tf)

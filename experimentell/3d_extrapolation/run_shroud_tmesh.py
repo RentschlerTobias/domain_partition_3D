@@ -9,10 +9,9 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "domain_partition_2D"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from tmesh_partition import run_tmesh
+from dp3d.tmesh import run_tmesh
 
 
 def main():

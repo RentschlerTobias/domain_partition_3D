@@ -19,19 +19,15 @@ Usage:
 """
 
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
 import torch
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "domain_partition_2D"))
-
-from dp_adapter import build_dp_data
-from tools import FrameField
-from tools.singularity_detector import detect_singularities
-import clean_separatrix as cs
+from .dp_adapter import build_dp_data
+from .field import FrameField
+from .field.singularity_detector import detect_singularities
+from . import clean_separatrix as cs
 
 
 def enforce_singularities(mesh, prescribed, transform=None, R_factor=3.0, n_smooth=10):
@@ -235,56 +231,3 @@ def test_field(mesh, prescribed, transform=None):
               f"index={idx:+d}, dist={d2[nearest]**0.5:.4f}")
     
     return n_sing
-
-
-def main():
-    if len(sys.argv) < 3:
-        print("Usage: python field_solver.py <shroud_stl> <prescribed.json> [output.pt]")
-        sys.exit(1)
-    
-    stl = sys.argv[1]
-    prescribed_path = sys.argv[2]
-    out_path = sys.argv[3] if len(sys.argv) > 3 else "shroud_field.pt"
-    
-    # Load prescribed
-    prescribed = json.loads(Path(prescribed_path).read_text())["singularities"]
-    print(f"[main] Loaded {len(prescribed)} prescribed singularities")
-    
-    # Build mesh and field
-    print(f"[main] Building mesh from {stl}...")
-    mesh, transform = build_dp_data(stl)
-    
-    print(f"[main] Computing initial field...")
-    ff = FrameField(mesh)
-    
-    # Test initial field
-    print(f"\n[main] === INITIAL FIELD ===")
-    test_field(mesh, prescribed, transform)
-    
-    # Enforce singularities
-    print(f"\n[main] === ENFORCING SINGULARITIES ===")
-    mesh = enforce_singularities(mesh, prescribed, transform, R_factor=5.0, n_smooth=20)
-    
-    # Test modified field
-    print(f"\n[main] === MODIFIED FIELD ===")
-    n_sing = test_field(mesh, prescribed, transform)
-    
-    # Save
-    torch.save({
-        "u": mesh.u,
-        "singularities": mesh.singularities,
-        "singularities_coords": mesh.singularities_coords,
-        "separatrices": mesh.separatrices,
-        "prescribed": prescribed,
-        "transform": transform,
-    }, out_path)
-    print(f"\n[main] Saved field to {out_path}")
-    
-    if n_sing >= len(prescribed):
-        print("[main] SUCCESS: All prescribed singularities are present!")
-    else:
-        print(f"[main] WARNING: Only {n_sing}/{len(prescribed)} singularities present")
-
-
-if __name__ == "__main__":
-    main()

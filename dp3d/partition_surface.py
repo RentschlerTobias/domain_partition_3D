@@ -17,7 +17,6 @@ Returns the 2D block mesh (block_mesh.x = (N,2) corners, block_mesh.faces =
 (4,B) quad blocks) plus the affine (s,t)<-[0,1]^2 transform for back-mapping.
 """
 
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -26,22 +25,18 @@ from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import spsolve
 from torch_geometric.data import Data
 
-_DP2D = Path(__file__).resolve().parent.parent.parent.parent / "domain_partition_2D"
-sys.path.insert(0, str(_DP2D))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
 # --- swap in our robust separatrix emanation finder ---
-# domain_partition's v1/v2 generators are buggy and untested on real
+# the vendored v1/v2 generators are buggy and untested on real
 # singularities; only the RK/Heun integrator in StreamlineGenerator_v2 is sound.
-import tools.streamline_generator_v2 as _sg2  # noqa: E402
-from clean_separatrix import CleanSeparatrixGenerator  # noqa: E402
+from .field import streamline_generator_v2 as _sg2
+from .clean_separatrix import CleanSeparatrixGenerator
 _sg2.SeparatrixGenerator = CleanSeparatrixGenerator
 
-from tools import FrameField, StreamlineGenerator_v2, StreamlinePostProcessor  # noqa: E402
-from tools.singularity_detector import detect_singularities  # noqa: E402
-from tools.quad_partition_validator import QuadPartitionValidator  # noqa: E402
-from tools.streamline_merging import StreamlineMerging  # noqa: E402
-from dp_adapter import build_dp_data  # noqa: E402
+from .field import FrameField, StreamlineGenerator_v2, StreamlinePostProcessor
+from .field.singularity_detector import detect_singularities
+from .field.quad_partition_validator import QuadPartitionValidator
+from .field.streamline_merging import StreamlineMerging
+from .dp_adapter import build_dp_data
 
 
 # --- enable Xiao 2020 Algorithm 2 Case 2 in StreamlineMerging -----------------
@@ -1351,12 +1346,3 @@ def _plot_blocks(block_mesh, mesh, out_png):
     print(f"wrote {out_png}")
 
 
-if __name__ == "__main__":
-    stl = sys.argv[1] if len(sys.argv) > 1 else \
-        "/root/repos/block_structured_meshing/T1_9_hub_raw.stl"
-    out = Path("/root/repos/block_structured_meshing/output/T1_9/hub_stage1")
-    out.mkdir(parents=True, exist_ok=True)
-    block_mesh, mesh, tf = partition(stl)
-    _plot_blocks(block_mesh, mesh, out / "blocks_2d.png")
-    _plot_separatrices(mesh, out / "separatrices.png")
-    validate(block_mesh, mesh, out / "validation_report.txt")

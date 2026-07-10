@@ -354,10 +354,3 @@ def _diagnostic(stl_path, out_dir):
     (out_dir / "unwrap_meta.json").write_text(json.dumps(meta, indent=2))
 
 
-if __name__ == "__main__":
-    import sys
-    stl = sys.argv[1] if len(sys.argv) > 1 else \
-        str(REPO_ROOT / "T1_9_hub_raw.stl")
-    out = sys.argv[2] if len(sys.argv) > 2 else \
-        str(REPO_ROOT / "output" / "T1_9" / "hub_stage1")
-    _diagnostic(stl, out)

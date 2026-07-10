@@ -43,12 +43,16 @@ python domain_partition.py data/T1_9/T1_9_hub_raw.stl --method ta --plots
 ```
 
 Flags: `--part hub|shroud|both` (default hub), `--method ta tb xiao all`
-(default ta), `--plots` (analysis plots + step01..step09 showcase),
-`--include-boundary` (MSH input only), `--output DIR` (default `output/`).
+(default ta), `--plots` (showcase step series), `--include-boundary`
+(MSH input only), `--output DIR` (default `output/`).
 
-Outputs per part: `output/<part>/tmesh_metrics_<tag>.json`, block/TFI/tiled
-plots, `output/<part>/xiao/` report, `output/<part>/showcase/` step plots,
-`output/extracted/` STL + boundary quad VTK.
+Outputs: `output/<part>/tmesh_metrics_<tag>.json`, `output/<part>/xiao/`
+text report + metrics, `output/extracted/` STL + boundary quad VTK. With
+`--plots` a single showcase series lands in `output/plots/`: steps 01-07
+once per part (surface, unwrap, cross-field, representatives, frame field,
+singularities, streamline integration plain + labeled), steps 08-11 per
+method (simplification, final blocks, TFI grid and tiled periodicity check
+-- the latter two ta/tb only).
 
 ## Layout
 

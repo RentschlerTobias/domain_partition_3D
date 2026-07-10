@@ -7,7 +7,6 @@ import time
 from pathlib import Path
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 from . import partition_surface as ps
 from . import tmesh_faces as tmf
@@ -62,72 +61,20 @@ def run_xiao(stl, flat_tol_deg=15.0, verbose=True):
     }
     return {"metrics": metrics, "result": result, "mesh": mesh,
             "sl": sl, "irregular": irregular, "tnodes": tnodes,
-            "merging": merging}
+            "merging": merging, "boundary_ref": boundary_ref}
 
 
 def write_xiao_report(data, out_dir):
-    """Plots, streamline/singularity tables and metrics JSON for a run_xiao
+    """Streamline/singularity text tables and metrics JSON for a run_xiao
     result."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    mesh = data["mesh"]
     sl = data["sl"]
-    result = data["result"]
-    irregular = data["irregular"]
     metrics = data["metrics"]
-    merging = data["merging"]
-
     singularities = plotting.get_singularities(sl.mesh)
+    connections = plotting.singularity_connections(sl.mesh, singularities)
     n_b = len(sl.mesh.streamlines) - len(sl.mesh.separatrices)
-
-    fig, ax = plt.subplots(figsize=(14, 10))
-    plotting.plot_streamlines_indexed(ax, sl.mesh, singularities,
-                                      labels=False)
-    ax.set_title(f"Xiao method: {n_b} boundary streamlines, "
-                 f"{len(sl.mesh.separatrices)} separatrices, "
-                 f"{metrics['singularities']} singularities")
-    fig.savefig(out_dir / "xiao_streamlines_unlabeled.png", dpi=180,
-                bbox_inches="tight")
-    plt.close(fig)
-
-    fig, ax = plt.subplots(figsize=(16, 12))
-    plotting.plot_streamlines_indexed(ax, sl.mesh, singularities)
-    ax.set_title(f"Xiao method: {n_b} boundary streamlines, "
-                 f"{len(sl.mesh.separatrices)} separatrices, "
-                 f"{metrics['singularities']} singularities\n"
-                 f"(labels = streamline index; bold = separatrix)")
-    fig.savefig(out_dir / "xiao_streamlines_labeled.png", dpi=180,
-                bbox_inches="tight")
-    plt.close(fig)
-
-    fig, ax = plt.subplots(figsize=(16, 12))
-    plotting.plot_merged_streamlines(ax, merging.new_streamlines,
-                                     singularities)
-    ax.set_title(f"Xiao method (after merge): "
-                 f"{metrics['singularities']} singularities, "
-                 f"{len(merging.new_streamlines)} streamlines post-merge")
-    fig.savefig(out_dir / "xiao_streamlines_merged.png", dpi=180,
-                bbox_inches="tight")
-    plt.close(fig)
-
-    fig, ax = plt.subplots(figsize=(14, 11))
-    connections = plotting.plot_singularity_graph(ax, sl.mesh, singularities)
-    ax.set_title(f"Singularity connection graph: {len(connections)} direct "
-                 f"connections\n(thick colored = sing-sing; faint gray = all "
-                 f"streamlines)")
-    fig.savefig(out_dir / "xiao_singularity_graph.png", dpi=140,
-                bbox_inches="tight")
-    plt.close(fig)
-
-    fig, ax = plt.subplots(figsize=(12, 10))
-    plotting.plot_xiao_blocks(
-        ax, result, mesh, irregular,
-        title=f"Xiao method: {metrics['blocks']} blocks, "
-              f"{metrics['nonquad_regions']} non-quad regions, "
-              f"{len(irregular)} irregular nodes")
-    fig.savefig(out_dir / "xiao_blocks.png", dpi=140, bbox_inches="tight")
-    plt.close(fig)
 
     lines = ["Streamline index table", "=" * 60, "",
              f"BOUNDARY streamlines (indices 0 .. {n_b - 1}):"]

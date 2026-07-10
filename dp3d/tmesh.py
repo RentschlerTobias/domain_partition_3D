@@ -32,7 +32,6 @@ import numpy as np
 
 from . import partition_surface as ps
 from . import tmesh_faces as tmf
-from . import plotting
 from .dp_adapter import build_dp_data
 from .field import FrameField, StreamlineGenerator_v2
 from .field.singularity_detector import detect_singularities
@@ -1095,7 +1094,7 @@ def wall_cell_ratio(tfi_grids_or_result, edge_samples, result, nonper_dist_fn,
 # pipeline
 # --------------------------------------------------------------------------
 
-def run_tmesh(stl, out_dir, verbose=True, make_plots=True,
+def run_tmesh(stl, out_dir, verbose=True,
               continue_seam_edges=False, max_rounds=3, tag="ta",
               prescribed_singularities=None, flat_tol_deg=15.0):
     ps.set_periodic(True)          # field seam weld stays ON
@@ -1121,11 +1120,6 @@ def run_tmesh(stl, out_dir, verbose=True, make_plots=True,
     straighten_sing_connectors(sl.mesh)
 
     collapse_seam_wedges(sl.mesh)
-    if make_plots:
-        _od = Path(out_dir)
-        _od.mkdir(parents=True, exist_ok=True)
-        plotting.plot_streamlines_clean(
-            sl.mesh, _od / f"tmesh_streamlines_pre_hanging_{tag}.png", tag)
     seam_info = symmetrize_seam_junctions(sl.mesh)
 
     if continue_seam_edges and seam_info:
@@ -1257,16 +1251,6 @@ def run_tmesh(stl, out_dir, verbose=True, make_plots=True,
     (out_dir / f"tmesh_metrics_{tag}.json").write_text(
         json.dumps(metrics, indent=2))
     print(f"wrote {out_dir}/tmesh_metrics_{tag}.json")
-
-    if make_plots:
-        plotting.plot_blocks(result, mesh, tnodes, irregular, seam_info,
-                             out_dir / f"tmesh_blocks_{tag}.png", tag)
-        if tfi:
-            plotting.plot_tfi(tfi, result, pitch,
-                              out_dir / f"tmesh_tfi_{tag}.png", tag)
-            plotting.plot_tiled(result, tfi, seam_info, pitch,
-                                out_dir / f"tmesh_tiled_blocks_{tag}.png",
-                                out_dir / f"tmesh_tiled_tfi_{tag}.png", tag)
 
     return {"metrics": metrics, "result": result, "tfi": tfi, "mesh": mesh,
             "seam_info": seam_info, "boundary_ref": boundary_ref,

@@ -77,8 +77,13 @@ class CleanSeparatrixGenerator:
         self.mesh = mesh
         self.corner_merge_tol = corner_merge_tol
         self._build_locator()
-        mesh.singularities = _poincare_indices(mesh)
-        self._coords_and_expected()
+        # If prescribed singularities were already injected (e.g. from Hub
+        # template), keep them instead of recomputing from the field.
+        if getattr(mesh, 'singularities_coords', None):
+            self._ensure_expected()
+        else:
+            mesh.singularities = _poincare_indices(mesh)
+            self._coords_and_expected()
         self._delete_corner_singularities()
         if ANNIHILATE_PAIRS:
             self._annihilate_pairs()
@@ -223,6 +228,15 @@ class CleanSeparatrixGenerator:
             mesh.singularities_coords[fid] = _singularity_coords(mesh, fid).tolist()
             idx = int(mesh.singularities[fid].item())
             mesh.expected_separatrices[fid] = 3 if idx == 1 else (5 if idx == -1 else abs(4 * idx - 1))
+
+    def _ensure_expected(self):
+        """Ensure expected_separatrices is set for existing singularities."""
+        mesh = self.mesh
+        if not hasattr(mesh, 'expected_separatrices') or not mesh.expected_separatrices:
+            mesh.expected_separatrices = {}
+            for fid in mesh.singularities_coords:
+                idx = int(mesh.singularities[fid].item())
+                mesh.expected_separatrices[fid] = 3 if idx == 1 else (5 if idx == -1 else abs(4 * idx - 1))
 
     def _local_scale(self, fid):
         tri = self.nodes[self.faces[fid]]

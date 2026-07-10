@@ -100,8 +100,8 @@ def main() -> None:
             bxy[:, 0], bxy[:, 1],
             np.cos(ang), np.sin(ang),
             color="#3aa6d0",   # blue, higher contrast than the pale field blue
-            scale=9,           # smaller scale => longer, clearly visible arms
-            width=0.006,
+            scale=18,          # smaller scale => longer arms; balanced size
+            width=0.004,
             headwidth=0,
             headlength=0,
             pivot="mid",

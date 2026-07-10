@@ -53,6 +53,7 @@ import tmesh_partition as tp  # noqa: E402
 from dp_adapter import build_dp_data  # noqa: E402
 from tools import FrameField, StreamlineGenerator_v2  # noqa: E402
 from tools.singularity_detector import detect_singularities  # noqa: E402
+from tools.streamline_merging import StreamlineMerging  # noqa: E402
 
 # Reuse the exact fold-into-central-pitch helper used by Step 07.
 from plot_slide07_integration import fold_curve, SEAM_SLOPE  # noqa: E402,F401
@@ -75,52 +76,46 @@ def main() -> None:
                           tag="ta", make_plots=False, verbose=False)
     wedge_arms = getattr(ta["mesh"], "dropped_wedge_arms", []) or []
 
-    # --- 2. Merged streamline state (Xiao 3-case simplification) ---
+    # --- 2. Merged streamline state after the 3 Xiao merging cases ---
+    # This is the EXACT merge the partition pipeline uses (StreamlineMerging,
+    # Xiao 2020 Alg. 2 Case 1/2/3), same as tmesh_partition.run_tmesh:1071 and
+    # compare_xiao_vs_ta.run_xiao — NOT the plot_central helix-close variant.
+    # We run it WITHOUT the T-a seam post-processing (collapse_seam_wedges), so
+    # the wedge streamlines that T-a deletes are still present here.
     mesh, _tf = build_dp_data(STL_PATH)
     ff = FrameField(mesh)
     detect_singularities(ff.mesh)
     sl = StreamlineGenerator_v2(ff.mesh)
     ps._drop_degenerate_corner_seps(sl.mesh)
+    ps._snap_separatrix_endpoints(sl.mesh, radius=0.045)
     pitch = sl.mesh.pitch_norm
 
-    ps._close_helical_streamlines(sl.mesh)   # Xiao Case: helix -> prong + ring
-    ps._emit_dock_crossings(sl)              # dock crossings (missed endpoints)
-    ps._snap_separatrix_endpoints(sl.mesh, radius=0.045)  # merge duplicates
+    n_b = len(sl.mesh.streamlines) - len(sl.mesh.separatrices)
+    boundary = [np.asarray(b, float) for b in sl.mesh.streamlines[:n_b]]
 
-    m = sl.mesh
-    n_b = len(m.streamlines) - len(m.separatrices)
-
-    boundary = [np.asarray(b, float) for b in m.streamlines[:n_b]]
-    term = ps._termination_nodes(m)
-
-    def _ends_ok(p):
-        for k in range(-ps.MAX_WRAPS, ps.MAX_WRAPS + 1):
-            q = np.asarray(p, float) - [k * pitch, 0.0]
-            if len(term) and np.min(np.linalg.norm(term - q, axis=1)) < 0.05:
-                return True
-            if ps._min_boundary_dist(q, boundary) < 0.05:
-                return True
-        return False
+    merging = StreamlineMerging(sl.mesh, verbose=False)
+    merged = [np.asarray(s, float) for s in merging.new_streamlines]
 
     # --- 3. Plot ---
     fig, ax = plt.subplots(figsize=(4, 6))  # portrait
 
-    for i, s in enumerate(m.streamlines):
-        s = np.asarray(s, float)
+    # Merged streamlines (boundary + separatrices) in light blue; the domain
+    # boundary is overdrawn black on top so walls/blade read as boundary.
+    for s in merged:
         if s.ndim != 2 or len(s) < 2:
             continue
-        if i < n_b:
-            if abs(s[-1, 0] - s[0, 0]) > 0.5 * pitch:   # ring
-                for seg in fold_curve(s, pitch):
-                    ax.plot(seg[:, 0], seg[:, 1], color="black", lw=1.5)
-            else:
-                ax.plot(s[:, 0], s[:, 1], color="black", lw=1.5)
+        for seg in fold_curve(s, pitch):
+            ax.plot(seg[:, 0], seg[:, 1], color="#87CEEB", lw=1.3, zorder=2)
+
+    for b in boundary:
+        b = np.asarray(b, float)
+        if b.ndim != 2 or len(b) < 2:
+            continue
+        if abs(b[-1, 0] - b[0, 0]) > 0.5 * pitch:   # ring spanning >=1 pitch
+            for seg in fold_curve(b, pitch):
+                ax.plot(seg[:, 0], seg[:, 1], color="black", lw=1.5, zorder=4)
         else:
-            segs = fold_curve(s, pitch)
-            if segs and not _ends_ok(s[-1]):
-                segs = segs[:-1]
-            for seg in segs:
-                ax.plot(seg[:, 0], seg[:, 1], color="#87CEEB", lw=1.3)
+            ax.plot(b[:, 0], b[:, 1], color="black", lw=1.5, zorder=4)
 
     # Wedge arms deleted by T-a: dashed dark orange (folded like the rest).
     for arm in wedge_arms:
@@ -140,7 +135,7 @@ def main() -> None:
     print(f"wrote {OUT_PATH}")
     print(f"  pitch:            {pitch:.3f}")
     print(f"  boundary curves:  {n_b}")
-    print(f"  separatrices:     {len(m.separatrices)}")
+    print(f"  merged streamlines (Xiao 3-case): {len(merged)}")
     print(f"  T-a deleted arms: {len(wedge_arms)}")
 
 

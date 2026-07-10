@@ -1,0 +1,52 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{metropolis}
+\metroset{sectionpage=none, numbering=counter, progressbar=frametitle}
+\usepackage{amsmath, amssymb}
+\usepackage[T1]{fontenc}
+
+\title{Domain-Partition Algorithm for Turbomachinery Blades}
+\subtitle{Slide 7: Streamline Integration --- Runge-Kutta-Heun}
+\date{\today}
+\author{}
+\institute{}
+
+\begin{document}
+
+\begin{frame}{Streamline Integration --- Runge-Kutta-Heun}
+
+\begin{center}
+\Large
+\[
+\mathbf{p}_{n+1} = \mathbf{p}_n + \frac{1}{2}(\mathbf{k}_1 + \mathbf{k}_2)
+\]
+\end{center}
+
+\vspace{0.2em}
+\begin{center}
+\normalsize
+\(
+\mathbf{k}_1 = h\,\mathbf{v}(\mathbf{p}_n), \qquad
+\mathbf{k}_2 = h\,\mathbf{v}(\mathbf{p}_n + \mathbf{k}_1)
+\)
+\end{center}
+
+\vspace{0.2em}
+\begin{itemize}
+    \item \textbf{Integrate} along representative vectors emanating from singularities
+    \item \textbf{RK-Heun:} 2nd-order accurate, stable near singularities
+    \item \textbf{Terminate} on boundary, singularity, or $c_0$ corner
+\end{itemize}
+
+\vspace{0.3em}
+\small
+\textit{Code:} \texttt{StreamlineGenerator\_v2.runge\_kutta\_heun\_integrate\_streamline} \quad
+\textit{Lit:} Kowalski 2015, ``Blocking piecewise-linear domains'' (Prop.~9)
+
+\note{
+Speaker notes:
+Streamline integration traces curves starting from each singularity along the frame field. We use the Runge-Kutta-Heun method, a two-stage predictor-corrector scheme. k1 is the Euler step, k2 evaluates the vector field at the predicted endpoint, and the final update averages the two slopes. This gives second-order accuracy while remaining robust close to singular points where the field becomes stiff. Integration stops as soon as the streamline hits a domain boundary, another singularity, or a c0 corner where the cross-field is discontinuous. The implementation lives in StreamlineGenerator_v2.runge_kutta_heun_integrate_streamline. Kowalski Proposition 9 guarantees the separatrix count: index plus one yields exactly three arms, index minus one yields exactly five arms.
+}
+
+\end{frame}
+
+\end{document}

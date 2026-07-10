@@ -60,7 +60,9 @@ OUT = _ROOT / "output" /  f"tmesh_{part}"
 
 
 H_CELL = 0.04            # target cell size (uniform reference)
-CLUSTER_RATIO = 5.0      # first wall cell ~ uniform/5 (tanh stretching)
+CLUSTER_RATIO = 5.0      # generic wall: first cell ~ uniform/5 (tanh stretching)
+BLADE_CLUSTER_RATIO = 50.0   # blade boundary layer (CFD): first cell ~ uniform/50
+BLADE_NORMAL_CELLS = 12  # min cells across a blade-normal edge (BL resolution)
 
 
 def _inject_prescribed_singularities(mesh, prescribed):
@@ -701,17 +703,23 @@ def _edge_key(a, b, e2s):
     return (a, b) if (a, b) in e2s else (b, a)
 
 
-def solve_edge_divisions(result, seam_pairs, h=H_CELL):
+def solve_edge_divisions(result, seam_pairs, h=H_CELL, min_cells=None):
     """Cells per graph edge, CFD-conforming: opposite sides of every block
     carry the same total cell count, seam edge pairs share their count.
-    scipy MILP: minimize sum(c_e), c_e integer >= max(1, round(len_e/h))."""
+    scipy MILP: minimize sum(c_e), c_e integer >= max(1, round(len_e/h)).
+
+    ``min_cells`` (optional {edge_key: n}) raises the lower bound of specific
+    edges -- used to force a boundary-layer cell count on the (short) blade-
+    normal edges so the near-wall clustering has enough cells to resolve; the
+    conformity constraints then propagate that count to the opposite sides."""
     from scipy.optimize import milp, LinearConstraint, Bounds
     e2s = result["e2s"]
     keys = list(e2s.keys())
     idx = {k: i for i, k in enumerate(keys)}
     n = len(keys)
-    lb = np.array([max(1, int(round(_arclen(e2s[k]) / h))) for k in keys],
-                  float)
+    min_cells = min_cells or {}
+    lb = np.array([max(1, int(round(_arclen(e2s[k]) / h)), min_cells.get(k, 1))
+                   for k in keys], float)
 
     rows = []
     for blk in result["blocks"]:
@@ -812,13 +820,35 @@ def _morph_ends_to(s, pa, pb, frac=0.3, max_win=0.06):
     return s + wa[:, None] * oa[None, :] + wb[:, None] * ob[None, :]
 
 
-def build_edge_samples(result, divisions, nonper_dist_fn, seam_pairs,
-                       pitch, wall_on_tol=1e-3):
-    """One canonical sample array per graph edge. Distribution: tanh towards
-    endpoints on a non-periodic boundary (blade/inlet/outlet); edges running
-    ALONG such a boundary stay uniform; right-seam edges are the exact +pitch
-    copies of their left partners. Endpoints are morphed onto the graph node
-    coordinates (watertight corners despite the 1e-2 node-merge tolerance)."""
+def blade_normal_edges(result, wall_dist_fn, seam_pairs, wall_on_tol=1e-3):
+    """Keys of edges that dock on the blade at one end but run AWAY from it
+    (not along) -- the wall-normal boundary-layer edges. These are the edges
+    whose cell count must be raised so the near-wall tanh clustering resolves.
+    Seam-twin right edges are mapped back to their left partner key (the count
+    is shared, so raising the left raises the right)."""
+    e2s = result["e2s"]
+    right_of = {kb: ka for ka, kb in seam_pairs}
+    out = set()
+    for k, poly in e2s.items():
+        poly = np.asarray(poly, float)
+        d_a = wall_dist_fn(poly[0])
+        d_b = wall_dist_fn(poly[-1])
+        d_m = wall_dist_fn(poly[len(poly) // 2])
+        along = d_m < wall_on_tol
+        if not along and (d_a < wall_on_tol or d_b < wall_on_tol):
+            out.add(right_of.get(k, k))
+    return out
+
+
+def build_edge_samples(result, divisions, wall_dist_fn, seam_pairs,
+                       pitch, wall_on_tol=1e-3, ratio=CLUSTER_RATIO):
+    """One canonical sample array per graph edge. Distribution: tanh clustered
+    towards endpoints on the CFD wall measured by ``wall_dist_fn`` (the blade
+    boundary layer); edges running ALONG the wall stay uniform; edges not
+    touching the wall (e.g. inlet/outlet at t=0/1) stay uniform; right-seam
+    edges are the exact +pitch copies of their left partners. Endpoints are
+    morphed onto the graph node coordinates (watertight corners despite the
+    1e-2 node-merge tolerance)."""
     e2s = result["e2s"]
     nodes = result["nodes"]
     samples = {}
@@ -828,13 +858,13 @@ def build_edge_samples(result, divisions, nonper_dist_fn, seam_pairs,
             continue                              # filled from the left twin
         nc = divisions[k]
         poly = np.asarray(poly, float)
-        d_a = nonper_dist_fn(poly[0])
-        d_b = nonper_dist_fn(poly[-1])
-        d_m = nonper_dist_fn(poly[len(poly) // 2])
-        along = d_m < wall_on_tol                 # edge lies ON the boundary
+        d_a = wall_dist_fn(poly[0])
+        d_b = wall_dist_fn(poly[-1])
+        d_m = wall_dist_fn(poly[len(poly) // 2])
+        along = d_m < wall_on_tol                 # edge lies ON the wall
         cl_a = (d_a < wall_on_tol) and not along
         cl_b = (d_b < wall_on_tol) and not along
-        s = _resample_at(poly, edge_fractions(nc, cl_a, cl_b))
+        s = _resample_at(poly, edge_fractions(nc, cl_a, cl_b, ratio=ratio))
         samples[k] = _morph_ends_to(s, nodes[k[0]], nodes[k[1]])
     shift = np.array([pitch, 0.0])
     for ka, kb in seam_pairs:
@@ -902,11 +932,81 @@ def _inverted_cells(X):
     return int((area <= 0).sum()), int(area.size)
 
 
-def tfi_fill(result, edge_samples, WL, WR, pitch, seam_tol=0.01):
-    """Coons patch per block from the canonical per-edge samples. Cell counts
-    solved conforming (solve_edge_divisions), so a block side is ALWAYS the
-    concatenation of its edge samples -- grid points are identical across
-    every block edge and across the periodic seam."""
+def _tm_smooth(X, iters=400, omega=1.0):
+    """Thomas-Middlecoff elliptic smoothing of a structured block grid, with
+    the four boundary rows/cols held FIXED (so shared block edges and the
+    periodic seam stay conforming). Removes the folds a pure Coons patch
+    produces under strong wall clustering while the control functions -- taken
+    from the boundary point spacing -- carry that near-wall clustering into the
+    interior (unlike plain Winslow, which would relax it towards uniform).
+
+    X: (n_eta, n_xi, 2). eta = axis 0, xi = axis 1. Returns the smoothed grid.
+    """
+    X = np.asarray(X, float).copy()
+    n_e, n_x = X.shape[:2]
+    if n_e < 3 or n_x < 3:
+        return X                                   # no interior to move
+    eps = 1e-30
+
+    def _ctrl(a, b):
+        """TM source term -(t.t')/(t.t) along a line: a,b are the first/second
+        derivative arrays (…,2)."""
+        return -(a[..., 0] * b[..., 0] + a[..., 1] * b[..., 1]) / \
+            (a[..., 0] ** 2 + a[..., 1] ** 2 + eps)
+
+    # phi: xi-spacing control from the two eta=const boundaries (rows 0, -1),
+    # linearly interpolated across eta.
+    phi_bt = []
+    for i in (0, -1):
+        row = X[i]
+        d1 = np.gradient(row, axis=0)              # d/dxi (unit spacing)
+        d2 = np.zeros_like(row)
+        d2[1:-1] = row[2:] - 2 * row[1:-1] + row[:-2]
+        phi_bt.append(_ctrl(d1, d2))
+    t = np.linspace(0.0, 1.0, n_e)[:, None]
+    phi = (1 - t) * phi_bt[0][None, :] + t * phi_bt[1][None, :]
+
+    # psi: eta-spacing control from the two xi=const boundaries (cols 0, -1),
+    # linearly interpolated across xi.
+    psi_lr = []
+    for j in (0, -1):
+        col = X[:, j]
+        d1 = np.gradient(col, axis=0)              # d/deta
+        d2 = np.zeros_like(col)
+        d2[1:-1] = col[2:] - 2 * col[1:-1] + col[:-2]
+        psi_lr.append(_ctrl(d1, d2))
+    s = np.linspace(0.0, 1.0, n_x)[None, :]
+    psi = (1 - s) * psi_lr[0][:, None] + s * psi_lr[1][:, None]
+
+    for _ in range(iters):
+        I = X[1:-1, 1:-1]
+        xN, xS = X[2:, 1:-1], X[:-2, 1:-1]         # eta +/- (axis 0)
+        xE, xW = X[1:-1, 2:], X[1:-1, :-2]          # xi  +/- (axis 1)
+        xNE, xNW = X[2:, 2:], X[2:, :-2]
+        xSE, xSW = X[:-2, 2:], X[:-2, :-2]
+        x_xi = 0.5 * (xE - xW)
+        x_eta = 0.5 * (xN - xS)
+        alpha = (x_eta ** 2).sum(-1, keepdims=True)
+        gamma = (x_xi ** 2).sum(-1, keepdims=True)
+        beta = (x_xi * x_eta).sum(-1, keepdims=True)
+        x_xieta = 0.25 * (xNE - xNW - xSE + xSW)
+        ph = phi[1:-1, 1:-1, None]
+        ps = psi[1:-1, 1:-1, None]
+        rhs = (alpha * (xE + xW + ph * x_xi)
+               + gamma * (xN + xS + ps * x_eta)
+               - 2.0 * beta * x_xieta)
+        new = rhs / (2.0 * (alpha + gamma) + eps)
+        X[1:-1, 1:-1] = (1 - omega) * I + omega * new
+    return X
+
+
+def tfi_fill(result, edge_samples, WL, WR, pitch, seam_tol=0.01, smooth=True):
+    """Coons patch per block from the canonical per-edge samples, then optional
+    Thomas-Middlecoff elliptic smoothing (``smooth``) to untangle the strong
+    blade boundary-layer clustering. Cell counts solved conforming
+    (solve_edge_divisions), so a block side is ALWAYS the concatenation of its
+    edge samples -- grid points are identical across every block edge and
+    across the periodic seam (smoothing keeps block boundaries fixed)."""
     e2s = result["e2s"]
 
     def _edge_s(a, b):
@@ -942,6 +1042,8 @@ def tfi_fill(result, edge_samples, WL, WR, pitch, seam_tol=0.01):
         N = samp[2][::-1]                 # side2: c2->c3, Coons wants c3->c2
         W = samp[3][::-1]                 # side3: c3->c0, Coons wants c0->c3
         X = _coons(S, N, W, E)
+        if smooth:
+            X = _tm_smooth(X)
         inv, tot = _inverted_cells(X)
         n_inv += inv
         n_cells += tot
@@ -1072,6 +1174,16 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
             d = min(d, tmf._dist_to_polyline(p, np.asarray(bl, float)))
         return d
 
+    def _blade_dist(p):
+        """Distance to the BLADE only (CFD wall). Inlet/outlet at t=0/1 are NOT
+        included, so only edges reaching the blade get boundary-layer
+        clustering; inlet/outlet edges stay uniform."""
+        p = np.asarray(p, float)
+        d = np.inf
+        for bl in mesh.blade_loops:
+            d = min(d, tmf._dist_to_polyline(p, np.asarray(bl, float)))
+        return d
+
     resample_coarse_separatrices(sl.mesh)
     merging = StreamlineMerging(sl.mesh, verbose=False)
     splitter = StreamlineIntersectionSplitter(offset_boundingBox=0.05,
@@ -1095,13 +1207,17 @@ def run_tmesh(stl=STL, out_dir=OUT, verbose=True, make_plots=True,
     n_shared, edge_dev, ratio, n_walledges = 0, None, None, 0
     if seam_info and result["blocks"]:
         seam_pairs = find_seam_edge_pairs(result, WL, WR, pitch)
-        divisions = solve_edge_divisions(result, seam_pairs)
-        edge_samples = build_edge_samples(result, divisions, _nonper_dist,
-                                          seam_pairs, pitch)
+        bl_edges = blade_normal_edges(result, _blade_dist, seam_pairs)
+        min_cells = {k: BLADE_NORMAL_CELLS for k in bl_edges}
+        divisions = solve_edge_divisions(result, seam_pairs,
+                                         min_cells=min_cells)
+        edge_samples = build_edge_samples(result, divisions, _blade_dist,
+                                          seam_pairs, pitch,
+                                          ratio=BLADE_CLUSTER_RATIO)
         tfi = tfi_fill(result, edge_samples, WL, WR, pitch)
         n_shared, edge_dev = check_edge_conformity(result, edge_samples)
         ratio, n_walledges = wall_cell_ratio(tfi, edge_samples, result,
-                                             _nonper_dist)
+                                             _blade_dist)
 
     # block-corner seam conformity (block corners on the seams, mod pitch)
     corner_dev, corner_lr = None, (0, 0)

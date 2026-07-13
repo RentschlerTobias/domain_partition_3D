@@ -1140,6 +1140,51 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05, end_frac=0.3
                            _set_hausdorff(a, b + np.array([k * pitchn, 0.0])))
         return best
 
+    sing_node_ids = [k for k in range(len(nodes))
+                     if (k % n_nodes0 if n_nodes0 else k) < n_sing]
+
+    def _snap_sing(p):
+        # central id of the field singularity within `radius` of p, else None
+        best, bid = radius, None
+        for k in sing_node_ids:
+            d = float(np.linalg.norm(nodes[k] - p))
+            if d < best:
+                best, bid = d, k % n_nodes0 if n_nodes0 else k
+        return bid
+
+    def _ends_match(a, b, loose=0.06):
+        # Duplicates of one physical curve must share their endpoints (either
+        # orientation, modulo the pitch). Exact case: both ends within the
+        # snap radius. Cluster-wrap case (comment above): one end tight, the
+        # other pair up to a tip-cluster spread apart -- legitimate only when
+        # those two ends sit on two DIFFERENT singularities that also differ
+        # from the tight end, i.e. the same wrap snapped to different
+        # cluster-neighbours. Two arms of different singularities converging
+        # onto a shared tail (or a stub next to a through-arm) fail this:
+        # after point-snap truncation the endpoints encode arm ownership.
+        shifts = [0.0]
+        if tiled:
+            k_c = int(round((a[:, 0].mean() - b[:, 0].mean()) / pitchn))
+            shifts = [k * pitchn for k in {k_c - 1, k_c, k_c + 1}]
+        for sh in shifts:
+            b0, b1 = b[0] + np.array([sh, 0.0]), b[-1] + np.array([sh, 0.0])
+            for p, q in ((b0, b1), (b1, b0)):
+                d0 = np.linalg.norm(a[0] - p)
+                d1 = np.linalg.norm(a[-1] - q)
+                if d0 < radius and d1 < radius:
+                    return True
+                if d0 < radius and d1 < loose:
+                    tight, la, lb = a[0], a[-1], q
+                elif d1 < radius and d0 < loose:
+                    tight, la, lb = a[-1], a[0], p
+                else:
+                    continue
+                sa, sb, st = _snap_sing(la), _snap_sing(lb), _snap_sing(tight)
+                if sa is not None and sb is not None \
+                        and sa != sb and sa != st and sb != st:
+                    return True
+        return False
+
     DUP_TOL = 0.08
     # candidates: ALL separatrices. With periodic wrap the same physical curve
     # can be integrated several times in different covers: the (1,1) corner arm
@@ -1165,6 +1210,8 @@ def _snap_separatrix_endpoints(mesh, radius=0.045, bnd_radius=0.05, end_frac=0.3
                 continue
             gj = _resample(recs[j]["poly"], N_BLEND)
             if gj is None or _set_hausdorff_p(gi, gj) > DUP_TOL:
+                continue
+            if not _ends_match(gi, gj):
                 continue
             got = _got()
             exp = {k: _expected(k) for k in got}

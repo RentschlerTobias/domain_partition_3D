@@ -328,22 +328,53 @@ def showcase_integration(mesh, out_png, aspect):
 
     fig, ax = plt.subplots(figsize=(4, 6))
     ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
+    cmap = plt.cm.tab20
     for i, s in enumerate(mesh.streamlines):
         s = np.asarray(s, float)
         if s.ndim != 2 or len(s) < 2:
             continue
+        color = cmap(i % 20 / 20.0)
         if i < n_b:
-            _fold_boundary(ax, s, pitch, s_left, color="black", lw=1.5)
+            _fold_boundary(ax, s, pitch, s_left, color=color, lw=0.7,
+                           alpha=0.5, zorder=2)
         else:
             segs = fold_curve(s, pitch, s_left)
             # drop the trailing partial winding of a MAX_WRAPS-capped helix
             if segs and not _ends_ok(s[-1]):
                 segs = segs[:-1]
             for seg in segs:
-                ax.plot(seg[:, 0], seg[:, 1], color="#87CEEB", lw=1.3)
+                ax.plot(seg[:, 0], seg[:, 1], color=color, lw=2.0,
+                        alpha=1.0, zorder=5)
     ax.set_aspect(aspect)
     ax.set_axis_off()
     _save(fig, out_png)
+
+
+def _place_labels(ax, items, min_sep=0.03, zorder=6):
+    """Draw index labels while avoiding overlap: a label colliding with an
+    already-placed one is stepped outward on a ring until clear, with a thin
+    leader line back to its anchor. Non-colliding labels stay put."""
+    placed = []
+    for anchor, text, color in items:
+        pos = np.asarray(anchor, float)
+        if any(np.linalg.norm(pos - p) < min_sep for p in placed):
+            for r in np.arange(min_sep, 6 * min_sep + 1e-9, min_sep):
+                cand = None
+                for a in np.linspace(0, 2 * np.pi, 12, endpoint=False):
+                    c = pos + r * np.array([np.cos(a), np.sin(a)])
+                    if all(np.linalg.norm(c - p) >= min_sep for p in placed):
+                        cand = c
+                        break
+                if cand is not None:
+                    pos = cand
+                    break
+        if not np.allclose(pos, anchor):
+            ax.plot([anchor[0], pos[0]], [anchor[1], pos[1]], lw=0.4,
+                    color="0.6", zorder=zorder - 1)
+        ax.text(pos[0], pos[1], text, fontsize=7, color=color, ha="center",
+                va="center", bbox=dict(boxstyle="round,pad=0.15",
+                facecolor="white", edgecolor="none", alpha=0.7), zorder=zorder)
+        placed.append(pos)
 
 
 def showcase_integration_labeled(mesh, out_png, aspect):
@@ -361,6 +392,7 @@ def showcase_integration_labeled(mesh, out_png, aspect):
     ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
 
     cmap = plt.cm.tab20
+    labels = []
     for i, s in enumerate(mesh.streamlines):
         s = np.asarray(s, float)
         if s.ndim != 2 or len(s) < 2:
@@ -383,12 +415,8 @@ def showcase_integration_labeled(mesh, out_png, aspect):
         if segs:
             longest = max(segs, key=len)
             mid = longest[len(longest) // 2]
-            ax.text(mid[0], mid[1], str(i), fontsize=7,
-                    color="black" if i >= n_b else "0.4",
-                    ha="center", va="center",
-                    bbox=dict(boxstyle="round,pad=0.15", facecolor="white",
-                              edgecolor="none", alpha=0.7),
-                    zorder=zorder + 1)
+            labels.append((mid, str(i), "black" if i >= n_b else "0.4"))
+    _place_labels(ax, labels, zorder=6)
 
     sing_cmap = plt.cm.tab10
     for si, (name, data) in enumerate(get_singularities(mesh).items()):
@@ -403,6 +431,112 @@ def showcase_integration_labeled(mesh, out_png, aspect):
     ax.set_axis_off()
     ax.legend(loc="upper left", fontsize=8)
     _save(fig, out_png)
+
+
+def showcase_separatrices_per_singularity(mesh, out_dir, aspect, part="",
+                                           tol=0.03, streamlines=None):
+    """One labeled plot per singularity: every separatrix incident on it --
+    outgoing (originating there, solid) and incoming (terminating there,
+    dashed) -- seam-folded, colored per arm with index labels, over the faint
+    domain and boundary. Star marks the singularity; the legend lists which
+    indices are outgoing and which incoming. Written to
+    ``out_dir/S{k}_separatrices.png``.
+
+    Separatrices come from ``mesh.streamlines`` by default; pass
+    ``streamlines`` (e.g. StreamlineMerging.new_streamlines) to plot that
+    list instead, with incidence judged by endpoint proximity."""
+    from matplotlib.lines import Line2D
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    pitch = mesh.pitch_norm
+    s_left = _seam_left_fn(mesh)
+    n_b = len(mesh.streamlines) - len(mesh.separatrices)
+    _ends_ok = _ends_ok_fn(mesh)
+    xy = mesh.x[:, 0:2].numpy()
+    tris = mesh.faces.T.numpy()
+    sings = get_singularities(mesh)
+    sing_cmap = plt.cm.tab10
+    arm_cmap = plt.cm.tab20
+
+    # separatrix endpoints (cover coords) to find arms terminating at a
+    # singularity, judged modulo the pitch since an arm may dock across a seam
+    def _near(p, q):
+        for k in range(-ps.MAX_WRAPS, ps.MAX_WRAPS + 1):
+            if np.linalg.norm((np.asarray(p, float) - [k * pitch, 0.0]) - q) \
+                    < tol:
+                return True
+        return False
+
+    if streamlines is not None:
+        curves = {i: np.asarray(s, float) for i, s in enumerate(streamlines)}
+    else:
+        curves = {n_b + i: np.asarray(mesh.streamlines[n_b + i], float)
+                  for i in range(len(mesh.separatrices))}
+
+    for si, (name, data) in enumerate(sings.items()):
+        c = data["coords"]
+        if streamlines is not None:
+            outgoing = [i for i, s in curves.items()
+                        if s.ndim == 2 and len(s) >= 2 and _near(s[0], c)]
+            incoming = [i for i, s in curves.items()
+                        if s.ndim == 2 and len(s) >= 2
+                        and i not in outgoing and _near(s[-1], c)]
+        else:
+            outgoing = list(data["sep_indices"])
+            incoming = []
+            for idx, s in curves.items():
+                if idx in outgoing:
+                    continue
+                if s.ndim != 2 or len(s) < 2:
+                    continue
+                if _near(s[-1], c) or _near(s[0], c):
+                    incoming.append(idx)
+
+        fig, ax = plt.subplots(figsize=(6, 9))
+        ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
+        for i in range(n_b):
+            b = np.asarray(mesh.streamlines[i], float)
+            if b.ndim == 2 and len(b) >= 2:
+                _fold_boundary(ax, b, pitch, s_left, color="0.75", lw=0.6,
+                               alpha=0.6, zorder=1)
+
+        labels = []
+        for group, style, trim in ((outgoing, "-", True),
+                                   (incoming, (0, (4, 2)), False)):
+            for j, idx in enumerate(group):
+                s = curves[idx]
+                if s.ndim != 2 or len(s) < 2:
+                    continue
+                color = arm_cmap(j % 20 / 20.0)
+                segs = fold_curve(s, pitch, s_left)
+                if trim and segs and not _ends_ok(s[-1]):
+                    segs = segs[:-1]
+                for seg in segs:
+                    ax.plot(seg[:, 0], seg[:, 1], color=color, lw=2.0,
+                            ls=style, zorder=5)
+                if segs:
+                    longest = max(segs, key=len)
+                    labels.append((longest[len(longest) // 2], str(idx),
+                                   "black"))
+        _place_labels(ax, labels, zorder=6)
+
+        ax.scatter(c[0], c[1], c=[sing_cmap(si % 10)], s=220, marker="*",
+                   zorder=8, edgecolors="black", linewidths=0.9,
+                   label=f"{name} ({c[0]:.3f}, {c[1]:.3f})")
+        out_txt = ", ".join(str(i) for i in outgoing) or "none"
+        in_txt = ", ".join(str(i) for i in incoming) or "none"
+        handles = [Line2D([], [], color="0.3", lw=2.0, ls="-",
+                          label=f"outgoing: {out_txt}"),
+                   Line2D([], [], color="0.3", lw=2.0, ls=(0, (4, 2)),
+                          label=f"incoming: {in_txt}")]
+        ax.set_aspect(aspect)
+        ax.set_axis_off()
+        h0, l0 = ax.get_legend_handles_labels()
+        ax.legend(h0 + handles, l0 + [h.get_label() for h in handles],
+                  loc="upper left", fontsize=8)
+        stem = f"{part}_{name}" if part else name
+        _save(fig, out_dir / f"{stem}_separatrices.png")
 
 
 # --------------------------------------------------------------------------
@@ -433,12 +567,14 @@ def showcase_simplification(mesh, merged_streamlines, wedge_arms, out_png,
 
     fig, ax = plt.subplots(figsize=(4, 6))
     ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
-    for s in merged_streamlines:
+    cmap = plt.cm.tab20
+    for i, s in enumerate(merged_streamlines):
         s = np.asarray(s, float)
         if s.ndim != 2 or len(s) < 2:
             continue
+        color = cmap(i % 20 / 20.0)
         for seg in fold_curve(s, pitch, s_left):
-            ax.plot(seg[:, 0], seg[:, 1], color="#87CEEB", lw=1.3, zorder=2)
+            ax.plot(seg[:, 0], seg[:, 1], color=color, lw=1.6, zorder=5)
     for b in boundary:
         b = np.asarray(b, float)
         if b.ndim != 2 or len(b) < 2:
@@ -449,7 +585,7 @@ def showcase_simplification(mesh, merged_streamlines, wedge_arms, out_png,
         if arm.ndim != 2 or len(arm) < 2:
             continue
         for seg in fold_curve(arm, pitch, s_left):
-            ax.plot(seg[:, 0], seg[:, 1], "--", color="darkorange",
+            ax.plot(seg[:, 0], seg[:, 1], ":", color="red",
                     lw=2.0, zorder=7)
     ax.set_aspect(aspect)
     ax.set_axis_off()
@@ -478,6 +614,7 @@ def showcase_simplification_labeled(mesh, merged_streamlines, wedge_arms,
                        zorder=2)
 
     cmap = plt.cm.tab20
+    labels = []
     for i, s in enumerate(merged_streamlines):
         s = np.asarray(s, float)
         if s.ndim != 2 or len(s) < 2:
@@ -489,10 +626,8 @@ def showcase_simplification_labeled(mesh, merged_streamlines, wedge_arms,
         if segs:
             longest = max(segs, key=len)
             mid = longest[len(longest) // 2]
-            ax.text(mid[0], mid[1], str(i), fontsize=7, color="black",
-                    ha="center", va="center",
-                    bbox=dict(boxstyle="round,pad=0.15", facecolor="white",
-                              edgecolor="none", alpha=0.7), zorder=6)
+            labels.append((mid, str(i), "black"))
+    _place_labels(ax, labels, zorder=6)
 
     for arm in wedge_arms:
         arm = np.asarray(arm, float)
@@ -535,11 +670,13 @@ def showcase_postprocessing(run, out_png, aspect):
     fig, ax = plt.subplots(figsize=(4, 6))
     ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
 
-    for blk in result["blocks"]:
+    cmap = plt.cm.tab20
+    for i, blk in enumerate(result["blocks"]):
         ring = blk["ring"]
-        ax.fill(ring[:, 0], ring[:, 1], alpha=0.12, color="#87CEEB")
+        color = cmap(i % 20 / 20.0)
+        ax.fill(ring[:, 0], ring[:, 1], alpha=0.25, color=color)
         for s in blk["sides"]:
-            ax.plot(s[:, 0], s[:, 1], color="#3aa6d0", lw=1.1, zorder=3)
+            ax.plot(s[:, 0], s[:, 1], color=color, lw=1.1, zorder=3)
         c = nodes[blk["corners"]]
         ax.scatter(c[:, 0], c[:, 1], c="black", s=10, zorder=5)
 
@@ -614,6 +751,11 @@ def showcase_postprocessing_labeled(run, out_png, aspect):
 def showcase_tfi(tfi, result, out_png, aspect):
     """step10: TFI grid (ta/tb only)."""
     fig, ax = plt.subplots(figsize=(4, 6))
+    cmap = plt.cm.tab20
+    for i, blk in enumerate(result["blocks"]):
+        ring = blk["ring"]
+        color = cmap(i % 20 / 20.0)
+        ax.fill(ring[:, 0], ring[:, 1], alpha=0.25, color=color)
     for X in tfi["grids"]:
         for i in range(X.shape[0]):
             ax.plot(X[i, :, 0], X[i, :, 1], "0.4", lw=0.3)
@@ -726,11 +868,17 @@ def write_plots(stl, part, runs, out_dir):
         aspect)
 
     ps._snap_separatrix_endpoints(sl.mesh, radius=0.045)
+    showcase_separatrices_per_singularity(
+        sl.mesh, out_dir / "separatrices", aspect, part=part)
     merging = StreamlineMerging(sl.mesh, verbose=False)
     merged = [np.asarray(s, float) for s in merging.new_streamlines]
 
     for method, run in runs.items():
         wedge_arms = getattr(run["mesh"], "dropped_wedge_arms", []) or []
+        showcase_separatrices_per_singularity(
+            run["mesh"], out_dir / "separatrices", aspect,
+            part=f"{part}_{method}_post",
+            streamlines=run["merging"].new_streamlines)
         showcase_simplification(
             sl.mesh, merged, wedge_arms,
             out_dir / f"step08_simplification_{part}_{method}.png", aspect)

@@ -3,6 +3,7 @@ then T-mesh block extraction -- no T-a/T-b seam postprocessing, no TFI fill.
 Used as the baseline the Ansatz-T variants are compared against."""
 
 import json
+import os
 import time
 from pathlib import Path
 
@@ -38,7 +39,7 @@ def run_xiao(stl, flat_tol_deg=15.0, verbose=True):
     ps._drop_degenerate_corner_seps(sl.mesh)
     ps._snap_separatrix_endpoints(sl.mesh, radius=0.045)
 
-    merging = StreamlineMerging(sl.mesh, verbose=False)
+    merging = StreamlineMerging(sl.mesh, verbose=bool(os.environ.get("DP3D_DEBUG")))
     splitter = StreamlineIntersectionSplitter(offset_boundingBox=0.05,
                                               num_samples=5)
     updated = splitter.process_streamlines(merging.new_streamlines)

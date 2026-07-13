@@ -24,6 +24,7 @@ pitch by itself; only the block stage treats the seam as a wall:
 """
 
 import json
+import os
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -1159,7 +1160,7 @@ def run_tmesh(stl, out_dir, verbose=True,
         return d
 
     resample_coarse_separatrices(sl.mesh)
-    merging = StreamlineMerging(sl.mesh, verbose=False)
+    merging = StreamlineMerging(sl.mesh, verbose=bool(os.environ.get("DP3D_DEBUG")))
     splitter = StreamlineIntersectionSplitter(offset_boundingBox=0.05,
                                               num_samples=5)
     updated = splitter.process_streamlines(merging.new_streamlines)
@@ -1255,4 +1256,5 @@ def run_tmesh(stl, out_dir, verbose=True,
     return {"metrics": metrics, "result": result, "tfi": tfi, "mesh": mesh,
             "seam_info": seam_info, "boundary_ref": boundary_ref,
             "edge_samples": edge_samples, "divisions": divisions,
-            "transform": transform, "seam_pairs": seam_pairs}
+            "transform": transform, "seam_pairs": seam_pairs,
+            "merging": merging}

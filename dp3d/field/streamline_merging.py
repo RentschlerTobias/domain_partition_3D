@@ -169,7 +169,8 @@ class StreamlineMerging:
                             print(f'[Case 3] Streamline {best_match_id} passes earlier singularity {target_sing_id} '
                                   f'(idx={min_idx}, dist={min_distance:.6f}) before current end {current_sing_id} '
                                   f'(idx={min_idx_current})')
-                        # Altes Ende entfernen
+                        # Altes Ende entfernen; der Rest hinter dem
+                        # Schnittpunkt wird verworfen
                         if best_match_id in Singularities[current_sing_id]["streamline_in"]:
                             Singularities[current_sing_id]["streamline_in"].remove(best_match_id)
                         # Neues Ende setzen
@@ -271,16 +272,17 @@ class StreamlineMerging:
                     angle_diff = abs(angle_in_j - angle_out_i)
                     angle_diff = min(angle_diff, 2 * np.pi - angle_diff)
 
+                    # Same-arm pairs are anti-parallel at s_c (diff ~ pi);
+                    # a parallel pair is the opposite arm, never a match.
                     valence = len(gamma_out)
-                    if valence == 3:
-                        valid = (2 * np.pi / 3 <= angle_diff <= 4 * np.pi / 3)
-                    elif valence == 5:
+                    if valence == 5:
                         valid = (4 * np.pi / 5 <= angle_diff <= 6 * np.pi / 5)
                     else:
-                        valid = True
+                        valid = (2 * np.pi / 3 <= angle_diff <= 4 * np.pi / 3)
 
-                    if valid and angle_diff < best_angle_diff:
-                        best_angle_diff = angle_diff
+                    score = abs(angle_diff - np.pi)
+                    if valid and score < best_angle_diff:
+                        best_angle_diff = score
                         best_match = sl_i
 
                 if best_match is None:
@@ -334,6 +336,20 @@ class StreamlineMerging:
                     _remove_streamline(sl_j)
 
                 else:
+                    gamma_i_coords = SL[best_match]["coords"]
+                    s_j_coords = SG[s_j]["coords"]
+
+                    # Project s_j onto gamma_i: find closest point
+                    distances = torch.linalg.norm(
+                        gamma_i_coords - s_j_coords.unsqueeze(0), dim=1
+                    )
+                    min_idx = int(torch.argmin(distances))
+
+                    # Case 2/3 only applies when s_j actually lies on
+                    # gamma_i; splitting at a far projection fabricates arms.
+                    if float(distances[min_idx]) >= 0.1:
+                        continue
+
                     endpoint_pair = frozenset({s_c, s_j})
                     if endpoint_pair in processed_endpoint_pairs:
                         if self.verbose:
@@ -344,18 +360,9 @@ class StreamlineMerging:
                     if self.verbose:
                         print(f"  [Case 2/3] S{s_c}: sl {best_match} (S{s_c}->S{s_i}) + sl {sl_j} (S{s_j}->S{s_c})")
 
-                    gamma_i_coords = SL[best_match]["coords"]
-                    s_j_coords = SG[s_j]["coords"]
-
-                    # Project s_j onto gamma_i: find closest point
-                    distances = torch.linalg.norm(
-                        gamma_i_coords - s_j_coords.unsqueeze(0), dim=1
-                    )
-                    min_idx = int(torch.argmin(distances))
-
-                    # Split gamma_i into two parts at projection point
+                    # Split gamma_i at the projection point; the part beyond
+                    # it (projection -> s_i) is discarded
                     gamma_i1 = gamma_i_coords[:min_idx + 1, :].clone()   # s_c -> projection
-                    gamma_i2 = gamma_i_coords[min_idx:, :].clone()         # projection -> s_i
 
                     # Merge gamma_i1 (which now effectively ends at s_j) with gamma_j
                     merged = self.interpolate_streamlines(
@@ -373,29 +380,6 @@ class StreamlineMerging:
                     }
                     SG[s_c]["streamline_out"].append(next_id)
                     SG[s_j]["streamline_in"].append(next_id)
-                    next_id += 1
-
-                    if len(gamma_i2) > 1:
-                        dx = gamma_i2[1, 0] - gamma_i2[0, 0]
-                        dy = gamma_i2[1, 1] - gamma_i2[0, 1]
-                        angle_out_i2 = torch.atan2(dy, dx)
-                    else:
-                        angle_out_i2 = SL[best_match]["angle_out"]
-
-                    dx_in = gamma_i2[-1, 0] - gamma_i2[-2, 0] if len(gamma_i2) > 1 else 0
-                    dy_in = gamma_i2[-1, 1] - gamma_i2[-2, 1] if len(gamma_i2) > 1 else 0
-                    angle_in_i2 = torch.atan2(dy_in, dx_in) if len(gamma_i2) > 1 else SL[best_match]["angle_in"]
-
-                    SL[next_id] = {
-                        "coords": gamma_i2,
-                        "singularity_out": s_j,
-                        "singularity_in": s_i,
-                        "is_boundary": False,
-                        "angle_out": angle_out_i2,
-                        "angle_in": angle_in_i2
-                    }
-                    SG[s_j]["streamline_out"].append(next_id)
-                    SG[s_i]["streamline_in"].append(next_id)
                     next_id += 1
 
                     _remove_streamline(best_match)
@@ -573,20 +557,28 @@ class StreamlineMerging:
             if expected is None:
                 continue
 
-            min_len = 10
+            # Count separatrices by distinct direction, not by length (Kowalski
+            # et al.): a genuine separatrix that terminates early on a nearby
+            # singularity is a short polyline but a real arm, so a length cutoff
+            # would drop it and fabricate a spurious "missing". Arms sharing a
+            # direction (a stub duplicating a longer arm, or a split fragment)
+            # collapse to one.
             all_ids = s_data["streamline_in"] + s_data["streamline_out"]
-            non_degenerate = [sl_id for sl_id in all_ids if len(SL[sl_id]["coords"]) >= min_len]
-            actual = len(non_degenerate)
+            distinct = self._distinct_direction_arms(SL, s_idx, all_ids)
+            actual = len(distinct)
             missing = expected - actual
             if missing <= 0:
                 continue
 
             if self.verbose:
-                print(f"  [Post-merge check] S{s_idx}: expected={expected}, "
-                      f"actual={actual} (non-degenerate), missing={missing}")
+                _c = SG[s_idx]["coords"]
+                print(f"  [Post-merge check] S{s_idx} at "
+                      f"({float(_c[0]):.3f}, {float(_c[1]):.3f}): "
+                      f"expected={expected}, actual={actual} "
+                      f"(distinct directions), missing={missing}")
 
-            current_targets = self._singularity_targets(SL, s_idx, non_degenerate)
-            angles = self._singularity_streamline_angles(SL, s_idx, non_degenerate)
+            current_targets = self._singularity_targets(SL, s_idx, distinct)
+            angles = self._singularity_streamline_angles(SL, s_idx, distinct)
             inserted = 0
             attempts = 0
             while inserted < missing and attempts < 5:
@@ -636,7 +628,14 @@ class StreamlineMerging:
                 current_targets.add(target)
                 inserted += 1
                 if self.verbose:
-                    print(f"    -> inserted new streamline {new_id} to target {target}, len={len(new_sl)}")
+                    _t = SG[target]["coords"] if target is not None else None
+                    _ts = (f"({float(_t[0]):.3f}, {float(_t[1]):.3f})"
+                           if _t is not None else "None")
+                    _e = new_sl[-1]
+                    print(f"    -> inserted new streamline {new_id} from S{s_idx} "
+                          f"to target S{target} {_ts}, gap_mid={gap_mid:.2f} rad, "
+                          f"end=({float(_e[0]):.3f}, {float(_e[1]):.3f}), "
+                          f"len={len(new_sl)}")
 
     def _singularity_targets(self, SL, s_idx, sl_ids):
         """Return the set of target singularity indices for streamlines at s_idx."""
@@ -659,10 +658,10 @@ class StreamlineMerging:
         for sl_id, sl_data in original_Streamlines.items():
             if sl_data["singularity_out"] == s_idx:
                 target = sl_data["singularity_in"]
-                other_end = sl_data["coords"][0]
+                other_end = sl_data["coords"][-1]
             elif sl_data["singularity_in"] == s_idx:
                 target = sl_data["singularity_out"]
-                other_end = sl_data["coords"][-1]
+                other_end = sl_data["coords"][0]
             else:
                 continue
             if target == s_idx or target in current_targets:
@@ -684,23 +683,47 @@ class StreamlineMerging:
             return coords, target, float(np.arctan2(coords[1, 1] - coords[0, 1],
                                                     coords[1, 0] - coords[0, 0]))
 
-        probe = singularity_coords + 0.001 * direction
-        face_idx = self._find_containing_face(probe, mesh)
-        if face_idx is None:
-            return None
-        best_dir, _ = self._get_best_cross_vector(probe, direction, mesh, face_idx)
+        # Pick the initial arm in a well-defined field region: the cross field is
+        # degenerate right at the singularity, so a 0.001 probe can seed the wrong
+        # branch. Sample a bit further out along the gap and take the cross arm
+        # aligned with it, then integrate from close to the singularity so the arm
+        # still attaches there.
+        best_dir = None
+        for off in (0.02, 0.012, 0.006, 0.001):
+            sample = singularity_coords + off * direction
+            f = self._find_containing_face(sample, mesh)
+            if f is not None:
+                best_dir, _ = self._get_best_cross_vector(sample, direction, mesh, f)
+                break
         if best_dir is None:
             return None
+        probe = singularity_coords + 0.001 * direction
+        if self._find_containing_face(probe, mesh) is None:
+            return None
         new_sl = self._integrate_streamline(probe, best_dir, mesh)
+
+        # Truncate at the first singularity the arm passes: a separatrix
+        # terminates there, it must not integrate through onto a later one.
+        arr = np.asarray(new_sl)
+        cut = None
+        for t_idx, t_data in SG.items():
+            if t_idx == s_idx:
+                continue
+            d = np.linalg.norm(arr - t_data["coords"].numpy(), axis=1)
+            hits = np.nonzero(d < 0.05)[0]
+            if len(hits) and (cut is None or hits[0] < cut):
+                cut = int(hits[0])
+        if cut is not None:
+            new_sl = arr[:cut + 1]
         if len(new_sl) < 10:
             return None
 
+        # Accept the nearest singularity to the endpoint -- including a boundary
+        # singularity: a separatrix legitimately terminates on the boundary.
         end = new_sl[-1]
         target = None
         min_dist = float('inf')
         for t_idx, t_data in SG.items():
-            if t_data["is_boundary"]:
-                continue
             dist = float(np.linalg.norm(t_data["coords"].numpy() - end))
             if dist < min_dist and dist < 0.05:
                 min_dist = dist
@@ -711,6 +734,39 @@ class StreamlineMerging:
         new_angle = float(torch.atan2(best_dir[1], best_dir[0]))
         return new_sl, target, new_angle
 
+    def _distinct_direction_arms(self, SL, s_idx, sl_ids, tol_deg=15.0):
+        """Representative streamline ids, one per distinct separatrix direction
+        at s_idx. Arms whose tangent at the singularity differ by < tol_deg are
+        the same separatrix; the longest is kept so a genuine short arm survives
+        while a duplicating stub or split fragment collapses onto it."""
+        tol = np.radians(tol_deg)
+        arms = []
+        for sl_id in sl_ids:
+            sl_data = SL[sl_id]
+            coords = sl_data["coords"]
+            if len(coords) < 2:
+                continue
+            # arm direction pointing away from s_idx for both orientations,
+            # so opposite rays stay distinct and same rays collapse
+            if sl_data["singularity_out"] == s_idx:
+                dx = coords[1, 0] - coords[0, 0]
+                dy = coords[1, 1] - coords[0, 1]
+            elif sl_data["singularity_in"] == s_idx:
+                dx = coords[-2, 0] - coords[-1, 0]
+                dy = coords[-2, 1] - coords[-1, 1]
+            else:
+                continue
+            arms.append((len(coords), float(torch.atan2(dy, dx)), sl_id))
+
+        arms.sort(reverse=True)   # longest first -> cluster representative
+        reps = []
+        for _len, ang, sl_id in arms:
+            if any(abs((ang - r_ang + np.pi) % (2 * np.pi) - np.pi) < tol
+                   for r_ang, _ in reps):
+                continue
+            reps.append((ang, sl_id))
+        return [sl_id for _, sl_id in reps]
+
     def _singularity_streamline_angles(self, SL, s_idx, sl_ids):
         """Collect angles of the given streamlines at the singularity end touching s_idx."""
         angles = []
@@ -719,13 +775,14 @@ class StreamlineMerging:
             coords = sl_data["coords"]
             if len(coords) < 2:
                 continue
+            # outward-pointing direction at s_idx for both orientations
             if sl_data["singularity_out"] == s_idx:
                 dx = coords[1, 0] - coords[0, 0]
                 dy = coords[1, 1] - coords[0, 1]
                 angles.append(float(torch.atan2(dy, dx)))
             elif sl_data["singularity_in"] == s_idx:
-                dx = coords[-1, 0] - coords[-2, 0]
-                dy = coords[-1, 1] - coords[-2, 1]
+                dx = coords[-2, 0] - coords[-1, 0]
+                dy = coords[-2, 1] - coords[-1, 1]
                 angles.append(float(torch.atan2(dy, dx)))
         return angles
 

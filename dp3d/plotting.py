@@ -114,6 +114,58 @@ def _fold_streamline_unique(s, pitch, s_left, _ends_ok=None,
     return segs
 
 
+def _on_seam(s, pitch, s_left, eps=0.02):
+    """True when every point of the curve lies within eps of a periodic seam
+    (u = 0 mod pitch). Such a curve duplicates the seam boundary and is not
+    drawn as a colored streamline."""
+    s = np.asarray(s, float)
+    u = (s[:, 0] - s_left(s[:, 1])) % pitch
+    return bool(np.all(np.minimum(u, pitch - u) < eps))
+
+
+def _streamline_segs(s, pitch, s_left, _ends_ok=None,
+                     trim_trailing_partial=False, eps=0.02):
+    """Drawable segments of a streamline, kept inside the fundamental column.
+
+    A curve that essentially lives in one pitch column (s-extent <= 1.5
+    pitch) is drawn in its dominant column as one continuous curve: a small
+    spill across a seam is clipped at the seam, NOT re-inserted at the
+    opposite side. Only genuine multi-wrap curves (spirals) fall back to
+    seam folding, where every winding runs seam-to-seam."""
+    s = np.asarray(s, float)
+    u = s[:, 0] - s_left(s[:, 1])
+    if u.max() - u.min() > 1.5 * pitch:
+        return _fold_streamline_unique(
+            s, pitch, s_left, _ends_ok=_ends_ok,
+            trim_trailing_partial=trim_trailing_partial)
+    k0 = int(np.floor(np.median(u) / pitch))
+    uc = u - k0 * pitch
+    pts = s.copy()
+    pts[:, 0] = s_left(s[:, 1]) + np.clip(uc, 0.0, pitch)
+    ins = (uc > -eps) & (uc < pitch + eps)
+
+    def _cross(i, bound):
+        f = (bound - uc[i - 1]) / (uc[i] - uc[i - 1] + 1e-30)
+        p = s[i - 1] + np.clip(f, 0.0, 1.0) * (s[i] - s[i - 1])
+        p = p.copy()
+        p[0] -= k0 * pitch
+        return p
+
+    segs, cur = [], []
+    for i in range(len(pts)):
+        if ins[i]:
+            if not cur and i > 0 and not ins[i - 1]:
+                cur.append(_cross(i, 0.0 if uc[i - 1] < 0 else pitch))
+            cur.append(pts[i])
+        elif cur:
+            cur.append(_cross(i, 0.0 if uc[i] < 0 else pitch))
+            segs.append(np.asarray(cur))
+            cur = []
+    if cur:
+        segs.append(np.asarray(cur))
+    return [g for g in segs if len(g) >= 2]
+
+
 def _dedup_pitch_shifted(streamlines, pitch, max_wraps=ps.MAX_WRAPS,
                           tol=0.12):
     """Deduplicate streamlines that are pitch-shifted copies of each other.
@@ -437,13 +489,13 @@ def showcase_integration(mesh, out_png, aspect):
         s = np.asarray(s, float)
         if s.ndim != 2 or len(s) < 2:
             continue
-        color = cmap(i % 20 / 20.0)
         if i < n_b:
-            _fold_boundary(ax, s, pitch, s_left, color=color, lw=0.7,
-                           alpha=0.5, zorder=2)
+            _fold_boundary(ax, s, pitch, s_left, color="black", lw=1.0,
+                           zorder=2)
         else:
-            segs = _fold_streamline_unique(s, pitch, s_left, _ends_ok=_ends_ok,
-                                           trim_trailing_partial=True)
+            color = cmap(i % 20 / 20.0)
+            segs = _streamline_segs(s, pitch, s_left, _ends_ok=_ends_ok,
+                                    trim_trailing_partial=True)
             for seg in segs:
                 ax.plot(seg[:, 0], seg[:, 1], color=color, lw=2.0,
                         alpha=1.0, zorder=5)
@@ -499,9 +551,8 @@ def showcase_integration_labeled(mesh, out_png, aspect):
         s = np.asarray(s, float)
         if s.ndim != 2 or len(s) < 2:
             continue
-        color = cmap(i % 20 / 20.0)
-        lw = 2.0 if i >= n_b else 0.7
-        alpha = 1.0 if i >= n_b else 0.5
+        color = cmap(i % 20 / 20.0) if i >= n_b else "black"
+        lw = 2.0 if i >= n_b else 1.0
         zorder = 5 if i >= n_b else 2
         # open boundary walls stay as-is (folding would shift them off-domain);
         # separatrices and closed orbits are seam-folded
@@ -509,13 +560,12 @@ def showcase_integration_labeled(mesh, out_png, aspect):
             segs = [s]
         else:
             if i >= n_b:
-                segs = _fold_streamline_unique(s, pitch, s_left, _ends_ok=_ends_ok,
-                                               trim_trailing_partial=True)
+                segs = _streamline_segs(s, pitch, s_left, _ends_ok=_ends_ok,
+                                        trim_trailing_partial=True)
             else:
                 segs = fold_curve(s, pitch, s_left)
         for seg in segs:
-            ax.plot(seg[:, 0], seg[:, 1], color=color, lw=lw, alpha=alpha,
-                    zorder=zorder)
+            ax.plot(seg[:, 0], seg[:, 1], color=color, lw=lw, zorder=zorder)
         if segs:
             longest = max(segs, key=len)
             mid = longest[len(longest) // 2]
@@ -529,7 +579,7 @@ def showcase_integration_labeled(mesh, out_png, aspect):
                    zorder=8, edgecolors="black", linewidths=0.8,
                    label=f"{name} ({c[0]:.3f}, {c[1]:.3f})")
 
-    ax.plot([], [], "-", color="0.5", lw=0.7, alpha=0.5, label="boundary")
+    ax.plot([], [], "-", color="black", lw=1.0, label="boundary")
     ax.plot([], [], "-", color="0.3", lw=2.0, label="separatrix")
     ax.set_aspect(aspect)
     ax.set_axis_off()
@@ -677,8 +727,10 @@ def showcase_simplification(mesh, merged_streamlines, wedge_arms, out_png,
         s = np.asarray(s, float)
         if s.ndim != 2 or len(s) < 2:
             continue
+        if _on_seam(s, pitch, s_left):
+            continue
         color = cmap(i % 20 / 20.0)
-        for seg in _fold_streamline_unique(s, pitch, s_left):
+        for seg in _streamline_segs(s, pitch, s_left):
             ax.plot(seg[:, 0], seg[:, 1], color=color, lw=1.6, zorder=5)
     for b in boundary:
         b = np.asarray(b, float)
@@ -717,8 +769,7 @@ def showcase_simplification_labeled(mesh, merged_streamlines, wedge_arms,
         b = np.asarray(b, float)
         if b.ndim != 2 or len(b) < 2:
             continue
-        _fold_boundary(ax, b, pitch, s_left, color="0.5", lw=0.7, alpha=0.5,
-                       zorder=2)
+        _fold_boundary(ax, b, pitch, s_left, color="black", lw=1.0, zorder=2)
 
     cmap = plt.cm.tab20
     labels = []
@@ -727,8 +778,10 @@ def showcase_simplification_labeled(mesh, merged_streamlines, wedge_arms,
         s = np.asarray(s, float)
         if s.ndim != 2 or len(s) < 2:
             continue
+        if _on_seam(s, pitch, s_left):
+            continue
         color = cmap(i % 20 / 20.0)
-        segs = _fold_streamline_unique(s, pitch, s_left)
+        segs = _streamline_segs(s, pitch, s_left)
         for seg in segs:
             ax.plot(seg[:, 0], seg[:, 1], color=color, lw=1.6, zorder=5)
         if segs:

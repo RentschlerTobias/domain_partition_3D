@@ -43,15 +43,17 @@ def run_xiao(stl, flat_tol_deg=15.0, verbose=True):
     splitter = StreamlineIntersectionSplitter(offset_boundingBox=0.05,
                                               num_samples=5)
     updated = splitter.process_streamlines(merging.new_streamlines)
-    gen = tmf.TMeshFaceGenerator(updated, blade_loops=list(mesh.blade_loops),
-                                 flat_tol_deg=flat_tol_deg, verbose=verbose)
-    result = gen.get_blocks()
-
     n_boundary = len(sl.mesh.streamlines) - len(sl.mesh.separatrices)
     boundary_ref = [np.asarray(s, float)
                     for s in sl.mesh.streamlines[:n_boundary]]
+    _bdist = lambda p: ps._min_boundary_dist(p, boundary_ref)
+    gen = tmf.TMeshFaceGenerator(updated, blade_loops=list(mesh.blade_loops),
+                                 flat_tol_deg=flat_tol_deg, verbose=verbose,
+                                 boundary_dist_fn=_bdist, bnd_tol=1e-3)
+    result = gen.get_blocks()
+
     _reg, tnodes, irregular = tmf.node_regularity(
-        result, lambda p: ps._min_boundary_dist(p, boundary_ref))
+        result, _bdist, classify_bnd_tol=1e-3)
     metrics = {
         "approach": "Xiao + custom clipping (no seam postprocessing)",
         "singularities": n_sing,

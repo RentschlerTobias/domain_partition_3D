@@ -104,6 +104,56 @@ def _fold_streamline_unique(s, pitch, s_left, _ends_ok=None,
     return segs
 
 
+def _dedup_pitch_shifted(streamlines, pitch, max_wraps=ps.MAX_WRAPS,
+                          tol=0.05):
+    """Deduplicate streamlines that are pitch-shifted copies of each other.
+
+    For each entry A, walks through later entries and, for each k in
+    ±1..±max_wraps, translates B by k·pitch in the s-coordinate and tests
+    via symmetric Hausdorff distance (max of the two directed Hausdorff
+    distances) whether B matches A within tol.  A bounding-box overlap pre-
+    check rejects obviously unrelated pairs cheaply.
+
+    Returns a list keeping one representative per equivalence group: the
+    earliest-indexed entry.  Stable order preserved.
+    """
+    from scipy.spatial.distance import directed_hausdorff
+
+    items = list(streamlines)
+    n = len(items)
+    keep, used = [], [False] * n
+    for i in range(n):
+        if used[i]:
+            continue
+        used[i] = True
+        keep.append(items[i])
+        A = np.asarray(items[i], float)
+        a_min, a_max = A.min(axis=0), A.max(axis=0)
+        for j in range(i + 1, n):
+            if used[j]:
+                continue
+            B = np.asarray(items[j], float)
+            b_min, b_max = B.min(axis=0), B.max(axis=0)
+            for k in range(-max_wraps, max_wraps + 1):
+                if k == 0:
+                    continue
+                ds = k * pitch
+                # bbox overlap (B shifted by ds in s)
+                if (a_min[0] - tol > b_max[0] + ds or
+                        b_min[0] + ds - tol > a_max[0] or
+                        a_min[1] - tol > b_max[1] or
+                        b_min[1] - tol > a_max[1]):
+                    continue
+                B_shift = B.copy()
+                B_shift[:, 0] += ds
+                d_ab = directed_hausdorff(A[:, :2], B_shift[:, :2])[0]
+                d_ba = directed_hausdorff(B_shift[:, :2], A[:, :2])[0]
+                if max(d_ab, d_ba) < tol:
+                    used[j] = True
+                    break
+    return keep
+
+
 def get_singularities(mesh):
     """Unique singularity positions from separatrix metadata, labeled S1..Sn
     by ascending x."""
@@ -610,7 +660,8 @@ def showcase_simplification(mesh, merged_streamlines, wedge_arms, out_png,
     fig, ax = plt.subplots(figsize=(4, 6))
     ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
     cmap = plt.cm.tab20
-    for i, s in enumerate(merged_streamlines):
+    deduped = _dedup_pitch_shifted(merged_streamlines, pitch)
+    for i, s in enumerate(deduped):
         s = np.asarray(s, float)
         if s.ndim != 2 or len(s) < 2:
             continue
@@ -657,7 +708,8 @@ def showcase_simplification_labeled(mesh, merged_streamlines, wedge_arms,
 
     cmap = plt.cm.tab20
     labels = []
-    for i, s in enumerate(merged_streamlines):
+    deduped = _dedup_pitch_shifted(merged_streamlines, pitch)
+    for i, s in enumerate(deduped):
         s = np.asarray(s, float)
         if s.ndim != 2 or len(s) < 2:
             continue

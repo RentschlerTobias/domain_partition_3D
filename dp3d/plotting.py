@@ -62,6 +62,48 @@ def fold_curve(s, pitch, s_left):
     return out
 
 
+def _fold_streamline_unique(s, pitch, s_left, _ends_ok=None,
+                            trim_trailing_partial=False,
+                            max_wraps=ps.MAX_WRAPS):
+    """Fold a streamline and deduplicate periodic closed-orbit stacked copies.
+
+    For a closed orbit wrapping |k|>=2 pitches, fold_curve emits |k| near-identical
+    stacked segments. This helper detects such orbits by endpoint match modulo
+    pitch (|Δs − k·pitch| < 0.05 AND |Δt| < 0.05, |k| >= 2) and collapses them
+    to one representative winding (the longest full segment).
+
+    |k| == 1 closed orbits are NOT collapsed: they form a single geometric loop
+    split by seam crossings, with no stacked copies to remove.
+
+    Open separatrices are preserved. If trim_trailing_partial=True and the
+    endpoint is NOT _ends_ok, the trailing partial segment is dropped (preserves
+    today's step07 behavior).
+    """
+    s = np.asarray(s, float)
+    segs = fold_curve(s, pitch, s_left)
+    if len(segs) <= 1:
+        return segs
+    p0, pe = s[0], s[-1]
+    ds = pe[0] - p0[0]
+    dt = pe[1] - p0[1]
+    k_match = None
+    for k in range(-max_wraps, max_wraps + 1):
+        if k == 0:
+            continue
+        if abs(ds - k * pitch) < 0.05 and abs(dt) < 0.05:
+            k_match = k
+            break
+    if k_match is not None:
+        if abs(k_match) >= 2:
+            return [max(segs, key=len)]
+        # |k| == 1: single geometric loop, no stacked copies — keep all segments
+        return segs
+    # Open separatrix branch
+    if trim_trailing_partial and _ends_ok is not None and segs and not _ends_ok(s[-1]):
+        segs = segs[:-1]
+    return segs
+
+
 def get_singularities(mesh):
     """Unique singularity positions from separatrix metadata, labeled S1..Sn
     by ascending x."""
@@ -338,10 +380,8 @@ def showcase_integration(mesh, out_png, aspect):
             _fold_boundary(ax, s, pitch, s_left, color=color, lw=0.7,
                            alpha=0.5, zorder=2)
         else:
-            segs = fold_curve(s, pitch, s_left)
-            # drop the trailing partial winding of a MAX_WRAPS-capped helix
-            if segs and not _ends_ok(s[-1]):
-                segs = segs[:-1]
+            segs = _fold_streamline_unique(s, pitch, s_left, _ends_ok=_ends_ok,
+                                           trim_trailing_partial=True)
             for seg in segs:
                 ax.plot(seg[:, 0], seg[:, 1], color=color, lw=2.0,
                         alpha=1.0, zorder=5)
@@ -406,9 +446,11 @@ def showcase_integration_labeled(mesh, out_png, aspect):
         if i < n_b and np.linalg.norm(s[0] - s[-1]) >= 0.02:
             segs = [s]
         else:
-            segs = fold_curve(s, pitch, s_left)
-            if i >= n_b and segs and not _ends_ok(s[-1]):
-                segs = segs[:-1]
+            if i >= n_b:
+                segs = _fold_streamline_unique(s, pitch, s_left, _ends_ok=_ends_ok,
+                                               trim_trailing_partial=True)
+            else:
+                segs = fold_curve(s, pitch, s_left)
         for seg in segs:
             ax.plot(seg[:, 0], seg[:, 1], color=color, lw=lw, alpha=alpha,
                     zorder=zorder)
@@ -573,7 +615,7 @@ def showcase_simplification(mesh, merged_streamlines, wedge_arms, out_png,
         if s.ndim != 2 or len(s) < 2:
             continue
         color = cmap(i % 20 / 20.0)
-        for seg in fold_curve(s, pitch, s_left):
+        for seg in _fold_streamline_unique(s, pitch, s_left):
             ax.plot(seg[:, 0], seg[:, 1], color=color, lw=1.6, zorder=5)
     for b in boundary:
         b = np.asarray(b, float)
@@ -620,7 +662,7 @@ def showcase_simplification_labeled(mesh, merged_streamlines, wedge_arms,
         if s.ndim != 2 or len(s) < 2:
             continue
         color = cmap(i % 20 / 20.0)
-        segs = fold_curve(s, pitch, s_left)
+        segs = _fold_streamline_unique(s, pitch, s_left)
         for seg in segs:
             ax.plot(seg[:, 0], seg[:, 1], color=color, lw=1.6, zorder=5)
         if segs:

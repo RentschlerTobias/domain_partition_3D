@@ -31,16 +31,26 @@ def _seam_left_fn(mesh):
     return lambda t: np.interp(np.asarray(t, float), ts, ss)
 
 
-def fold_curve(s, pitch, s_left):
+def fold_curve(s, pitch, s_left, eps=0.02):
     """Fold a cover-coordinate polyline into the fundamental pitch column,
     splitting it wherever it crosses a seam. The column coordinate
     ``u = s - s_left(t)`` uses the true (curved) seam profile, so every folded
     point lands exactly in [s_left(t), s_left(t) + pitch]. The crossing point
     is interpolated and appended to BOTH adjacent segments, so every winding
-    is drawn seam-to-seam with no visual gap."""
+    is drawn seam-to-seam with no visual gap.
+
+    Points within ``eps`` of a seam keep the previous point's winding index
+    (hysteresis): a curve running ALONG a seam jitters around the fold
+    boundary numerically and would otherwise fragment into segments landing
+    alternately on the left and right seam."""
     s = np.asarray(s, float)
     u = s[:, 0] - s_left(s[:, 1])
     k = np.floor(u / pitch).astype(int)
+    for i in range(1, len(s)):
+        if k[i] != k[i - 1]:
+            m = u[i] % pitch
+            if min(m, pitch - m) < eps:
+                k[i] = k[i - 1]
     segs, cur = [], [s[0]]
     for i in range(1, len(s)):
         if k[i] != k[i - 1]:
@@ -105,14 +115,16 @@ def _fold_streamline_unique(s, pitch, s_left, _ends_ok=None,
 
 
 def _dedup_pitch_shifted(streamlines, pitch, max_wraps=ps.MAX_WRAPS,
-                          tol=0.05):
+                          tol=0.12):
     """Deduplicate streamlines that are pitch-shifted copies of each other.
 
     For each entry A, walks through later entries and, for each k in
     ±1..±max_wraps, translates B by k·pitch in the s-coordinate and tests
     via symmetric Hausdorff distance (max of the two directed Hausdorff
     distances) whether B matches A within tol.  A bounding-box overlap pre-
-    check rejects obviously unrelated pairs cheaply.
+    check rejects obviously unrelated pairs cheaply.  tol must absorb the
+    numerical drift between pitch-shifted integrations (~0.1) yet stay below
+    the closest distinct-streamline distance (~0.17).
 
     Returns a list keeping one representative per equivalence group: the
     earliest-indexed entry.  Stable order preserved.
@@ -219,7 +231,7 @@ def _save(fig, out_png):
 
 def _draw_domain(ax, st, tris, loops):
     """Shared background: faint triangulation + black boundary contours."""
-    ax.triplot(st[:, 0], st[:, 1], tris, lw=0.1, color="0.93")
+    ax.triplot(st[:, 0], st[:, 1], tris, lw=0.1, color="black")
     for loop in loops:
         ring = st[loop + [loop[0]]]
         ax.plot(ring[:, 0], ring[:, 1], lw=2.0, color="black")
@@ -419,7 +431,7 @@ def showcase_integration(mesh, out_png, aspect):
     tris = mesh.faces.T.numpy()
 
     fig, ax = plt.subplots(figsize=(4, 6))
-    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
+    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="black")
     cmap = plt.cm.tab20
     for i, s in enumerate(mesh.streamlines):
         s = np.asarray(s, float)
@@ -479,7 +491,7 @@ def showcase_integration_labeled(mesh, out_png, aspect):
     tris = mesh.faces.T.numpy()
 
     fig, ax = plt.subplots(figsize=(6, 9))
-    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
+    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="black")
 
     cmap = plt.cm.tab20
     labels = []
@@ -586,7 +598,7 @@ def showcase_separatrices_per_singularity(mesh, out_dir, aspect, part="",
                     incoming.append(idx)
 
         fig, ax = plt.subplots(figsize=(6, 9))
-        ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
+        ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="black")
         for i in range(n_b):
             b = np.asarray(mesh.streamlines[i], float)
             if b.ndim == 2 and len(b) >= 2:
@@ -658,7 +670,7 @@ def showcase_simplification(mesh, merged_streamlines, wedge_arms, out_png,
     tris = mesh.faces.T.numpy()
 
     fig, ax = plt.subplots(figsize=(4, 6))
-    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
+    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="black")
     cmap = plt.cm.tab20
     deduped = _dedup_pitch_shifted(merged_streamlines, pitch)
     for i, s in enumerate(deduped):
@@ -672,7 +684,9 @@ def showcase_simplification(mesh, merged_streamlines, wedge_arms, out_png,
         b = np.asarray(b, float)
         if b.ndim != 2 or len(b) < 2:
             continue
-        _fold_boundary(ax, b, pitch, s_left, color="black", lw=1.5, zorder=4)
+        # drawn above the streamlines so seams read as one clean black line
+        # even where a streamline legitimately runs along them
+        _fold_boundary(ax, b, pitch, s_left, color="black", lw=1.5, zorder=6)
     for arm in wedge_arms:
         arm = np.asarray(arm, float)
         if arm.ndim != 2 or len(arm) < 2:
@@ -698,7 +712,7 @@ def showcase_simplification_labeled(mesh, merged_streamlines, wedge_arms,
     tris = mesh.faces.T.numpy()
 
     fig, ax = plt.subplots(figsize=(6, 9))
-    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
+    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="black")
     for b in boundary:
         b = np.asarray(b, float)
         if b.ndim != 2 or len(b) < 2:
@@ -762,7 +776,7 @@ def showcase_postprocessing(run, out_png, aspect):
     xy = mesh.x[:, 0:2].numpy()
     tris = mesh.faces.T.numpy()
     fig, ax = plt.subplots(figsize=(4, 6))
-    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
+    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="black")
 
     cmap = plt.cm.tab20
     for i, blk in enumerate(result["blocks"]):
@@ -810,7 +824,7 @@ def showcase_postprocessing_labeled(run, out_png, aspect):
     xy = mesh.x[:, 0:2].numpy()
     tris = mesh.faces.T.numpy()
     fig, ax = plt.subplots(figsize=(6, 9))
-    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="0.93")
+    ax.triplot(xy[:, 0], xy[:, 1], tris, lw=0.1, color="black")
 
     cmap = plt.cm.tab20
     for i, blk in enumerate(result["blocks"]):

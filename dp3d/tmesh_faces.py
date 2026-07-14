@@ -125,6 +125,17 @@ def _dist_to_polyline(p, poly):
     return float(np.linalg.norm(proj - p, axis=1).min())
 
 
+def _is_wall_segment(poly, boundary_dist_fn, bnd_tol=1e-3):
+    """True if every point of the polyline lies within bnd_tol of the boundary."""
+    poly = np.asarray(poly, float)
+    return all(boundary_dist_fn(p) < bnd_tol for p in poly)
+
+
+def _edge_is_wall(a, b, e2s, boundary_dist_fn, bnd_tol=1e-3):
+    """True if the whole polyline of edge (a,b) is a wall segment."""
+    return _is_wall_segment(edge_polyline(a, b, e2s), boundary_dist_fn, bnd_tol)
+
+
 def _shoelace(ring):
     x, y = ring[:, 0], ring[:, 1]
     return 0.5 * float(np.sum(x * np.roll(y, -1) - np.roll(x, -1) * y))
@@ -148,12 +159,29 @@ def corner_turns(face, e2s):
     return turns
 
 
-def classify_corners(face, e2s, flat_tol_deg=25.0):
+def classify_corners(face, e2s, flat_tol_deg=25.0, boundary_dist_fn=None,
+                     bnd_tol=1e-3, min_turn_deg=0.5):
     """Indices (into the cycle) of the REAL corners of a region: nodes where
     the boundary turns by more than flat_tol_deg. |180 - alpha| < flat_tol
-    (alpha = interior angle) <=> turn angle < flat_tol => FLAT (T-node)."""
-    return [k for k, t in enumerate(corner_turns(face, e2s))
-            if t > flat_tol_deg]
+    (alpha = interior angle) <=> turn angle < flat_tol => FLAT (T-node).
+    When boundary_dist_fn is provided, a node with exactly one adjacent wall
+    segment and at least one separatrix is also promoted to a corner if its
+    turn exceeds min_turn_deg."""
+    turns = corner_turns(face, e2s)
+    corners = []
+    n = len(face)
+    for k, t in enumerate(turns):
+        if t > flat_tol_deg:
+            corners.append(k)
+            continue
+        if boundary_dist_fn is None or t <= min_turn_deg:
+            continue
+        prv, cur, nxt = face[k - 1], face[k], face[(k + 1) % n]
+        wa = _edge_is_wall(cur, prv, e2s, boundary_dist_fn, bnd_tol)
+        wb = _edge_is_wall(cur, nxt, e2s, boundary_dist_fn, bnd_tol)
+        if wa != wb:  # exactly one wall, at least one separatrix
+            corners.append(k)
+    return corners
 
 
 class TMeshFaceGenerator:
@@ -171,11 +199,13 @@ class TMeshFaceGenerator:
     """
 
     def __init__(self, streamlines, blade_loops=None, flat_tol_deg=25.0,
-                 verbose=True):
+                 verbose=True, boundary_dist_fn=None, bnd_tol=1e-3):
         self.streamlines = list(streamlines)
         self.blade_loops = blade_loops or []
         self.flat_tol_deg = float(flat_tol_deg)
         self.verbose = verbose
+        self.boundary_dist_fn = boundary_dist_fn
+        self.bnd_tol = float(bnd_tol)
 
     def get_blocks(self):
         nodes, edges, e2s, n_parallel = build_connectivity(self.streamlines)
@@ -232,7 +262,10 @@ class TMeshFaceGenerator:
                 out["blade_idx"].append(ri)
                 out["blade_regions"].append(info)
                 continue
-            corner_pos = classify_corners(info["cycle"], e2s, self.flat_tol_deg)
+            corner_pos = classify_corners(
+                info["cycle"], e2s, self.flat_tol_deg,
+                boundary_dist_fn=self.boundary_dist_fn,
+                bnd_tol=self.bnd_tol)
             if len(corner_pos) != 4:
                 out["rejects"].append({**info, "n_real": len(corner_pos),
                                        "centroid": centroid})
@@ -264,7 +297,7 @@ class TMeshFaceGenerator:
 
 
 def node_regularity(result, boundary_dist_fn, bnd_tol=1e-5,
-                    flat_tol_deg=15.0):
+                    flat_tol_deg=15.0, classify_bnd_tol=1e-3):
     """Interior-node classification on real-corner incidence:
       regular    real corner in 4 regions, flat in 0
       t-node     real corner in 2 regions, flat in 1 (hanging junction)
@@ -281,7 +314,9 @@ def node_regularity(result, boundary_dist_fn, bnd_tol=1e-5,
         if not cyc or reg.get("ring") is None:
             continue
         rp = set(reg.get("corner_pos") if reg.get("corner_pos") is not None
-                 else classify_corners(cyc, e2s, flat_tol_deg))
+                 else classify_corners(cyc, e2s, flat_tol_deg,
+                                       boundary_dist_fn=boundary_dist_fn,
+                                       bnd_tol=classify_bnd_tol))
         for k, nid in enumerate(cyc):
             if k in rp:
                 real_cnt[nid] += 1

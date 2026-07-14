@@ -1166,7 +1166,8 @@ def run_tmesh(stl, out_dir, verbose=True,
     updated = splitter.process_streamlines(merging.new_streamlines)
 
     gen = tmf.TMeshFaceGenerator(updated, blade_loops=list(mesh.blade_loops),
-                                 flat_tol_deg=flat_tol_deg, verbose=verbose)
+                                 flat_tol_deg=flat_tol_deg, verbose=verbose,
+                                 boundary_dist_fn=_bdist, bnd_tol=1e-3)
     result = gen.get_blocks()
     for rej in result["rejects"]:
         nds = result["nodes"][rej["cycle"]] if rej.get("cycle") else []

@@ -23,6 +23,7 @@ pitch by itself; only the block stage treats the seam as a wall:
      hanging T-nodes become regular grid points.
 """
 
+import itertools
 import json
 import os
 import time
@@ -311,58 +312,114 @@ def _split_polyline_at(W, cuts):
     return out
 
 
-def collapse_seam_wedges(mesh, gap=0.12, wall_tol=0.02):
-    """Collapse 3-sided seam wedges (Xiao-style simplification at the wall).
+def collapse_seam_wedges(mesh, gap=None, wall_tol=0.02):
+    """Collapse 3-sided wall wedges (generalized Xiao-style simplification).
 
-    A singularity close to the theta seam sends two adjacent arms into the
-    seam; with the seam as a WALL both dock a few hundredths apart and the
-    region between them is a 3-corner triangle (in the wrap approach these
-    arms integrate across the seam instead, so the wedge only exists here).
-    Fix: drop the SHORTER arm of any same-singularity pair whose seam docks
-    are adjacent on the wall (no other junction between) and closer than
-    `gap`, and re-join the two wall segments at the freed junction."""
+    A wedge is a 3-corner triangular region bounded by two separatrices that
+    share a common singularity endpoint and a wall segment connecting their
+    other endpoints. Dropping the SHORTER separatrix of such a pair turns the
+    shared singularity into a wall T-node and the triangle into a quad.
+
+    Generalized beyond the seam-only original: scans BOTH endpoints of every
+    separatrix, accepts any domain wall (periodic seam, inlet, outlet, blade)
+    as the bounding wall, and groups pairs by the shared singularity endpoint
+    (topological) rather than by `singularity_coords`, so wedges formed by
+    separatrices of two different singularities that meet at a common corner
+    are also caught. Interior connector segments between T-nodes are NOT
+    treated as walls. The `gap` parameter is retained for backward
+    compatibility but defaults to None (no gap filter)."""
     A, B = _periodic_chains(mesh)
     n_b = len(mesh.streamlines) - len(mesh.separatrices)
     bnd = [np.asarray(s, float) for s in mesh.streamlines[:n_b]]
     seps = [np.asarray(s, float) for s in mesh.streamlines[n_b:]]
     dicts = list(mesh.separatrices)
 
-    marks = []                       # (side, wall position, sep idx, end)
-    for i, s in enumerate(seps):
-        for side, C in (("L", A), ("R", B)):
-            seg, t, dist, proj = ps._project_to_polyline(s[-1], C)
-            if dist < wall_tol:
-                marks.append((side, seg + t, i, s[-1]))
-    bysing = defaultdict(list)
-    for side, pos, i, e in marks:
-        oc = dicts[i].get("singularity_coords")
-        if oc is None:
+    sing_pts = [np.asarray(d["singularity_coords"], float)
+                for d in dicts if d.get("singularity_coords") is not None]
+
+    def _is_singularity(p, tol=1e-6):
+        return any(np.linalg.norm(p - sp) < tol for sp in sing_pts)
+
+    wall_chains = [A, B]
+    for b in bnd:
+        if b.ndim != 2 or len(b) < 2:
             continue
-        oc = np.asarray(oc, float)
-        bysing[(side, round(float(oc[0]), 6), round(float(oc[1]), 6))].append(
-            (pos, i, e))
+        if np.all(b[:, 1] < wall_tol) or np.all(b[:, 1] > 1.0 - wall_tol):
+            wall_chains.append(b)
+    for loop in getattr(mesh, "blade_loops", []) or []:
+        loop = np.asarray(loop, float)
+        if loop.ndim == 2 and len(loop) >= 2:
+            wall_chains.append(loop)
+
+    wall_endpoints = []
+    for C in wall_chains:
+        is_closed = np.linalg.norm(C[0] - C[-1]) < 1e-9
+        wall_endpoints.append((C[0].copy(), C[-1].copy()) if not is_closed
+                              else (None, None))
+
+    def _is_open_wall_endpoint(p, ci, tol=1e-6):
+        ep0, ep1 = wall_endpoints[ci]
+        if ep0 is None:
+            return False
+        return np.linalg.norm(p - ep0) < tol or np.linalg.norm(p - ep1) < tol
+
+    def _nearest_walls(p):
+        out = []
+        for ci, C in enumerate(wall_chains):
+            seg, t, dist, _ = ps._project_to_polyline(p, C)
+            if dist < wall_tol:
+                out.append((ci, seg + t, dist))
+        return out
+
+    marks = []
+    for i, s in enumerate(seps):
+        s = np.asarray(s, float)
+        for ep, other in ((s[0], s[-1]), (s[-1], s[0])):
+            if not _is_singularity(ep):
+                continue
+            other_is_sing = _is_singularity(other)
+            for ci, pos, _dist in _nearest_walls(other):
+                # If the docking endpoint is itself a singularity, only accept
+                # the dock when it sits at the END of an OPEN wall (e.g. S1 at
+                # the L-seam tip). A singularity in the MIDDLE of a wall (e.g.
+                # S4 on a closed blade loop) is a multi-arm junction, not a
+                # wall-docking wedge tip — collapsing there over-merges and
+                # produces pentagonal regions.
+                if other_is_sing and not _is_open_wall_endpoint(other, ci):
+                    continue
+                marks.append((ci, pos, i, np.asarray(other, float),
+                              np.asarray(ep, float)))
+
+    bysing = defaultdict(list)
+    for ci, pos, i, wall_end, sing in marks:
+        bysing[(round(float(sing[0]), 6), round(float(sing[1]), 6))].append(
+            (ci, pos, i, wall_end))
+
     all_pos = defaultdict(list)
-    for side, pos, i, e in marks:
-        all_pos[side].append(pos)
+    for ci, pos, i, wall_end, sing in marks:
+        all_pos[ci].append(pos)
 
     drop, freed = set(), []
-    for (side, _ocx, _ocy), lst in bysing.items():
+    for (_sx, _sy), lst in bysing.items():
         if len(lst) < 2:
             continue
-        lst.sort(key=lambda x: x[0])
-        for (p1, i1, e1), (p2, i2, e2) in zip(lst, lst[1:]):
-            if np.linalg.norm(e2 - e1) > gap:
+        for a, b in itertools.combinations(lst, 2):
+            ci_a, p_a, i_a, e_a = a
+            ci_b, p_b, i_b, e_b = b
+            if ci_a != ci_b:
                 continue
-            if any(p1 + 1e-9 < q < p2 - 1e-9 for q in all_pos[side]):
+            lo, hi = (p_a, p_b) if p_a <= p_b else (p_b, p_a)
+            if any(lo + 1e-9 < q < hi - 1e-9 for q in all_pos[ci_a]):
                 continue
-            j = i1 if _arclen(seps[i1]) <= _arclen(seps[i2]) else i2
+            if gap is not None and np.linalg.norm(e_b - e_a) > gap:
+                continue
+            j = i_a if _arclen(seps[i_a]) <= _arclen(seps[i_b]) else i_b
             drop.add(j)
-            freed.append(e1 if j == i1 else e2)
+            freed.append(e_a if j == i_a else e_b)
 
     mesh.dropped_wedge_arms = [seps[j].copy() for j in sorted(drop)]
     if not drop:
         return []
-    # re-join the two wall segments meeting at each freed junction
     for e in freed:
         hit = [k for k, b in enumerate(bnd)
                if min(np.linalg.norm(b[0] - e), np.linalg.norm(b[-1] - e))
@@ -379,7 +436,7 @@ def collapse_seam_wedges(mesh, gap=0.12, wall_tol=0.02):
         bnd.pop(k2)
     mesh.streamlines = bnd + [s for k, s in enumerate(seps) if k not in drop]
     mesh.separatrices = [d for k, d in enumerate(dicts) if k not in drop]
-    print(f"[wedge] collapsed {len(drop)} same-singularity seam wedge arm(s), "
+    print(f"[wedge] collapsed {len(drop)} wedge arm(s), "
           f"re-joined wall at {len(freed)} junction(s)")
     return mesh.dropped_wedge_arms
 

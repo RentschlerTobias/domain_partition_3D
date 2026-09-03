@@ -232,11 +232,48 @@ Validated: 0 uncoloured boundary triangles, edge multiplicity exactly
 blade (128, = leading/trailing edge) + 1 stray on the hub — i.e. all
 physically justified.
 
-## Run v2 (analytic tags) — in progress
+## Run v2 (analytic tags) — CRASHED (SIGSEGV), root cause found
 
-Launched with the corrected tagging. Early signal is positive: initial
-spherical-harmonic energy **8312.73 vs v1's 9356.32**, i.e. a smoother,
-less over-constrained field, as predicted.
+Initial signal was good (SH energy 8312.73 vs v1's 9356.32 = smoother, less
+over-constrained field) but the run **segfaulted** (`WRAPPER_EXIT=139`)
+during locally-meshable-field generation, ~35 400 log lines in, after
+`Error: adjacent halfface is invalid!` and `Vertex: 29 has 12 invalid
+cells!`. No output files; all metrics `-1`.
+
+**Cause: my hand-built feature-curve graph was not a valid 1-manifold.**
+Analysis of the tagged graph found **23 dangling ends** (valence-1 vertices,
+none tagged as feature vertices) and 5 tiny isolated components — fragments
+produced by the 40° sharp-crease threshold picking up partial creases that
+just stop in the middle of a smooth surface. AlgoHex assumes feature curves
+are proper curves terminating on other feature curves; dangling ends crash
+it. (gmsh's `classifySurfaces` output in v1 never had this problem because
+gmsh guarantees curve topology — so v1 was over-constrained but structurally
+valid, v2 was well-constrained but structurally invalid.)
+
+**Fix** — `clean_feature_graph()` in `tet_prep.py`:
+1. iteratively prune dangling crease edges (valence-1 endpoint, edge is not
+   a patch boundary). Patch-boundary edges are structural and never pruned;
+   a genuine blade LE/TE crease runs between two patch-boundary curves, so
+   both ends are junctions and it survives.
+2. drop small isolated components (threshold noise).
+3. tag as feature vertices every vertex of valence != 2, i.e. junctions AND
+   any surviving endpoints (previously only valence >= 3 was tagged).
+
+## Run v3 (analytic tags + valid feature graph) — in progress
+
+Feature graph after cleanup, verified as a valid 1-manifold:
+
+| | v1 (classifySurfaces) | v2 (analytic) | v3 (analytic + cleaned) |
+|---|---|---|---|
+| surfaces | 21 | 7 | 7 |
+| feature edges | 853 (427 flat) | 496 | 437 |
+| feature vertices | 133 | 36 | 27 |
+| dangling ends | 0 | **23** | **0** |
+| graph components | — | 9 (5 tiny) | 3 (no tiny) |
+| valence histogram | — | {1:23, 2:426, 3:28, 4:7, 5:1} | {2:393, 3:21, 4:5, 5:1} |
+
+All endpoints tagged (`endpoints tagged: True`). Running; already past the
+SH-optimization stage with 0 errors.
 
 Also now passes `--sm-out-path` / `--final-tetmesh-out-path` to checkpoint
 the seamless map and post-singularity-optimization tetmesh. AlgoHex's
@@ -248,6 +285,43 @@ parametrization/quantization/extraction. This makes subsequent `-n`
 (`num_hex_cells`, default 10000) sweeps cheap instead of 2h each. Note that
 restart path reads the tetmesh with OVM's `FileManager`, so it needs the
 `.ovm` tetmesh from `--final-tetmesh-out-path`, not the input `.vtk`.
+
+## VTK exports for manual inspection (`export_vtk.py`)
+
+`output/hex3d_algohex/vtk/` — open in ParaView:
+
+| file | cell data | what |
+|---|---|---|
+| `01_boundary_from_2D_elements.vtk` | `geom_id` | the MSH's own tagged 2D elements, untouched |
+| `01b_2D_elements_outer_flag.vtk` | `on_outer_skin` | 1 = on the true outer skin, 0 = interior |
+| `02_boundary_topological.vtk` | `surface_id` | skin from volume cells, physical id 1..7 |
+| `03_feature_curves.vtk` | `kind` | 1 = feature edge, 2 = feature vertex |
+| `04_tet_volume.vtk` | — | the 89 173-tet mesh fed to AlgoHex |
+| `05_hexmesh_v1.vtk` | `inverted` | v1 result (incomplete, 31.4%) |
+
+### "just take the 2D elements" — CONFIRMED, with one filter
+
+Tobias' suggestion is right and simpler than the topological route, but the
+raw 2D element set cannot be used as-is:
+
+- all 31 116 tagged 2D elements: edge multiplicity `{2: 53664, 3: 724}` →
+  **closed but NOT 2-manifold** (724 edges shared by 3 faces). Reason: the
+  hex O-grid **block interfaces inside the volume are tagged as 2D elements
+  too**, so the set mixes outer skin with interior faces. This is what broke
+  the very first `classifySurfaces` attempt ("one edge is incident to 3
+  triangles").
+- classifying every tagged 2D element against the true skin splits the geom
+  ids cleanly, with no mixed patch:
+  - **outer**: `1,2,3,4,5,6,7,8,9,13,14,15,18,19,20,23,24,25,28,29,30`
+  - **interior** (O-grid interfaces): `10,11,12,16,17,21,22,26,27,31`
+- keeping only the outer ids gives edge multiplicity `{2: 41790}` →
+  **closed 2-manifold, i.e. directly usable**.
+
+So the simple route works as: *take the 2D elements, drop the 10 interior
+geom ids*. It is arguably better than the current topological extraction
+because it **preserves the original boundary quads** (41 790 edges) instead
+of triangulating them (51 462). Worth switching `tet_prep.py` to this once
+confirmed — the two skins should be geometrically identical.
 
 ## Tooling added
 

@@ -318,30 +318,92 @@ def feature_edges_and_vertices(points, btris, tri_ids):
         return n / ln if ln > 0 else n
 
     cos_thr = math.cos(math.radians(SHARP_DIHEDRAL_DEG))
-    feat, n_patch, n_sharp = [], 0, 0
+    feat, patch_edges, n_sharp = [], set(), 0
     for e, inc in e2t.items():
         if len(inc) != 2:
             continue
         i, j = inc
         if tri_ids[i] != tri_ids[j]:
             feat.append(e)
-            n_patch += 1
+            patch_edges.add(e)
         else:
             d = float(np.dot(tri_normal(btris[i]), tri_normal(btris[j])))
             if d < cos_thr:
                 feat.append(e)
                 n_sharp += 1
     print(f"[tet_prep] feature edges: {len(feat)} "
-          f"({n_patch} patch boundaries + {n_sharp} sharp creases)")
+          f"({len(patch_edges)} patch boundaries + {n_sharp} sharp creases)")
+
+    feat = clean_feature_graph(feat, patch_edges)
 
     inc_cnt = Counter()
     for a, b in feat:
         inc_cnt[a] += 1
         inc_cnt[b] += 1
-    fverts = sorted(v for v, c in inc_cnt.items() if c >= 3)
-    print(f"[tet_prep] feature vertices (3+ incident feature edges): "
-          f"{len(fverts)}")
+    # junctions AND any surviving curve endpoints must be feature vertices:
+    # AlgoHex needs every feature curve to terminate at a tagged vertex.
+    fverts = sorted(v for v, c in inc_cnt.items() if c != 2)
+    print(f"[tet_prep] feature vertices (junctions + endpoints): {len(fverts)}")
     return feat, fverts
+
+
+def clean_feature_graph(feat, patch_edges, min_component=4):
+    """Make the feature-curve graph a valid 1-manifold for AlgoHex.
+
+    A sharp-crease threshold picks up fragments: short chains that dangle in
+    the middle of a smooth surface, plus isolated specks. AlgoHex's
+    singularity-relocation assumes feature curves are proper curves that
+    terminate on other feature curves — feeding it dangling ends crashed it
+    (SIGSEGV after "adjacent halfface is invalid" / "Vertex 29 has 12 invalid
+    cells"). Patch-boundary edges are structural (they close by construction)
+    and are never pruned; only crease fragments are.
+    """
+    feat = set(feat)
+    n0 = len(feat)
+
+    # 1. iteratively drop dangling crease edges (valence-1 endpoint, edge is
+    #    not a patch boundary). A genuine blade LE/TE crease runs between two
+    #    patch-boundary curves, so both its ends are junctions and it survives.
+    while True:
+        val = Counter()
+        for a, b in feat:
+            val[a] += 1
+            val[b] += 1
+        drop = {e for e in feat
+                if e not in patch_edges and (val[e[0]] == 1 or val[e[1]] == 1)}
+        if not drop:
+            break
+        feat -= drop
+    n_dangle = n0 - len(feat)
+
+    # 2. drop small isolated components (threshold noise)
+    adj = {}
+    for a, b in feat:
+        adj.setdefault(a, []).append(b)
+        adj.setdefault(b, []).append(a)
+    seen, drop_v = set(), set()
+    for s in list(adj):
+        if s in seen:
+            continue
+        stack, comp = [s], []
+        seen.add(s)
+        while stack:
+            u = stack.pop()
+            comp.append(u)
+            for w in adj[u]:
+                if w not in seen:
+                    seen.add(w)
+                    stack.append(w)
+        if len(comp) < min_component and not any(
+                e in patch_edges for e in feat
+                if e[0] in comp or e[1] in comp):
+            drop_v.update(comp)
+    feat = {e for e in feat if e[0] not in drop_v and e[1] not in drop_v}
+
+    print(f"[tet_prep] feature-graph cleanup: {n0} -> {len(feat)} edges "
+          f"({n_dangle} dangling pruned, "
+          f"{n0 - n_dangle - len(feat)} in tiny components)")
+    return sorted(feat)
 
 
 def write_algohex_vtk_analytic(points, tets, btris, tri_ids, feat_edges,
@@ -459,9 +521,10 @@ def write_algohex_vtk(gmsh, out_path):
           f"{len(cells)} cells)")
 
 
-def main():
+def main(elem_size_max=0.08, elem_size_min=0.02, out_name="T1_9_tet.vtk"):
     stl_path = extract_boundary_stl()
-    gmsh = build_tet_mesh(stl_path)
+    gmsh = build_tet_mesh(stl_path, elem_size_max=elem_size_max,
+                          elem_size_min=elem_size_min)
 
     tag, coords, _ = gmsh.model.mesh.getNodes()
     tag = np.asarray(tag, np.int64)
@@ -484,11 +547,20 @@ def main():
     tri_ids = classify_boundary(points, btris)
     feat_edges, feat_verts = feature_edges_and_vertices(points, btris, tri_ids)
 
-    out_vtk = MSH.parent / "T1_9_tet.vtk"
+    out_vtk = MSH.parent / out_name
     write_algohex_vtk_analytic(points, tets, btris, tri_ids, feat_edges,
                                feat_verts, out_vtk)
     return out_vtk
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--size-max", type=float, default=0.08,
+                    help="gmsh Mesh.MeshSizeMax (bigger = coarser = much "
+                         "faster AlgoHex run; the frame-field cost scales "
+                         "superlinearly in tet count)")
+    ap.add_argument("--size-min", type=float, default=0.02)
+    ap.add_argument("--out", default="T1_9_tet.vtk")
+    a = ap.parse_args()
+    main(elem_size_max=a.size_max, elem_size_min=a.size_min, out_name=a.out)

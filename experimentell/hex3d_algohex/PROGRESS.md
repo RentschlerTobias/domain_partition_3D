@@ -585,3 +585,51 @@ reused as blocks directly. The hub/shroud boundary layer is triangular
 prisms, which are NOT hexahedral blocks, so it has to be regenerated --
 either by tanh wall clustering inside the AlgoHex blocks (`edge_fractions`,
 dp3d/tmesh.py:811) or by extruding from the AlgoHex surface.
+
+## v9 — reduced domain with exact labels: the memory blowup was a LABELLING problem
+
+Same reduced domain as v7/v8 (no blade O-grid, no prism boundary layer,
+42 218 tets), only the boundary labelling changed: faces matched against the
+MSH's own tagged 2D elements (geom 3 inlet, 4 outlet, 5/6 periodic), the
+newly exposed shell split by which cell type was removed behind it.
+550 feature edges over 6 surfaces instead of 166 over 3.
+
+**It completed** (exit 0, 45 min) where v7 and v8 both OOM-died at the
+identical point. So the OOM was not a memory-size problem and not driven by
+`-n` (which changed nothing between v7 and v8) -- it came from an
+under-constrained field. This is the fourth time in this project that fewer
+feature constraints produced a worse result.
+
+### v9 vs v5 (the two usable results)
+
+| | v5 (full domain) | v9 (reduced) |
+|---|---|---|
+| cells | 60 612 | 56 661 |
+| coverage | 100 % of 6.5253 | 99.8 % of 5.4606 |
+| **inverted cells (scaled Jacobian <= 0)** | **96** | **2** |
+| worst scaled Jacobian | -0.9956 | **-0.0607** |
+| mean scaled Jacobian | 0.9651 | 0.9664 |
+| non-manifold faces | 0 | 0 |
+| runtime | 1 h 17 | 45 min |
+| blocks | 307 | **82** |
+| cuboids | 290 (94 %) | 61 (74 %), 85 % of cells |
+
+v9's mesh is markedly cleaner (48x fewer inverted cells, and the two that
+remain are barely inverted) and its block structure is much coarser, which
+suits TFI better. v5 has the higher cuboid rate.
+
+**IGM validity does not predict mesh quality.** v9's parametrization was the
+worse one by AlgoHex's own numbers (9030 invalid tets vs v5's 0, HexEx
+reporting `Invalid Input`), yet its extracted mesh has 2 inverted cells
+against v5's 96. Judge the extracted hexes, not `valid_volume`.
+
+### Repeated own-goal worth recording
+
+Splitting a surface by a coordinate threshold cuts across the triangulation
+and creates zigzag feature curves. It happened twice: first in tet_prep_v5
+(radius threshold, p95 kink 174.8 deg, 318 of 679 nodes above 30 deg; fixed
+by splitting on removed-cell type -> p95 8.2 deg), then again in the v9
+block-face classifier (r < 0.95 / r > 1.5), which dropped the cuboid rate to
+44 %. Transferring the exact labels from the input tet mesh by nearest-face
+lookup restored it to 74 %. Never classify by raw coordinate thresholds when
+an exact labelling is available.

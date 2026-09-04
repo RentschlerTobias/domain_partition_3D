@@ -525,3 +525,63 @@ and it is genuinely unfinished work, not a formatting step.** What remains:
 
 Also still open on the mesh itself: 96 inverted cells (scaled Jacobian <= 0)
 in v5 despite a fully valid IGM.
+
+## Reduced-domain runs (v6, v7) — Tobias' cut-out strategy
+
+Idea: do not make the frame field resolve the boundary layers at all. Cut
+them out of the AlgoHex domain, EXTRACT blocks from the result, and assemble
+them with the boundary layers' own block structure afterwards. Conformity is
+a non-issue because TFI regenerates each block's interior from its boundary
+curves, so the parts only have to agree at BLOCK level, where the
+conforming-division MILP (dp3d/tmesh.py:743) handles it. My earlier
+objection about a non-conforming cell-level interface was reasoning at the
+wrong level and is withdrawn.
+
+Domains (all verified closed 2-manifold):
+
+| domain | cells | boundary tris | tets fed to AlgoHex |
+|---|---|---|---|
+| full | 257 219 | 34 308 | 71 415 (v5) |
+| minus blade O-grid (v6) | 212 419 | 29 828 | 62 874 |
+| minus O-grid AND prism BL (v7) | 91 339 | 18 548 | 42 218 |
+
+The v7 domain detaches from the walls entirely (r 0.577-1.804 instead of
+0.498-1.900), so no wall, blade edge or hub/shroud intersection curve is
+left. Its feature graph is 166 edges with valence uniformly 2 — only closed
+loops, no branches, no dangling ends: by far the cleanest input so far.
+
+Convergence to "All special vertices are locally meshable":
+v1/v4 ~2 h (42 repair iterations), v5 ~15 min (32), v6 ~11 min, v7 ~8 min.
+Removing the boundary layers helps markedly.
+
+**v7 was OOM-killed** (`exit=137`, kernel: `Out of memory: Killed process
+HexMeshing total-vm:5841700kB`) at the quantization stage after 27 min --
+my fault for running v6 and v7 concurrently on a 7.7 GiB box. AlgoHex peaks
+hard during quantization; these runs must be sequential. v6 was stopped
+(round 3 of 9 after 1 h) and v7 restarted alone.
+
+### Cell types in the source MSH (measured, settles what can be reused)
+
+| type | count | median wall distance | role |
+|---|---|---|---|
+| prism | 121 080 | 0.0120 | boundary layer on hub+shroud |
+| hex | 44 800 | 0.047 | O-grid around the blade |
+| tet | 89 547 | 0.274 | free core |
+| pyramid | 1 792 | 0.286 | O-grid to tet transition |
+
+Prisms have height/sqrt(base area) = 0.20, i.e. flat stacked layers.
+
+Faces lying exactly ON the cylinders (all nodes at r=const, radial normal):
+hub 2178 triangles + 1120 quads, shroud 7912 triangles + 1120 quads. The
+quads are exactly the blade O-grid footprint (geom 7/13/18/23/28 and
+8/14/19/24/29). Additionally 2699 (hub) and 2996 (shroud) quads sit close to
+the wall but on OTHER surfaces, with zero triangles among them -- these are
+the quad SIDE faces of the prism layer on inlet/outlet/periodic. That is why
+the near-wall zone looks fully quad-meshed while the cylinder surface itself
+is triangulated.
+
+Consequence for assembly: the blade O-grid is genuine hexahedra and can be
+reused as blocks directly. The hub/shroud boundary layer is triangular
+prisms, which are NOT hexahedral blocks, so it has to be regenerated --
+either by tanh wall clustering inside the AlgoHex blocks (`edge_fractions`,
+dp3d/tmesh.py:811) or by extruding from the AlgoHex surface.

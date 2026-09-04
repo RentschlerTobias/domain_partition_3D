@@ -372,6 +372,66 @@ IGM valencies, yet 31.4% coverage with holes). Raising to 60000 gives the
 quantization enough resolution to keep thin regions at >= 1 layer.
 Input: `data/T1_9/T1_9_tet_v1tags.vtk`. Checkpointing enabled.
 
+## CORRECTION — the "31.4% coverage" figure was a bug in MY volume function
+
+**Every earlier statement in this file about coverage / holes / inverted
+cells is wrong and is superseded by this section.**
+
+`ovm_io._hex_volume` returned exactly **1/3** of the true volume: unit cube
+→ 0.3333, 2x3x4 box → 8.0 instead of 24.0. Cause: two of the five tets in
+the decomposition had their last two vertices swapped — `(0,5,4,7)` instead
+of `(0,5,7,4)` and `(2,7,6,5)` instead of `(2,7,5,6)` — so they contributed
+with the wrong sign. The tell was there all along and I missed it: the
+*cylinder demo*, a known-good AlgoHex result, also came out at "32%".
+
+This bug is **inherited from `experimentell/3d_extrapolation/hexa_interpolation.py`
+(`hexa_cell_volumes`, lines 224-237), which has the same swapped tets.**
+There it is largely harmless (the value only feeds volume statistics; cell
+validity is judged by `hexa_corner_jacobians`), but worth fixing — flagged,
+not yet changed, since it is outside this branch's scope.
+
+### Corrected results (domain volume 6.5253)
+
+| | cells | coverage | inverted (scaled Jacobian <= 0) |
+|---|---|---|---|
+| cylinder demo (reference) | 9 792 | 98.5 % | — |
+| **v1** (`-n` 10000, classifySurfaces tags) | 10 061 | **95.4 %** | — |
+| **v4** (`-n` 60000, same tags) | 60 100 | **97.9 %** | **124 (0.21 %)** |
+
+The residual ~2 % is largely the piecewise-flat hex boundary approximating
+curved cylinders — the perfect cylinder demo shows the same 1.5 % deficit.
+
+**So Stage 2 did not fail. v1 was already a 95 %-complete hex mesh.** The
+"holes" narrative, and the plot `step04_hexmesh_v1.png` captioned
+"INCOMPLETE ... 31.4%", were artifacts of the volume bug. What HexEx reports
+as `Error: Invalid Input - Flipped or Degenerate Tet` refers to its *input
+IGM*; it sanitizes and still extracts a usable mesh.
+
+### v4 validity audit (the honest numbers)
+
+- boundary: 10 764 faces, **0 non-manifold faces**; boundary edge
+  multiplicity `{2: 21522, 4: 3}` → 3 defective edges
+- boundary vertices land on the domain: 1955 on hub r=0.5, 1999 on shroud
+  r=1.9, 1386 on inlet, 935 on outlet, 4488 on blade/periodic
+- **scaled Jacobian: mean 0.9314, min -0.9956; 124 cells <= 0**, 201 <= 0.1
+- note: signed *volume* said "0 inverted" for these same cells — a sheared
+  hex can have positive volume with inverted corners, so scaled Jacobian
+  (corner Jacobians) is the correct validity test, exactly as the docstring
+  of `hexa_corner_jacobians` in `hexa_interpolation.py` already states.
+
+Verdict: v4 is a good, near-complete, mostly high-quality hex mesh, but
+**not yet valid** — 124 inverted cells and 3 non-manifold boundary edges
+must be repaired before TFI / CFD use.
+
+### What this means for the earlier conclusions
+
+- The v3 comparison **still stands**: it is based on AlgoHex's own JSON
+  metrics (`n_invalid_valencies_seamless` 0 vs 10, IGM energy 91 vs 3.3e48),
+  not on my volume function. Analytic tagging still made the IGM worse.
+- But the framing "v1 failed, so the tags must be at fault" was built on the
+  bad coverage number. v1 had in fact essentially succeeded, so there was
+  never a failure to explain.
+
 ## VTK exports for manual inspection (`export_vtk.py`)
 
 `output/hex3d_algohex/vtk/` — open in ParaView:

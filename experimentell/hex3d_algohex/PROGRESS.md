@@ -3,14 +3,19 @@
 See `PLAN.md` for full context and stage descriptions. This file tracks
 execution status only.
 
+**See `README.md` for the branch overview, the run/input-file mapping and
+the key findings. This file is the chronological log, including the failed
+attempts and why they failed.**
+
 | Stage | Status | Notes |
 |---|---|---|
-| 0. Build AlgoHex (Docker) | **done** | binary built via resumable volume, see log below |
-| 1. T1_9 tet mesh + feature tags | **done** | `data/T1_9/T1_9_tet.vtk` written and validated |
-| 2. Run HexMeshing | v1 done (bad), v2 running | v1 ran fully but IGM invalid -> 31% coverage; root cause found + fixed, v2 running |
-| 3. Validation gates | not started | |
-| 4. Base complex (coarse blocks) | not started | |
-| 5. 3D TFI fill + export | not started | |
+| 0. Build AlgoHex (Docker) | **done** | resumable volume build; `algohex:portable` image also exists |
+| 1. Tet mesh + feature tags | **done** | best variant `tet_prep_v5.py` -> `data/T1_9/T1_9_tet_v5.vtk` |
+| 2. Run HexMeshing | **done** | v5 (full domain) and v9 (reduced) both usable; v9 has 2 inverted cells vs v5's 96 |
+| 3. Validation gates | **done** | scaled Jacobian, manifoldness, coverage, boundary conformity |
+| 4. Base complex (coarse blocks) | **done** | v9: 19 sheets -> 82 blocks, 61 cuboids (74%) |
+| 5. Block postprocessing | **next** | see `POSTPROCESSING_PLAN.md` |
+| 6. Assembly + 3D TFI fill | not started | re-attach blade O-grid, regenerate hub/shroud BL, MILP + TFI |
 
 ## Log
 

@@ -105,15 +105,25 @@ def _cell_edges(hfs, faces, edges):
 
 
 def _hex_volume(pts):
-    """Signed volume of a trilinear hex via 5-tet decomposition (same
-    decomposition as hexa_interpolation.hexa_cell_volumes)."""
+    """Signed volume of a trilinear hex via the standard 5-tet decomposition.
+
+    NOTE: the variant in experimentell/3d_extrapolation/hexa_interpolation.py
+    (hexa_cell_volumes) has two tets with their last two vertices swapped --
+    (0,5,4,7) instead of (0,5,7,4) and (2,7,6,5) instead of (2,7,5,6) -- so
+    those two contribute with the wrong sign and the total comes out at
+    exactly 1/3 of the true volume. Verified: unit cube -> 0.3333, 2x3x4 box
+    -> 8.0 instead of 24.0. That bug is pre-existing in this repo; it is
+    harmless there because the value is only used for volume statistics
+    (cell validity is judged by corner Jacobians), but it is load-bearing
+    here, so this copy is corrected.
+    """
     c = [np.asarray(pts[k], float) for k in range(8)]
 
     def tet(a, b, cc, d):
         return np.dot(b - a, np.cross(cc - a, d - a)) / 6.0
 
     return (tet(c[0], c[1], c[2], c[5]) + tet(c[0], c[2], c[3], c[7])
-            + tet(c[0], c[5], c[4], c[7]) + tet(c[2], c[7], c[6], c[5])
+            + tet(c[0], c[5], c[7], c[4]) + tet(c[2], c[7], c[5], c[6])
             + tet(c[0], c[2], c[7], c[5]))
 
 

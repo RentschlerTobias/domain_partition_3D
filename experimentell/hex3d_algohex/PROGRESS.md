@@ -480,3 +480,48 @@ confirmed — the two skins should be geometrically identical.
   cylinder demo: 9792/9792 hexes recovered, 0 skipped, 0 negative volumes,
   and vertex/edge/face/cell counts exactly match HexHex's own reported
   output** (10955 / 31642 / 30480 / 9792).
+
+## Stage 4 status: partition works, structured block extraction does NOT yet
+
+**Works and is validated** (`base_complex.py`): partitioning the hex mesh
+along base-complex sheets. Cylinder demo -> exactly 5 components, matching
+the textbook O-grid (core + 4 quadrants), confirmed geometrically:
+core r 0.68-7.37, three quadrants spanning ~82-87 deg in theta and one
+crossing the +-180 deg branch cut. T1_9 v5 -> 307 components.
+
+**Does NOT work yet** (`block_structure.py`): turning a component into a
+structured (i,j,k) block, which is what TFI actually needs. The grid walk
+still reports coordinate conflicts on the cylinder core, i.e. different
+paths to the same cell disagree, so no consistent (i,j,k) is produced.
+Current state: 0 of 5 cuboids on the cylinder -- impossible for an O-grid,
+so the walk is still wrong, not the mesh.
+
+Two real bugs were found and fixed along the way (both mine):
+- `AX_FACES` and `AX_EDGES` were indexed inconsistently: local axis a is the
+  NORMAL of face pair `AX_FACES[a]`, so the parallel edges of axis a are the
+  ones running along that normal. The tables were offset, so a face's own
+  edges were classified as its normal axis and frame propagation collapsed
+  after 3 cells. After the fix the walk reaches all 4896 cells of the block.
+- the sign of the frame transfer was copied verbatim instead of being
+  derived from the edge orientation; now `ss * oa * ob`.
+
+Two earlier attempts at a quick cuboid test were also wrong and are recorded
+so they are not repeated:
+- counting edge parallel classes and expecting 3: a cuboid actually has
+  `i+j+k` classes, one per layer, so 49 classes for the cylinder core is
+  correct, not a defect.
+- counting boundary patches with a 45 deg coplanarity test: unreliable on
+  curved hub/shroud walls.
+
+**So: the answer to "is extracting the hexa blocks the next step" is yes,
+and it is genuinely unfinished work, not a formatting step.** What remains:
+1. fix the grid walk so each component gets consistent (i,j,k) (or detect
+   components that are not cuboids and split them);
+2. split blocks whose boundary spans several physical surfaces, so every
+   block face lies on exactly one of hub/shroud/blade/inlet/outlet/periodic;
+3. only then the existing conforming-division MILP (`dp3d/tmesh.py:743`)
+   and tanh clustering (`edge_fractions`, `dp3d/tmesh.py:811`) can be reused
+   for the 3D TFI fill.
+
+Also still open on the mesh itself: 96 inverted cells (scaled Jacobian <= 0)
+in v5 despite a fully valid IGM.

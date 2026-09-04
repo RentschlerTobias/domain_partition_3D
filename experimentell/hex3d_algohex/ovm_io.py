@@ -190,6 +190,39 @@ def write_hex_vtk(path, points, hexes):
             f.write("12\n")          # VTK_HEXAHEDRON
 
 
+def write_hex_msh(path, points, hexes, cell_data=None):
+    """Gmsh 2.2 ASCII hexahedral mesh (element type 5). Optional per-cell
+    integer tag is written as the physical tag so it survives the round trip
+    into gmsh/ParaView."""
+    with open(path, "w") as f:
+        f.write("$MeshFormat\n2.2 0 8\n$EndMeshFormat\n")
+        f.write(f"$Nodes\n{len(points)}\n")
+        for i, p in enumerate(points, 1):
+            f.write(f"{i} {p[0]} {p[1]} {p[2]}\n")
+        f.write("$EndNodes\n")
+        f.write(f"$Elements\n{len(hexes)}\n")
+        for i, c in enumerate(hexes, 1):
+            phys = int(cell_data[i - 1]) if cell_data is not None else 1
+            nodes = " ".join(str(int(v) + 1) for v in c)
+            f.write(f"{i} 5 2 {phys} 1 {nodes}\n")
+        f.write("$EndElements\n")
+
+
+def scaled_jacobian(points, cell):
+    """Minimum corner scaled Jacobian of one hex -- the correct validity
+    test (a sheared hex can have positive signed volume yet inverted
+    corners, cf. hexa_corner_jacobians in hexa_interpolation.py)."""
+    P8 = points[cell]
+    idx = [(0, 1, 3, 4), (1, 2, 0, 5), (2, 3, 1, 6), (3, 0, 2, 7),
+           (4, 7, 5, 0), (5, 4, 6, 1), (6, 5, 7, 2), (7, 6, 4, 3)]
+    out = []
+    for a, b, c, d in idx:
+        u, v, w = P8[b] - P8[a], P8[c] - P8[a], P8[d] - P8[a]
+        n = np.linalg.norm(u) * np.linalg.norm(v) * np.linalg.norm(w)
+        out.append(float(np.dot(u, np.cross(v, w)) / n) if n > 0 else 0.0)
+    return min(out)
+
+
 def convert(ovm_path, vtk_path):
     points, edges, faces, polys = read_ovm(ovm_path)
     print(f"[ovm_io] {ovm_path}: {len(points)} verts, {len(edges)} edges, "

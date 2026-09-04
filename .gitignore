@@ -33,3 +33,7 @@ slides/*.nav
 slides/*.out
 slides/*.snm
 slides/*.toc
+
+# generated tet inputs (reproducible via tet_prep*.py)
+data/T1_9/T1_9_tet_v1tags.vtk
+data/T1_9/T1_9_tet_v2.vtk

@@ -286,6 +286,92 @@ parametrization/quantization/extraction. This makes subsequent `-n`
 restart path reads the tetmesh with OVM's `FileManager`, so it needs the
 `.ovm` tetmesh from `--final-tetmesh-out-path`, not the input `.vtk`.
 
+## Run "fast" (`--without-integrable-field-optimization`) — FAILED, but informative
+
+Launched in parallel with v3 on the second core to get a same-day answer,
+using the corrected v3 feature tags but skipping the 86%-of-runtime
+integrability phase. Result: **SIGSEGV after 3326 s**, 166 404 `ERROR :(`
+lines during HexEx extraction, **no output mesh at all**.
+
+Parametrization metrics vs v1 (`T1_9_hex_metrics_fast.json`):
+
+| | v1 (bad tags, WITH integrability) | fast (good tags, WITHOUT) |
+|---|---|---|
+| invalid tets (seamless) | 3 863 | **16 882** |
+| invalid valencies (seamless) | 0 | **137** |
+| invalid tets (IGM) | 12 588 | **37 538** |
+| invalid valencies (IGM) | 12 | **331** |
+| valid_volume (IGM) | 0.9886 | 0.9625 |
+| parametric_volume | 10 190 | **-65 898** (negative!) |
+
+**Conclusions:**
+1. `--without-integrable-field-optimization` is **not a usable shortcut** on
+   this geometry. It is not merely slower-but-worse, it is catastrophic:
+   negative parametric volume and a crash in extraction.
+2. **This corrects an over-attribution made earlier.** The spurious feature
+   curves were a real, measured defect (427 of 853 edges geometrically
+   flat) and fixing them is justified — but this run shows the
+   *integrability optimization* dominates IGM validity far more than tag
+   quality does: with good tags but no integrability phase the seamless map
+   is 4x worse than v1's (16 882 vs 3 863 invalid tets). So the earlier
+   claim that bad feature tags were "the root cause" of v1's 31.4% coverage
+   was too strong; they were *a* contributing defect, not the whole story.
+3. Therefore the fast probe did **not** answer the open question (does the
+   tag fix repair extraction?) — it removed the phase that matters most.
+   Only v3 can answer it.
+
+## Run v3 (analytic tags, full pipeline) — COMPLETED THE HARD PHASES, IGM BLEW UP
+
+Ran 11 h, cleared local meshability, completed all 9 integrability rounds,
+wrote the seamless-map checkpoint (132 MB) — then the **IGM diverged
+numerically** and HexEx refused the input.
+
+| | v1 (classifySurfaces tags) | **v3 (analytic tags)** | fast (no integrability) |
+|---|---|---|---|
+| invalid tets (seamless) | 3 863 | 17 878 | 16 882 |
+| **invalid valencies (seamless)** | **0** | **10** | 137 |
+| invalid tets (IGM) | 12 588 | 103 867 | 37 538 |
+| invalid valencies (IGM) | 12 | 870 | 331 |
+| valid_volume (IGM) | 0.9886 | **0.4606** | 0.9625 |
+| final_energy (IGM) | 91.0 | **3.26e+48** | 45.6 |
+| parametric_volume | 10 190 | **6.08e+62** | -65 898 |
+| HexEx | 12 502 flipped | 103 647 flipped | crash |
+
+**The analytic-tag hypothesis is DISPROVEN. v1's "bad" tags are the best of
+the three.** Stated plainly because two earlier entries in this file claimed
+the opposite: the spurious feature curves were a genuine, measured defect
+(427/853 edges flat) but removing them made the *result* worse, not better.
+
+**The decisive metric is `n_invalid_valencies_seamless`** — invalid vertex
+valencies in the seamless map, i.e. singularity configurations that are not
+hex-meshable. v1: **0**. v3: 10. fast: 137. This gates everything downstream:
+`hexMeshing_from_seamless_map()` (and the equivalent code in the main path)
+only runs `parametrize_robust_quantization()` when the seamless map comes
+back fully valid. With 10 invalid valencies v3's quantization ran off the
+rails (energy 1e48, parametric volume 1e62).
+
+**Why the extra feature curves helped**, most plausible reading: they act as
+regularisation. Pinning the octahedral field along many extra curves
+constrains it into a simpler, hex-meshable singularity graph. Removing them
+gave the field more freedom and it relaxed into a configuration that is
+smoother but *not* hex-meshable. Fewer, cleaner constraints are not
+automatically better for integer-grid maps.
+
+v3's extraction was killed after hours stuck at `Processing edge 0 of
+238061` — with 103 647 flipped tets it could not produce anything usable.
+Outputs archived as `*_v3.*`.
+
+## Run v4 (v1 tags + `-n 60000`) — in progress
+
+Back to the tag set that produced a hex-meshable seamless map, changing the
+one lever that plausibly explains v1's *extraction* failure: `-n`
+(`num_hex_cells`, default **10000**). For a thin, twisted blade passage a
+10k-cell integer grid is coarse — thin regions quantize to zero thickness
+and flip, which matches v1's symptom (valid seamless map, only 12 invalid
+IGM valencies, yet 31.4% coverage with holes). Raising to 60000 gives the
+quantization enough resolution to keep thin regions at >= 1 layer.
+Input: `data/T1_9/T1_9_tet_v1tags.vtk`. Checkpointing enabled.
+
 ## VTK exports for manual inspection (`export_vtk.py`)
 
 `output/hex3d_algohex/vtk/` — open in ParaView:

@@ -23,11 +23,16 @@ BUILD_VOLUME = "algohex-build-cache"
 HEXMESHING_BIN = "/app/build/Build/bin/HexMeshing"
 
 
-def run_hexmeshing(extra_args=()):
+def run_hexmeshing(extra_args=(), tag="", in_vtk=None):
+    """``tag`` suffixes every output so concurrent runs (e.g. a fast
+    --without-integrable-field-optimization probe alongside the full run)
+    cannot clobber each other."""
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out_ovm = OUT_DIR / "T1_9_hex.ovm"
-    json_out = OUT_DIR / "T1_9_hex_metrics.json"
-    log_path = OUT_DIR / "hexmeshing.log"
+    sfx = f"_{tag}" if tag else ""
+    in_vtk = (Path(in_vtk).resolve() if in_vtk else IN_VTK)
+    out_ovm = OUT_DIR / f"T1_9_hex{sfx}.ovm"
+    json_out = OUT_DIR / f"T1_9_hex_metrics{sfx}.json"
+    log_path = OUT_DIR / f"hexmeshing{sfx}.log"
 
     # Checkpoint the seamless map + the post-singularity-optimization tetmesh.
     # AlgoHex's hexMeshing_from_seamless_map() path (triggered by passing BOTH
@@ -35,15 +40,15 @@ def run_hexmeshing(extra_args=()):
     # generation and integrability optimization -- together 86% of the runtime
     # on T1_9 (6704s of 7777s) -- and goes straight to parametrization +
     # quantization + extraction. Saving these makes -n sweeps cheap.
-    sm_out = OUT_DIR / "T1_9_seamless.hexex"
-    final_tet = OUT_DIR / "T1_9_final_tet.ovm"
+    sm_out = OUT_DIR / f"T1_9_seamless{sfx}.hexex"
+    final_tet = OUT_DIR / f"T1_9_final_tet{sfx}.ovm"
 
     cmd = [
         "docker", "run", "--rm", "--network=host",
         "-v", f"{REPO}:/work",
         "-v", f"{BUILD_VOLUME}:/app/build",
         IMAGE, HEXMESHING_BIN,
-        "-i", f"/work/{IN_VTK.relative_to(REPO)}",
+        "-i", f"/work/{in_vtk.relative_to(REPO)}",
         "-o", f"/work/{out_ovm.relative_to(REPO)}",
         "-j", f"/work/{json_out.relative_to(REPO)}",
         "--sm-out-path", f"/work/{sm_out.relative_to(REPO)}",
@@ -65,5 +70,14 @@ def run_hexmeshing(extra_args=()):
 
 
 if __name__ == "__main__":
-    rc, out_ovm, json_out, log_path = run_hexmeshing(sys.argv[1:])
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--tag", default="", help="suffix for all output files")
+    ap.add_argument("--in-vtk", default=None, help="input tet mesh .vtk")
+    ap.add_argument("rest", nargs=argparse.REMAINDER,
+                    help="extra flags passed straight to HexMeshing")
+    a = ap.parse_args()
+    extra = [x for x in a.rest if x != "--"]
+    rc, out_ovm, json_out, log_path = run_hexmeshing(
+        extra, tag=a.tag, in_vtk=a.in_vtk)
     sys.exit(rc)

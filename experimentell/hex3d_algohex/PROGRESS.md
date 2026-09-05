@@ -1380,3 +1380,62 @@ step never finished. Hoisted out.
 Also noted: a constant camera zoom cropped step 10, whose small multiple is
 three times as wide as the other steps. The view direction is now fixed for
 the series but the camera fits the actual bounds.
+
+---
+
+## The blade defect: measured three times, wrong twice
+
+Prompted by the observation that the block structure around the blade looks
+worse than it initially was. It does look coarser, and the reason is not what
+I claimed in either of my first two readings.
+
+### What is actually there
+
+| | blocks | non-cuboid TOTAL | at the blade | blade blocks |
+|---|---|---|---|---|
+| v11 raw | 117 | **3** | 3 | 19 (16 cuboid) |
+| v11 final | 16 | **2** | 2 | 4 (2 cuboid) |
+
+The number of defective blocks **fell** from 3 to 2, and they were all at the
+blade before the collapse as well. The collapse coarsens the blade ring from
+19 blocks to 4, so the defect *share* rises from 3/19 to 2/4 — which is what
+is visible — while the absolute count improves.
+
+### The defect itself
+
+Both remaining blocks have exactly 6 faces, but two opposite faces are
+adjacent. The seam is **one single edge** in each case:
+
+```
+block 4: seam edge (19, 7105)  midpoint r=0.580 z=1.730, 2 cells at the edge
+block 9: seam edge (19, 3759)  midpoint r=0.581 z=1.644, 2 cells at the edge
+```
+
+Both share **vertex 19**, hub side at the blade trailing edge. Neither edge
+is singular. So it is a point contact between two blocks, not a ring and not
+a wrap.
+
+### Does the collapse create it? No.
+
+Seam vertices before any collapse: {19, 3760, 9068, 9290, 11159}; after:
+{19, 3759, 7105}. **Vertex 19 is already a pinch in the raw base complex**
+(block 51, 90 cells, "not cube-adjacent"). The collapse merged blocks around
+it, so two blocks now pinch there instead of one — it did not create it.
+
+This rules out a guard in `collapse_mesh_sheets`: there is nothing for it to
+reject. The defect originates in the base complex of the extracted hex mesh,
+i.e. upstream in AlgoHex, and belongs in `FRAMEFIELD_PLAN.md` as a concrete,
+localised target rather than in the postprocessing.
+
+### Two wrong readings, recorded because the pattern repeats
+
+1. *"The collapse damaged the blade."* It did not; the defect count fell
+   3 → 2. I read a coarsening as damage.
+2. *"The blocks wrap around the blade and close on themselves."* Inferred
+   from "both opposite faces are adjacent to all five others". The seam is a
+   single edge. I inferred a geometry from an adjacency pattern instead of
+   looking at the edge.
+
+Both times the fix I proposed on that basis — protect the blade region, then
+construct a ring cut — would have targeted something that is not there. The
+measurement each time took ten minutes.

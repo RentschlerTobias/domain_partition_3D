@@ -29,10 +29,14 @@ further from the input surface.
     the same two blocks can be covered by two different sheets, which splits
     a perfectly good face in two. Labelling by the *neighbouring block*
     instead is both the correct base-complex definition and what TFI needs.
-  * a block may legitimately touch the same surface on two opposite sides
-    (`shell_hub` in T1_9 is one connected shell that wraps hub side *and*
-    shroud side, so a passage block touches it top and bottom). That is a
-    cuboid. Only *adjacent* same-surface patches are a real defect.
+  * a block may legitimately touch the same surface on two opposite sides.
+    In the v9 mesh `shell_hub` appears as ONE connected shell wrapping hub
+    side *and* shroud side, so a passage block touches it top and bottom.
+    That is a cuboid, and counting it as a defect was the artefact this
+    module had to rule out first. (The shell being connected at all was
+    later traced to a labelling bug in `tet_prep_v5`, fixed there; with the
+    fix hub and shroud are two separate surfaces. The rule stands either
+    way: only *adjacent* same-surface patches are a real defect.)
 
 Both were measured before any collapse ran -- see `report_structure`.
 

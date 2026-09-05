@@ -104,7 +104,9 @@ as an input file `T1_9_tet_vN.vtk`. Explicitly:
 | v6 | `T1_9_tet_v3.vtk` | minus blade O-grid | 646 | 60000 | aborted (stopped for memory) |
 | v7 | `T1_9_tet_v4.vtk` | minus O-grid + BL | 166 | 60000 | OOM in quantization |
 | v8 | `T1_9_tet_v4.vtk` | same as v7 | 166 | 15000 | OOM — `-n` is not the cause |
-| **v9** | `T1_9_tet_v5.vtk` | reduced, exact labels | 550 | 60000 | **completed, 2 inverted cells** |
+| **v9** | `T1_9_tet_v5_diagbug.vtk` | reduced, exact labels | 550 | 60000 | **completed, 2 inverted cells** |
+| — | `T1_9_tet_v5.vtk` | same domain, **labels corrected** | 534 | — | not run yet, see "What was learned" 11 |
+| — | `T1_9_tet_v6.vtk` | only the blade layer cut | 854 | — | not run yet |
 
 Logs and metrics per run: `output/hex3d_algohex/hexmeshing_<tag>.log`,
 `T1_9_hex_metrics_<tag>.json`.
@@ -247,6 +249,24 @@ blocks, excess faces 24 → 10, tiny blocks 8 → 2, inverted cells 2 → 1, and
 the boundary moves *closer* to the input surface (0.185 → 0.100) because the
 quad holding the old maximum was in the removed layer. A second round finds
 nothing. Cuboid share drops 90 % → 86 %, but on half as many blocks.
+
+**11. A quad-diagonal bug mislabelled the v9 input.**
+`orient_and_triangulate` reverses an inward-pointing quad and only then
+splits it on the 0-2 diagonal — for a reversed quad that is the *other*
+diagonal, so its triangles never matched the lookup tables, which registered
+only one diagonal. Present in both `tagged_2d_lookup` and
+`removed_face_kind`. Effect on the v9 input: `shell_hub` swallowed the
+shroud side (10 346 triangles spanning r 0.577–1.804, `shell_shroud` empty)
+instead of 2178 + 7912. The corrected counts match the MSH's own wall
+triangulations exactly (hub 2178, shroud 7912), which is the cross-check that
+settles it — a prism layer's inner interface carries the wall's own
+triangulation.
+
+Two earlier entries here were consequences of this bug, not facts about the
+geometry: `shell_hub` being one connected shell wrapping both sides, and the
+`shell_hub|shell_blade` staircases of point 10 below — the feature curve
+AlgoHex was given was itself wrong. A rerun on the corrected input is the
+cheapest open experiment on this branch.
 
 **10. The last inverted cell needs the boundary to move — but not to deform.**
 Smoothing that only moves *interior* vertices cannot untangle it: 4 of its 8

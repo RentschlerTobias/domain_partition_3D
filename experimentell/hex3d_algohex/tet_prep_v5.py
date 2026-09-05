@@ -45,12 +45,15 @@ MSH = REPO / "data" / "T1_9" / "T1_9_ru_gridGmsh.msh"
 OGRID_GEOM = {2, 3, 4, 5, 6}          # volume geom regions of the blade O-grid
 GEOM_INLET, GEOM_OUTLET = 3, 4        # tagged 2D element geom ids
 GEOM_PER_A, GEOM_PER_B = 6, 5
+GEOM_HUB, GEOM_SHROUD = 1, 2          # the real walls (r = 0.5 / 1.9)
 
 S_INLET, S_OUTLET, S_PER_A, S_PER_B = 1, 2, 3, 4
 S_SHELL_HUB, S_SHELL_SHROUD, S_SHELL_BLADE = 5, 6, 7
+S_HUB, S_SHROUD = 8, 9                # only present with --keep-prisms
 NAMES = {S_INLET: "inlet", S_OUTLET: "outlet", S_PER_A: "periodic_A",
          S_PER_B: "periodic_B", S_SHELL_HUB: "shell_hub",
-         S_SHELL_SHROUD: "shell_shroud", S_SHELL_BLADE: "shell_blade"}
+         S_SHELL_SHROUD: "shell_shroud", S_SHELL_BLADE: "shell_blade",
+         S_HUB: "hub", S_SHROUD: "shroud"}
 
 
 def reduced_boundary(nodes, elements, drop_prisms=True):
@@ -76,8 +79,16 @@ def tagged_2d_lookup(elements):
         elif et == 3:
             nd = nds[:4]
             look[frozenset(nd)] = geom
+            # BOTH diagonals. orient_and_triangulate reverses a quad whose
+            # normal points inward and only then splits on 0-2, which for a
+            # reversed quad is the OTHER diagonal of the original -- so half
+            # the tagged quads silently failed to match. Visible as an
+            # asymmetry: inlet matched r [0.614,1.787] while outlet matched
+            # the full [0.499,1.899].
             look[frozenset((nd[0], nd[1], nd[2]))] = geom
             look[frozenset((nd[0], nd[2], nd[3]))] = geom
+            look[frozenset((nd[0], nd[1], nd[3]))] = geom
+            look[frozenset((nd[1], nd[2], nd[3]))] = geom
     return look
 
 
@@ -100,8 +111,11 @@ def removed_face_kind(elements):
             face = [nds[i] for i in loc]
             kind[frozenset(face)] = k
             if len(face) == 4:
+                # both diagonals, same reason as in tagged_2d_lookup
                 kind[frozenset(face[:3])] = k
                 kind[frozenset((face[0], face[2], face[3]))] = k
+                kind[frozenset((face[0], face[1], face[3]))] = k
+                kind[frozenset((face[1], face[2], face[3]))] = k
     return kind
 
 
@@ -122,6 +136,10 @@ def classify(nodes, tris, look, removed_kind):
             ids[i] = S_PER_A
         elif g == GEOM_PER_B:
             ids[i] = S_PER_B
+        elif g == GEOM_HUB:
+            ids[i] = S_HUB
+        elif g == GEOM_SHROUD:
+            ids[i] = S_SHROUD
         else:
             continue
         n_match += 1

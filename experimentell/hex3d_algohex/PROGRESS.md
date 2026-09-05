@@ -1136,3 +1136,124 @@ from **`shell_blade` to the outlet** (valence 3 and valence 5, 22 edges
 each) — verified by looking up the surface label at each arc endpoint. Both
 end on the outlet plane; neither touches the inlet. With the O-grid attached,
 their `shell_blade` ends are interior.
+
+---
+
+## The v9 input was mislabelled — a quad-diagonal bug in `tet_prep_v5`
+
+Found while building the "cut only the blade layer" variant. It is the most
+consequential defect in this branch so far.
+
+`orient_and_triangulate` reverses a quad whose normal points inward
+(`face[::-1]`) and only *then* splits it on the 0-2 diagonal. For a reversed
+quad that is the OTHER diagonal of the original, so its two triangles never
+matched the lookup tables, which registered only the 0-2 diagonal. The bug
+sat in two places: `tagged_2d_lookup` and `removed_face_kind`. Both now
+register all four triangles of a tagged quad.
+
+Symptom that gave it away: the labels were asymmetric where the geometry is
+symmetric — the inlet matched only r [0.614, 1.787] while the outlet matched
+the full [0.499, 1.899], and periodic_A got 1414 triangles against
+periodic_B's 3142.
+
+### What it did to the v9 input
+
+| surface | as v9 ran it | corrected |
+|---|---|---|
+| inlet | 1027 | 1027 |
+| outlet | 1019 | 1019 |
+| periodic_A / _B | 1414 / 1414 | 1414 / 1414 |
+| **shell_hub** | **10 346**, r 0.577 … **1.804** | **2178**, r 0.577 … 0.601 |
+| **shell_shroud** | **0** | **7912**, r 1.799 … 1.804 |
+| shell_blade | 3328 | **3584** |
+| surfaces | 6 | **7** |
+| feature edges | 550 | 534 |
+
+Cross-check that settles it: the boundary layer is a prism layer, so its
+inner interface carries exactly the wall's own triangulation. The MSH's wall
+triangulations are hub 2178 and shroud 7912 triangles — the corrected shell
+counts match both **exactly**.
+
+### Two earlier conclusions have to be revised
+
+**1. "shell_hub is one connected shell spanning r = 0.577 … 1.804, so hub
+side and shroud side are one surface."** That was recorded as a geometric
+property. It is not: 256 O-grid interface triangles were misassigned to
+`shell_hub` and bridged the two shells into a single connected component,
+which is why `tet_prep_v5`'s component split found only one component and
+`shell_shroud` came out empty. With the fix they are two surfaces.
+
+**2. The block-edge zigzag now has a probable cause.** The staircases sit on
+the `shell_hub | shell_blade` boundary, and the hex mesh has no vertex within
+0.010 of that curve. The curve AlgoHex was given was computed from the
+mislabelled boundary, so the constraint the field was asked to satisfy was
+itself wrong. The measurement stands — the mesh really is not aligned — but
+"the field ignored the feature" is the wrong reading; it aligned to a
+different curve than the one we compared against.
+
+This makes a v9 rerun on the corrected input the cheapest experiment
+available, and it should be done before anything in `FRAMEFIELD_PLAN.md`.
+
+### Reproducibility note
+
+`data/T1_9/T1_9_tet_v5.vtk` now regenerates with the CORRECTED labelling and
+no longer matches what run v9 was computed from. The file v9 actually used is
+preserved as `T1_9_tet_v5_diagbug.vtk`; the code that produced it is in git
+history before this commit. All v9 results in this document refer to the
+buggy input.
+
+## The "cut only the blade layer" variant (input built, not run)
+
+Requested to test whether cutting the hub/shroud layer causes the
+inlet/outlet singularities.
+
+### The hypothesis is falsified by a measurement that needed no rerun
+
+Run v5 meshes the **full** domain with nothing cut out. Its singular graph:
+
+| | v5 (nothing cut) | v9 (both cut) |
+|---|---|---|
+| singular edges | 308 | 125 |
+| singular arcs | 12 | 5 |
+| **arc endpoints on the outlet plane** | **2** | **2** |
+| arc endpoints on the inlet plane | 2 | 0 |
+
+The full domain has the same number of arc endpoints on the outlet as the
+reduced one, and two more on the inlet. Cutting the hub/shroud layer does not
+create them — it *simplified* the graph, from 12 arcs to 5.
+
+### The input exists anyway, because the variant was never actually run
+
+Run v6 was the same idea but was **stopped manually** at round 3 of 9 after
+1 h for memory, not because it failed, and it used the older labelling.
+With the exact labels — the change that made v9 succeed where v7/v8 OOM-died
+— it is a genuinely open experiment.
+
+`tet_prep_v5.py --keep-prisms --out T1_9_tet_v6.vtk`:
+
+```
+62 874 tets, 29 828 boundary triangles, 854 feature edges, 9 surfaces
+inlet 2251   outlet 2243   periodic_A 3142   periodic_B 3142
+hub 2178     shroud 7912   (the real walls, r = 0.5 / 1.9)
+shell_hub 2688   shell_shroud 2688   shell_blade 3584   (O-grid interface)
+```
+
+854 feature edges against v9's 534. Given that more feature constraints have
+consistently produced better integer-grid maps here (README "What was
+learned" 1), that is a favourable sign.
+
+**Not run: Docker is unavailable in this session** (`/var/run/docker.sock`
+missing), so `HexMeshing` cannot be started. The commands are:
+
+```bash
+PY=/root/repos/duty/quadmesh/.venv/bin/python
+# the requested variant: only the blade layer cut out
+$PY experimentell/hex3d_algohex/run_algohex.py \
+      --tag v10 --in-vtk data/T1_9/T1_9_tet_v6.vtk -- -n 60000
+# and the cheaper, higher-value one: v9's domain with the labels fixed
+$PY experimentell/hex3d_algohex/run_algohex.py \
+      --tag v11 --in-vtk data/T1_9/T1_9_tet_v5.vtk -- -n 60000
+```
+
+Sequentially — AlgoHex peaks hard during quantization and two concurrent runs
+OOM on a 7.7 GiB box.

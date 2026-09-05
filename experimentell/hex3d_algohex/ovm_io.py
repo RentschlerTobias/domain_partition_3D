@@ -190,21 +190,36 @@ def write_hex_vtk(path, points, hexes):
             f.write("12\n")          # VTK_HEXAHEDRON
 
 
-def write_hex_msh(path, points, hexes, cell_data=None):
+def write_hex_msh(path, points, hexes, cell_data=None, lines=None,
+                  line_tags=None):
     """Gmsh 2.2 ASCII hexahedral mesh (element type 5). Optional per-cell
     integer tag is written as the physical tag so it survives the round trip
-    into gmsh/ParaView."""
+    into gmsh/ParaView.
+
+    ``lines`` adds 2-node line elements (type 1) alongside the hexes, with
+    ``line_tags`` as their physical tag. That is how the block edges are
+    carried: a solid hex mesh shows nothing of the block structure, and the
+    edge wireframe is what makes it visible (and is what the TFI division
+    MILP will need to tag anyway)."""
+    n_line = 0 if lines is None else len(lines)
     with open(path, "w") as f:
         f.write("$MeshFormat\n2.2 0 8\n$EndMeshFormat\n")
         f.write(f"$Nodes\n{len(points)}\n")
         for i, p in enumerate(points, 1):
             f.write(f"{i} {p[0]} {p[1]} {p[2]}\n")
         f.write("$EndNodes\n")
-        f.write(f"$Elements\n{len(hexes)}\n")
-        for i, c in enumerate(hexes, 1):
-            phys = int(cell_data[i - 1]) if cell_data is not None else 1
+        f.write(f"$Elements\n{n_line + len(hexes)}\n")
+        eid = 0
+        for k in range(n_line):
+            eid += 1
+            tag = int(line_tags[k]) if line_tags is not None else 1
+            a, b = lines[k]
+            f.write(f"{eid} 1 2 {tag} 1 {int(a) + 1} {int(b) + 1}\n")
+        for c in hexes:
+            eid += 1
+            phys = int(cell_data[eid - n_line - 1]) if cell_data is not None else 1
             nodes = " ".join(str(int(v) + 1) for v in c)
-            f.write(f"{i} 5 2 {phys} 1 {nodes}\n")
+            f.write(f"{eid} 5 2 {phys} 1 {nodes}\n")
         f.write("$EndElements\n")
 
 

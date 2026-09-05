@@ -1338,3 +1338,45 @@ actually touch one.
 cavities, so nothing was filled; had a collapse opened one it would never
 have been repaired. It did not happen here, but the ordering is wrong and is
 worth fixing before the next collapse-heavy run.
+
+---
+
+## The 11-step showcase (`showcase.py`)
+
+Built to the proposal in `ANALYSIS_PLAN.md`, documented in `SHOWCASE.md`,
+mirroring the 2D series in `dp3d/plotting.py`. `pyvista` and `plotly` were
+installed into the shared venv for it; rendering falls back to OSMesa, so no
+X server is needed.
+
+Each step is emitted three ways from ONE description — `.vtk` (authoritative,
+for ParaView), `.png` (fixed camera), `.html` (interactive plotly) — so they
+cannot drift apart. 22 VTK + 11 PNG + 11 HTML, 88 MB.
+
+Step 04 exports the **singularity graph** as a VTK line mesh with `valence`
+and `arc_id` per segment. Nothing in this branch exported it before; it had
+only ever been a printed table, and it is the object `FRAMEFIELD_PLAN.md` is
+about.
+
+### Three bugs the showcase turned up
+
+**1. `pv.PolyData(points)` creates a vertex cell per point.** Assigning
+`.lines` afterwards leaves them in place, so `n_cells` is points + lines and
+every cell array is rejected for the wrong length. Fixed by passing `lines=`
+to the constructor.
+
+**2. `hex_grid()` shares the caller's point array, and `translate(inplace=
+True)` then moves the caller's data.** In step 10 this silently shifted the
+mesh feeding the next collapse round: round 3 reported 2 cuboids instead of
+14, because its surface labels were transferred at coordinates offset by 4.2
+from the input surface. The small-multiple offset now goes to a copy used for
+rendering only, and the saved VTK is never translated. With the fix, the
+replay reproduces the recorded rounds exactly — cells 58 520 / 56 112 /
+54 460, blocks 31 / 22 / 16, cuboids 28 / 19 / 14, inverted 12 / 3 / 2.
+
+**3. `build_topology` inside a list comprehension.** In step 04 it ran once
+per boundary face — roughly 10 000 times over a 61 546-cell mesh — and the
+step never finished. Hoisted out.
+
+Also noted: a constant camera zoom cropped step 10, whose small multiple is
+three times as wide as the other steps. The view direction is now fixed for
+the series but the camera fits the actual bounds.

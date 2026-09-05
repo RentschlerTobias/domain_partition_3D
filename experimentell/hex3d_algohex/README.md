@@ -18,7 +18,12 @@ twist). A per-surface 2D field with a ruled lift cannot represent that, which
 is why the existing 3D lift needs a morph hack. A 3D field represents it
 natively.
 
-**Status**: Stages 0–5 done. A valid hex mesh, a block decomposition and its
+**Status**: Stages 0–6 done. Best result: **v11 → 16 blocks, all 6-faced, 0
+inverted cells, validator VALID** (`clean_blocks.py --collapse-rounds 5
+--untangle` on `T1_9_hex_v11.ovm`). Older text below still describes the v9
+path; see PROGRESS.md "Runs v10 and v11".
+
+Stages 0–5 done. A valid hex mesh, a block decomposition and its
 postprocessing (`clean_blocks.py`) exist. Two usable endpoints: **81 blocks /
 73 cuboids (90 %)** with the mesh nearly untouched, or **42 blocks / 36
 cuboids (86 %)** after a sheet collapse and untangling — half the blocks and
@@ -105,8 +110,8 @@ as an input file `T1_9_tet_vN.vtk`. Explicitly:
 | v7 | `T1_9_tet_v4.vtk` | minus O-grid + BL | 166 | 60000 | OOM in quantization |
 | v8 | `T1_9_tet_v4.vtk` | same as v7 | 166 | 15000 | OOM — `-n` is not the cause |
 | **v9** | `T1_9_tet_v5_diagbug.vtk` | reduced, exact labels | 550 | 60000 | **completed, 2 inverted cells** |
-| — | `T1_9_tet_v5.vtk` | same domain, **labels corrected** | 534 | — | not run yet, see "What was learned" 11 |
-| — | `T1_9_tet_v6.vtk` | only the blade layer cut | 854 | — | not run yet |
+| **v11** | `T1_9_tet_v5.vtk` | same domain, **labels corrected** | 534 | 60000 | **13 min, 21 inverted, no cavities — best block structure** |
+| v10 | `T1_9_tet_v6.vtk` | only the blade layer cut | 854 | 60000 | 1 h 29, 19 inverted, 198 blocks |
 
 Logs and metrics per run: `output/hex3d_algohex/hexmeshing_<tag>.log`,
 `T1_9_hex_metrics_<tag>.json`.

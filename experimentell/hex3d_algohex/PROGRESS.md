@@ -1257,3 +1257,84 @@ $PY experimentell/hex3d_algohex/run_algohex.py \
 
 Sequentially — AlgoHex peaks hard during quantization and two concurrent runs
 OOM on a 7.7 GiB box.
+
+---
+
+## Runs v10 and v11 — the label fix changes everything
+
+Docker was started (`systemctl start docker`; image and build volume both
+survived), and both runs completed.
+
+### Mesh-level comparison
+
+| run | domain / labels | runtime | cells | inverted | min SJ | mean SJ | sing. edges | arcs | ends @outlet | @inlet | cavities |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| v5 | full, nothing cut | 1 h 17 | 60 612 | 96 | −0.9993 | 0.9651 | 308 | 12 | **2** | 2 | 0 |
+| v9 | both cut, **buggy labels** | 45 min | 56 661 | **2** | −0.0607 | 0.9664 | 118 | 7 | **2** | 0 | 2 |
+| v10 | only blade cut | 1 h 29 | 62 076 | 19 | −0.2729 | 0.9648 | 188 | 8 | **2** | 2 | 1 |
+| v11 | both cut, **labels fixed** | **13 min** | 61 546 | 21 | −0.4938 | **0.9767** | 164 | 6 | **2** | 0 | **0** |
+
+**v11 runs 3.4x faster than v9 on the same domain.** The integrability
+optimisation alone fell from 2 086 s to 215 s — nearly a factor 10. Same
+input geometry, only the surface labels corrected.
+
+**Every run has exactly 2 singular-arc endpoints on the outlet**, whatever is
+cut out. That closes the question: the outlet singularity is not produced by
+the domain reduction. Keeping the hub/shroud layer (v5, v10) *adds* two more
+at the inlet.
+
+### Block structure — this is where the label fix pays
+
+| | blocks | cuboids | cells in cuboids | tiny (<10) | Hausdorff |
+|---|---|---|---|---|---|
+| v9 raw (after cavity refill) | 82 | 72 (88 %) | 98 % | 8 | 0.1851 |
+| **v11 raw** | 117 | **114 (97 %)** | **100 %** | 16 | **0.0341** |
+| v10 raw | 198 | 164 (83 %) | 96 % | 12 | — |
+
+v11 has more blocks than v9 but almost all of them are cuboids, and the
+boundary sits 5x closer to the input surface.
+
+### v11 after sheet collapse + untangling — the best result on this branch
+
+| round | sheet | cells | blocks | cuboids | excess | tiny | inverted |
+|---|---|---|---|---|---|---|---|
+| start | — | 61 546 | 117 | 114 | 3 | 16 | 21 |
+| 1 | 6 | 58 520 | 31 | 28 | 3 | **0** | 12 |
+| 2 | 15 | 56 112 | 22 | 19 | 3 | 0 | 3 |
+| 3 | 17 | 54 460 | **16** | 14 | 2 | 0 | 2 |
+| 4 | — | no sheet improves, stop |
+| untangle | — | 54 460 | 16 | 14 | 2 | 0 | **0** |
+
+Final: **16 blocks, every one with exactly 6 faces, 0 blocks under 10 cells,
+0 inverted cells, `HexBlockValidator` VALID**, min scaled Jacobian 0.1524,
+mean 0.9794, Hausdorff 0.0341 unchanged through all three collapses.
+
+Against the previous best (v9 path: 42 blocks, 36 cuboids, Hausdorff 0.0999)
+that is 2.6x fewer blocks at better boundary fidelity.
+
+The 2 remaining non-cuboids fail the cube-adjacency test — they have 6 faces
+that do not meet in cube fashion. They are NOT cavity-related; see below.
+
+### The user's hypothesis, tested directly
+
+v10 is the requested variant: cut only the blade layer, keep the cylindrical
+one. It is measurably the **worst** of the three reduced variants — 198
+blocks and 83 % cuboids against v11's 117 and 97 % — and it still has the two
+outlet arc endpoints, plus two at the inlet. Run v6 had attempted the same
+domain and was stopped manually at round 3 of 9; this time it completed in
+1 h 29.
+
+### Two bugs found in my own reporting
+
+**1. `cuboids_if_cavities_filled` misattributed defects.** The test was
+`len(patches) - len(cavity faces) == 6`, which for a 6-faced block that fails
+cube-adjacency reduces to `6 - 0 == 6` and blamed an internal cavity the
+block does not touch. It reported "2 non-cuboid ONLY because of an internal
+cavity (728 cells)" for a final mesh whose boundary has exactly **one**
+connected component, i.e. no cavity at all. Fixed by requiring the block to
+actually touch one.
+
+**2. `fill_cavities` runs before the sheet collapse only.** Raw v11 has no
+cavities, so nothing was filled; had a collapse opened one it would never
+have been repaired. It did not happen here, but the ordering is wrong and is
+worth fixing before the next collapse-heavy run.

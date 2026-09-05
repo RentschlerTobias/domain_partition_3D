@@ -1179,8 +1179,13 @@ def report_structure(S, title="structure", verbose=True):
     # projection, clearly separated from the measurement: how many blocks
     # are non-cuboid ONLY because an internal cavity chips extra faces off
     # them. Not a result -- it says what a cavity refill would be worth.
+    # `len(p) - len(cavity faces) == 6` alone is NOT enough: for a block with
+    # 6 faces that fails the cube-adjacency test it reduces to 6 - 0 == 6 and
+    # blamed an internal cavity that the block does not even touch. Require
+    # that it actually touches one.
     cav_only = [r for r, p in pat.items()
                 if stat[r][0] != "cuboid"
+                and len(touches_cavity(S, p)) > 0
                 and len(p) - len(touches_cavity(S, p)) == 6]
     rep = {
         "blocks": n,
@@ -1417,7 +1422,8 @@ def merge_non_cuboids(S, max_cells=None, verbose=True):
             p = S.patches(r)
             if cuboid_status(p)[0] == "cuboid":
                 continue
-            if len(p) - len(touches_cavity(S, p)) == 6:
+            tc = touches_cavity(S, p)
+            if tc and len(p) - len(tc) == 6:
                 continue                     # cavity-only defect, unfixable
             if max_cells is None or len(c) <= max_cells:
                 bad.append(r)
@@ -1556,7 +1562,8 @@ def split_non_cuboid(S, verbose=True):
             p = S.patches(r)
             if cuboid_status(p)[0] == "cuboid":
                 continue
-            if len(p) - len(touches_cavity(S, p)) == 6:
+            tc = touches_cavity(S, p)
+            if tc and len(p) - len(tc) == 6:
                 continue                      # cavity-only, unsplittable
             bad.append(r)
         bad.sort(key=lambda r: -len(S.patches(r)))

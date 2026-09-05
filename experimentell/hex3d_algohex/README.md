@@ -18,9 +18,12 @@ twist). A per-surface 2D field with a ruled lift cannot represent that, which
 is why the existing 3D lift needs a morph hack. A 3D field represents it
 natively.
 
-**Status**: Stages 0–4 done. A valid hex mesh and a block decomposition
-exist. Postprocessing of the block structure is the next step — see
-`POSTPROCESSING_PLAN.md`. TFI is after that.
+**Status**: Stages 0–5 done. A valid hex mesh, a block decomposition and its
+postprocessing (`clean_blocks.py`) exist. Two usable endpoints: **81 blocks /
+73 cuboids (90 %)** with the mesh nearly untouched, or **42 blocks / 36
+cuboids (86 %)** after a sheet collapse and untangling — half the blocks and
+**0 inverted cells, `HexBlockValidator` VALID**. TFI is next. See "What was
+learned", points 6–10.
 
 ---
 
@@ -36,8 +39,19 @@ $PY experimentell/hex3d_algohex/tet_prep_v5.py            # -> data/T1_9/T1_9_te
 $PY experimentell/hex3d_algohex/run_algohex.py \
       --tag v9 --in-vtk data/T1_9/T1_9_tet_v5.vtk -- -n 60000
 
-# 3. blocks from the result
+# 3. blocks from the result  (raw base complex; see "What was learned" 6 --
+#    its own surface classifier gives 48 %, not the 74 % on record)
 $PY experimentell/hex3d_algohex/block_faces.py output/hex3d_algohex/T1_9_hex_v9.ovm
+
+# 4. block-structure postprocessing: report, cleanup, validation, export
+$PY experimentell/hex3d_algohex/clean_blocks.py
+
+#    optional: mesh-level sheet collapse (Gao), ~15 min per round, halves the
+#    block count on v9; changes the hex mesh, so it is off by default
+$PY experimentell/hex3d_algohex/clean_blocks.py --collapse-rounds 5 --untangle \
+      --out output/hex3d_algohex/deliverable/T1_9_blocks_v9_gao.vtk
+$PY experimentell/hex3d_algohex/clean_blocks.py \
+      output/hex3d_algohex/cylinder_hex.ovm --no-input-vtk --out /tmp/cyl.vtk
 
 # inspection files for ParaView
 $PY experimentell/hex3d_algohex/export_vtk.py
@@ -61,6 +75,8 @@ $PY experimentell/hex3d_algohex/plot_stages.py
 | runtime | 1 h 17 | 45 min |
 | **blocks** | 307 | **82** |
 | cuboids | 290 (94 %) | 61 (74 %, 85 % of cells) |
+| after `clean_blocks.py` | — | **81 blocks, 73 cuboids (90 %)** |
+| after `--collapse-rounds 5 --untangle` | — | **42 blocks, 36 cuboids (86 %), 0 inverted, VALID** |
 
 v9 is the recommended base: 48× fewer inverted cells and a far coarser block
 structure, which is what TFI wants. v5 has the higher cuboid share.
@@ -104,6 +120,7 @@ Logs and metrics per run: `output/hex3d_algohex/hexmeshing_<tag>.log`,
 | `ovm_io.py` | OpenVolumeMesh reader, hex VTK/MSH writers, `scaled_jacobian`, `_hex_volume` |
 | `base_complex.py` | singular edges, sheet propagation, block partition |
 | `block_faces.py` | per-sheet labelling, block faces, cuboid test |
+| `clean_blocks.py` | Stage 5: block-structure postprocessing. Exact surface labels by nearest-face lookup; cavity detection and refill; block merge/split on the cut set; optional mesh-level sheet collapse (Gao); `HexBlockValidator`; before/after report |
 | `export_vtk.py`, `plot_stages.py` | ParaView exports and figures |
 
 `tet_prep_v4.py` does not exist — the numbering skips it because
@@ -185,6 +202,63 @@ tets are still present in
 **unfixed**. The tell was that AlgoHex's own cylinder demo also measured
 "32 %".
 
+**6. `block_faces.physical_of` does not reproduce the documented baseline.**
+It still classifies by analytic coordinate thresholds and gives 39/82 cuboids
+(48 %). The nearest-face label transfer that produced the recorded 61/82
+(74 %) was never committed; it now lives in `clean_blocks.SurfaceLabeller`
+and reproduces the documented numbers exactly. Point 3 applies to the
+committed classifier too, not only to the abandoned radius split.
+
+**7. The v9 hex mesh is not solid — two internal cavities (now repaired).**
+Its boundary has three connected components: the outer surface and two closed
+surfaces of 28 and 22 quads, enclosing 0.00170 and 0.00145. That is the
+missing 0.2 % of "99.8 % coverage". Both are structured boxes (8 valence-3
+corners, everything else valence 4) — 8 and 5 missing cells — and all the
+vertices needed to refill them exist. They are the reason 8 blocks (7046
+cells, among them the 3395- and 1530-cell ones) are not cuboids. Refilled by
+`clean_blocks.fill_cavities` via corner peeling — 14 cells, min scaled
+Jacobian 0.848, volume matching the measured cavity to 4 decimals — which
+takes the structure to 73/81 cuboids and 98 % of cells. (The second cavity is
+1x2x3, not the 1x1x5 first guessed: quad and vertex counts fit both.)
+
+**8. Merging blocks cannot simplify this base complex.**
+Sliver-sheet collapse and tiny-block absorption were both rejected in every
+single case, always at exactly +3 excess faces. The sheets are bounded by
+singular edges, so dropping one merges two blocks without merging their side
+neighbours and all four side faces of the union stay split. This is
+structural, not a threshold. Real simplification needs Gao et al.'s
+mesh-level sheet collapse, which removes a layer of hexes.
+
+Related trap: scoring by the *number* of non-cuboid blocks instead of their
+severity looks like a big win (82 → 65 blocks, 78 % → 91 % cuboids) while the
+absolute cuboid count falls and 17- and 27-faced blocks appear. The share
+only rises because the denominator shrinks.
+
+**9. Sheet collapse is safe here, and one sheet does almost all the work.**
+All 145 mesh sheets (edge parallel classes) were screened: none is
+self-intersecting and **none adds an inverted cell**. The expected risk —
+welding vertices wrecks element quality — did not materialise. But only 1 of
+145 improves the block structure, and it does so dramatically: 82 → 42
+blocks, excess faces 24 → 10, tiny blocks 8 → 2, inverted cells 2 → 1, and
+the boundary moves *closer* to the input surface (0.185 → 0.100) because the
+quad holding the old maximum was in the removed layer. A second round finds
+nothing. Cuboid share drops 90 % → 86 %, but on half as many blocks.
+
+**10. The last inverted cell needs the boundary to move — but not to deform.**
+Smoothing that only moves *interior* vertices cannot untangle it: 4 of its 8
+vertices are on the domain boundary and the inversion is already in its
+boundary quads, so it stalls at −0.0451. Letting those 4 slide *along* the
+input surface untangles it (min scaled Jacobian **+0.0143**, mesh VALID) with
+a measured boundary drift of 0.000000 and unchanged Hausdorff — the surface
+constraint is what makes the extra freedom safe.
+
+And a metric trap that recurred three times in this stage: maximising the
+soft *minimum* scaled Jacobian lifts the worst cell (−0.0582 → −0.0453) while
+pushing three neighbours below zero, turning 1 inverted cell into 4. When the
+quantity to minimise is a *count*, an extremum or an average will happily
+report progress while the structure degrades. Use a one-sided barrier and
+rank by the count.
+
 ---
 
 ## Reduced-domain strategy
@@ -231,6 +305,23 @@ by extruding from the AlgoHex surface.
 | `T1_9_blocks_v9_nfaces.vtk` | `n_block_faces` — threshold ≠ 6 shows the 21 non-cuboids |
 | `T1_9_v9_input_*.vtk` | the AlgoHex input: surface (`surface_id`), tets, feature graph |
 | `T1_9_hexmesh_v5.*`, `T1_9_blocks_v5.*` | same for the full-domain run |
+| `T1_9_blocks_v9_clean.{vtk,msh}` | postprocessed blocks, `block_id`, 81 blocks, cavities filled |
+| `T1_9_blocks_v9_clean_nfaces.vtk` | `n_block_faces` — threshold ≠ 6 shows the 8 non-cuboids |
+| `T1_9_blocks_v9_clean_edges.vtk` | block-edge wireframe, `block_edge_id`, 423 curves |
+| `T1_9_blocks_v9_gao.{vtk,msh}` | same after sheet collapse + untangling: 42 blocks, 54 360 cells, 0 inverted |
+| `T1_9_blocks_v9_gao_edges.vtk` | block-edge wireframe, 234 curves |
+
+The `.msh` files carry the block edges as **1D line elements** next to the
+hexes, physical tag = curve id (1-based); the hexes keep `block_id` as their
+physical tag. A solid hex mesh shows nothing of the block structure, so the
+wireframe is what makes it visible — and it is the entity the conforming
+division MILP will tag later. To regenerate it for an existing deliverable
+without rerunning the pipeline:
+
+```bash
+$PY experimentell/hex3d_algohex/clean_blocks.py --edges-only \
+      output/hex3d_algohex/deliverable/T1_9_blocks_v9_gao.vtk
+```
 | `T1_9_walls_tri_vs_quad.vtk` | `is_quad` on hub+shroud: 1 = triangle, 2 = quad |
 
 Blocks are **volumetric**, not just a surface partition: 50 540 of 60 612
@@ -244,4 +335,8 @@ ParaView renders only the outer hull of an unstructured grid — use `Clip` or
 
 - `PLAN.md` — original stage plan and background
 - `PROGRESS.md` — full chronological log, including failed attempts and why
-- `POSTPROCESSING_PLAN.md` — the next step, block-structure cleanup
+- `POSTPROCESSING_PLAN.md` — block-structure cleanup (done, stages 5–5c)
+- `FRAMEFIELD_PLAN.md` — proposed next stage: reducing the block count by
+  manipulating the frame field. Includes the singular-graph census, the
+  AlgoHex flags that control singular-graph optimisation, and a literature
+  review. **Not started.**

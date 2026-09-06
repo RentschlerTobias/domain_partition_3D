@@ -557,8 +557,24 @@ def step11_final(tag="v11"):
             acts.append(dict(mesh=ls, kind="lines", color="#000000",
                              line_width=4, label="block edges"))
             vtks["edges"] = ls
+    # the re-attached full domain, as its own panel
+    full = d / f"T1_9_blocks_{tag}_full.vtk"
+    if full.exists():
+        fm = meshio.read(full)
+        FH = np.vstack([b.data for b in fm.cells if b.type == "hexahedron"])
+        FB = np.concatenate([np.asarray(x).ravel() for b, x in
+                             zip(fm.cells, fm.cell_data["block_id"])
+                             if b.type == "hexahedron"])
+        fg = hex_grid(fm.points, FH, block_id=FB)
+        print(f"[step11] full domain: {len(FH)} cells, {int(FB.max()) + 1} blocks")
+        vtks["full"] = fg
+        acts.append(dict(mesh=fg.extract_surface().translate((4.2, 0, 0),
+                                                             inplace=False),
+                         scalars="block_id", cmap="tab20",
+                         colorscale="Turbo", label="full domain"))
     emit(11, f"final_blocks_{tag}", acts,
-         f"11  final block structure {tag}", vtks)
+         f"11  final block structure {tag}: core, and the re-attached "
+         f"full domain", vtks)
 
 
 STEPS = {1: step01_input_surfaces, 2: step02_feature_graph,

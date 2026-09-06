@@ -96,16 +96,22 @@ class _Tris:
         self.tree = cKDTree(P[tris].mean(1))
 
 
-def boundary_layer_blocks(S, walls, shell="bl_interface_hub", verbose=True):
+def boundary_layer_blocks(S, walls,
+                          shells=("bl_interface_hub", "bl_interface_shroud"),
+                          verbose=True):
     """Rebuild the hub/shroud boundary layer as one hex block per AlgoHex
     block face lying on `shell` (the boundary-layer interface).
 
     Each such face is extruded to the wall it belongs to. One layer of cells
     is enough: the block is the entity that matters here, and TFI supplies
     the wall-normal division (tanh clustering, `dp3d/tmesh.py:811`) later."""
-    sid = next((k for k, v in S.surf_names.items() if v == shell), None)
-    if sid is None:
-        raise ValueError(f"no surface named {shell!r}")
+    # BOTH interfaces. Before the quad-diagonal fix `shell_hub` wrongly
+    # covered the shroud side as well, so processing one surface happened to
+    # cover both; with correct labels they are separate and taking only the
+    # hub silently dropped the entire shroud boundary layer.
+    sids = {k for k, v in S.surf_names.items() if v in shells}
+    if not sids:
+        raise ValueError(f"none of {shells!r} present")
     hub, shroud = _Tris(*walls["hub"]), _Tris(*walls["shroud"])
     # The two walls are EXACT cylinders -- measured on the MSH's own wall
     # triangulations, radius std 0.000000 for both (hub 0.50000, shroud
@@ -125,10 +131,11 @@ def boundary_layer_blocks(S, walls, shell="bl_interface_hub", verbose=True):
     faces = []                       # (block root, patch index, [quad loops])
     for r in S.cells_of():
         for pi, (k, loops) in enumerate(S.patches(r)):
-            if k[0] == "P" and k[1] == sid:
+            if k[0] == "P" and k[1] in sids:
                 faces.append((r, pi, loops))
     if verbose:
-        print(f"[reattach] {len(faces)} block faces on {shell}, "
+        names = "/".join(sorted(S.surf_names[i] for i in sids))
+        print(f"[reattach] {len(faces)} block faces on {names}, "
               f"{sum(len(l) for _r, _p, l in faces)} quads")
 
     P0 = S.P

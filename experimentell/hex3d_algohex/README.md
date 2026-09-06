@@ -165,6 +165,22 @@ required — the default bridge network has no DNS here.
 
 ---
 
+## A naming note that matters
+
+The surfaces `bl_interface_hub`, `bl_interface_shroud` and `ogrid_interface`
+are **interfaces to cells cut out of the domain**, not walls. In the reduced
+domain the blade wall and the hub/shroud walls are not present at all — they
+belong to the removed O-grid and prism layer, which are re-attached later by
+`reattach.py`.
+
+They used to be called `shell_hub`, `shell_shroud` and `shell_blade`, and
+that cost three wrong diagnoses in a row: "the block structure at the blade"
+repeatedly meant "blocks touching the O-grid cut face", which is a different
+thing one cell layer away. Older entries in `PROGRESS.md` still use the old
+names; they are a chronological log and were deliberately not rewritten.
+
+---
+
 ## What was learned (the non-obvious parts)
 
 **1. Feature constraints: more is better, counter-intuitively.**
@@ -261,16 +277,16 @@ nothing. Cuboid share drops 90 % → 86 %, but on half as many blocks.
 splits it on the 0-2 diagonal — for a reversed quad that is the *other*
 diagonal, so its triangles never matched the lookup tables, which registered
 only one diagonal. Present in both `tagged_2d_lookup` and
-`removed_face_kind`. Effect on the v9 input: `shell_hub` swallowed the
-shroud side (10 346 triangles spanning r 0.577–1.804, `shell_shroud` empty)
+`removed_face_kind`. Effect on the v9 input: `bl_interface_hub` swallowed the
+shroud side (10 346 triangles spanning r 0.577–1.804, `bl_interface_shroud` empty)
 instead of 2178 + 7912. The corrected counts match the MSH's own wall
 triangulations exactly (hub 2178, shroud 7912), which is the cross-check that
 settles it — a prism layer's inner interface carries the wall's own
 triangulation.
 
 Two earlier entries here were consequences of this bug, not facts about the
-geometry: `shell_hub` being one connected shell wrapping both sides, and the
-`shell_hub|shell_blade` staircases of point 10 below — the feature curve
+geometry: `bl_interface_hub` being one connected shell wrapping both sides, and the
+`bl_interface_hub|ogrid_interface` staircases of point 10 below — the feature curve
 AlgoHex was given was itself wrong. A rerun on the corrected input is the
 cheapest open experiment on this branch.
 

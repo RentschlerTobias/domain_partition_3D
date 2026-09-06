@@ -32,7 +32,7 @@ the point; v5 and v10 only in step 03.
 
 | # | file stem | shows | measured on v11 |
 |---|---|---|---|
-| 01 | `step01_input_surfaces` | the labelled boundary AlgoHex is given, one colour per surface | 18 548 triangles over 7 surfaces: inlet 1027, outlet 1019, periodic 1414 + 1414, shell_hub 2178, shell_shroud 7912, shell_blade 3584 |
+| 01 | `step01_input_surfaces` | the labelled boundary AlgoHex is given, one colour per surface | 18 548 triangles over 7 surfaces: inlet 1027, outlet 1019, periodic 1414 + 1414, bl_interface_hub 2178, bl_interface_shroud 7912, ogrid_interface 3584 |
 | 02 | `step02_feature_graph` | feature curves and feature vertices on that boundary | 534 feature edges, valence {2: 522, 3: 8}, 8 feature vertices |
 | 03 | `step03_domain_variants` | the three domains that were actually run, side by side | full 71 415 tets / 630 features · minus O-grid 62 874 / 854 · minus both 42 218 / 534 |
 | 04 | `step04_singular_graph_v11` | **the frame-field singularity graph in 3D**, with arc endpoints marked | 164 singular edges {3: 24, 5: 140}, 6 arcs, 2 endpoints on the outlet, 0 on the inlet |
@@ -69,7 +69,7 @@ Not a glossary. Every row names the function and a real result.
 | faces per block | `clean_blocks.cuboid_status` | v11 {6: 115, 7: 2} against v9 {6: 72, 7: 4, 8: 4, 9: 3, 10: 1, 12: 1} |
 | excess faces, Σ max(0, faces − 6) | `clean_blocks._excess` | replaced a non-cuboid *count* that had built 17- and 27-faced blocks while the percentage rose |
 | Hausdorff to the input surface | `HexBlockValidator.boundary_hausdorff` | v11 0.0341 against v9 0.1851 — the label fix, not the postprocessing |
-| block-edge kink angle | `clean_blocks.edge_kink_stats` | 63 kinks above 30°, 45 of them on 14 `shell_hub\|shell_blade` curves |
+| block-edge kink angle | `clean_blocks.edge_kink_stats` | 63 kinks above 30°, 45 of them on 14 `bl_interface_hub\|ogrid_interface` curves |
 | interface gap | `reattach.interface_gap` | 0.0418 median — the non-conformity assumption checked instead of assumed |
 
 Where a distribution exists, the figures show the distribution, not only the

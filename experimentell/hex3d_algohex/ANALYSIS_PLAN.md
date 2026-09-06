@@ -119,7 +119,7 @@ value, so the number in a figure can be traced.
 | **excess faces** Σ max(0, faces−6) | `clean_blocks._excess` | replaced a non-cuboid *count* that had built 17- and 27-faced blocks while the percentage rose |
 | **cuboid share vs count** | `report_structure` | 82→65 blocks looked like 78 %→91 % while the absolute cuboid count *fell* 64→59 |
 | **Hausdorff to the input surface** | `HexBlockValidator.boundary_hausdorff` | v11 0.0341 vs v9 0.1851 — the label fix, not the postprocessing |
-| **block-edge kink angle** | `clean_blocks.edge_kink_stats` | 63 kinks > 30°, of which 45 on 14 `shell_hub\|shell_blade` curves |
+| **block-edge kink angle** | `clean_blocks.edge_kink_stats` | 63 kinks > 30°, of which 45 on 14 `bl_interface_hub\|ogrid_interface` curves |
 | **interface gap** | `reattach.interface_gap` | 0.0418 median — the non-conformity assumption checked, not assumed |
 
 Each metric gets one figure panel showing the *distribution*, not just the

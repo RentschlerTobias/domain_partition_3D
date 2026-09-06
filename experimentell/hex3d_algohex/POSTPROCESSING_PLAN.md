@@ -13,7 +13,7 @@ That raw structure is not yet usable. Measured on v9:
   slivers that separate almost nothing
 - **8 blocks under 10 cells** (smallest 3), 36 under 100
 - **21 non-cuboid blocks**: 9 touch the *same* surface on two separate
-  patches (e.g. `shell_hub` twice), 12 simply have the wrong face count
+  patches (e.g. `bl_interface_hub` twice), 12 simply have the wrong face count
   (5, 7, 9, up to 12 faces)
 
 This is structurally the same situation the 2D / unwrapped-surface pipeline
@@ -168,11 +168,11 @@ faces per block: {5: 4, 6: 61, 7: 8, 8: 1, 9: 6, 10: 1, 12: 1}
   -> cuboids 61/82 (74 %), covering 48293/56661 cells (85 %)
 21 non-cuboid, of which 9 repeat a surface label:
   (block, cells, faces, repeated labels)
-  (5, 3395, 9, {shell_hub: 2, shell_blade: 2})
-  (19, 1530, 9, {shell_hub: 2, shell_blade: 2})
-  (18, 1015, 9, {shell_hub: 2, shell_blade: 2})
-  (33,  170, 12, {shell_hub: 4, shell_blade: 3})
-  (8,   141, 10, {shell_hub: 2, shell_blade: 2, sheet 13: 2})
+  (5, 3395, 9, {bl_interface_hub: 2, ogrid_interface: 2})
+  (19, 1530, 9, {bl_interface_hub: 2, ogrid_interface: 2})
+  (18, 1015, 9, {bl_interface_hub: 2, ogrid_interface: 2})
+  (33,  170, 12, {bl_interface_hub: 4, ogrid_interface: 3})
+  (8,   141, 10, {bl_interface_hub: 2, ogrid_interface: 2, sheet 13: 2})
 mesh quality: 2 cells with scaled Jacobian <= 0, min -0.0607, mean 0.9664
               0 non-manifold faces
 ```

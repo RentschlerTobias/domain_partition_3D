@@ -1,6 +1,17 @@
 # Reducing block count by manipulating the frame field (T1_9, v9)
 
-Plan for the next stage. **Not started — awaiting go.**
+Plan for the next stage. **Not started, and its numbers are superseded.**
+
+> **Read this first.** Every measurement below was taken on run **v9**, whose
+> input was mislabelled by the quad-diagonal bug (README, "What was learned"
+> 11). Run **v11** — same domain, labels fixed — gives 6 arcs instead of 5 and
+> **16 blocks instead of 82**, and already meets this plan's own success
+> criteria in §5 (< 30 blocks, 0 tiny blocks, 0 inverted cells). The one
+> defect that survives is a point pinch at vertex 19.
+>
+> Do not act on the numbers below. Step 0 has to be re-measured on v11 first —
+> and that re-measurement is deliberately scheduled *after* TFI, because TFI
+> defines what "good enough" means and may make this whole stage unnecessary.
 
 The working hypothesis behind this stage is: *the remaining blocks that could
 be avoided are caused by frame-field singularities, so manipulating the field
@@ -75,16 +86,16 @@ The block-edge wireframe has 63 kinks above 30°. Their distribution
 
 | curve type | curves | vertices | median kink | p95 | > 30° |
 |---|---|---|---|---|---|
-| **shell_hub \| shell_blade** | 14 | 160 | 5.2° | **96.5°** | **45** |
+| **bl_interface_hub \| ogrid_interface** | 14 | 160 | 5.2° | **96.5°** | **45** |
 | block \| block | — | 576 | 1.9° | 11.0° | 4 |
 | surface \| block | — | 1216 | 1.2° | 8.3° | 14 |
 | surface \| surface | — | 442 | 0.5° | 3.9° | 0 |
 
-45 of the 63 sit on the 14 curves that separate `shell_hub` from
-`shell_blade`. Those are staircases, and they cannot be smoothed:
+45 of the 63 sit on the 14 curves that separate `bl_interface_hub` from
+`ogrid_interface`. Those are staircases, and they cannot be smoothed:
 
 ```
-hex boundary vertices within 0.010 of the true shell_hub|shell_blade
+hex boundary vertices within 0.010 of the true bl_interface_hub|ogrid_interface
 feature curve:  0
 staircase distance to that curve: median 0.074, max 0.133  (1–3 cells)
 ```
@@ -172,7 +183,7 @@ This is the cheapest lever by a wide margin — no new code, only reruns.
 | `-p, --penalty` | — | penalty of the normal alignment |
 
 **`--full-constraints=false` is the prime suspect for §1.3.** Our
-`shell_hub | shell_blade` interface is not a geometric feature — there is no
+`bl_interface_hub | ogrid_interface` interface is not a geometric feature — there is no
 dihedral kink there, it is an artificial cut surface — so the field has no
 geometric reason to align to it and is only softly asked to. Turning on full
 constraints is a one-flag experiment.
@@ -219,7 +230,7 @@ first.**
 
 Rerun v9 with `--full-constraints` on, and separately with a lower
 `--dihedral-angle`. Evaluate on the §1.3 metric (staircase kinks, and hex
-vertices within 0.010 of the `shell_hub|shell_blade` curve) as well as block
+vertices within 0.010 of the `bl_interface_hub|ogrid_interface` curve) as well as block
 count.
 
 *Why first*: it is the cheapest field-level change, it targets a defect we
@@ -286,7 +297,7 @@ paper, with the existing sheet machinery as the substrate.
 | non-cuboid blocks | 6 | 0 |
 | blocks < 10 cells | 2 | 0 |
 | kinks > 30° on block edges | 63 | < 10 |
-| hex vertices on the `shell_hub\|shell_blade` curve | 0 | > 0 |
+| hex vertices on the `bl_interface_hub\|ogrid_interface` curve | 0 | > 0 |
 | inverted cells | 0 | **0 — hard, unchanged** |
 | boundary Hausdorff to input surface | 0.0999 | no worse |
 
@@ -318,7 +329,7 @@ in the previous stage.
 
 Re-attaching the removed boundary layers (blade O-grid, hub/shroud prism
 layer) is tracked separately. It is coupled to §1.3: once the blade O-grid is
-re-attached, `shell_blade` stops being a domain boundary, the
-`shell_hub | shell_blade` label boundary disappears, and with it the 14
+re-attached, `ogrid_interface` stops being a domain boundary, the
+`bl_interface_hub | ogrid_interface` label boundary disappears, and with it the 14
 staircase curves carrying 45 of the 63 bad kinks. If that work happens first,
 step 1 should be re-measured afterwards — it may become unnecessary.

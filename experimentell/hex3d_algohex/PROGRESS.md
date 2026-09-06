@@ -1439,3 +1439,30 @@ localised target rather than in the postprocessing.
 Both times the fix I proposed on that basis — protect the blade region, then
 construct a ring cut — would have targeted something that is not there. The
 measurement each time took ten minutes.
+
+---
+
+## Renaming the cut surfaces (step 1 of the cleanup list)
+
+`shell_hub`, `shell_shroud` and `shell_blade` are now `bl_interface_hub`,
+`bl_interface_shroud` and `ogrid_interface`. The numeric ids (5, 6, 7) are
+unchanged, so every existing VTK and MSH stays valid; only the display names
+and the code symbols move.
+
+The old names were actively misleading and cost three wrong diagnoses in a
+row. They are *interfaces to cells cut out of the domain*, not walls: in the
+reduced domain the blade wall does not exist at all, and "the block structure
+at the blade" always meant "blocks touching the O-grid cut face", one cell
+layer away from the blade. Each wrong reading took a measurement to undo.
+
+Entries above this line keep the old names on purpose — this file is a
+chronological log, and rewriting it would falsify what was actually printed at
+the time.
+
+Verified after the rename: the v11 pipeline is unchanged, 117 blocks and 114
+cuboids as before.
+
+`FRAMEFIELD_PLAN.md` also got a warning banner: its measurements are all from
+the mislabelled v9 and are superseded by v11 (6 arcs, 16 blocks, and its own
+success criteria already met). The re-measurement is scheduled after TFI,
+because TFI is what defines "good enough".

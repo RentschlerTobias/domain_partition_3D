@@ -909,6 +909,17 @@ class BlockStructure:
                 self.P, self.hexes, labeller, max_rounds=collapse_rounds)
             P = self.P
             self.f2h, self.e2h = bc.build_topology(self.hexes)
+            # A collapse welds vertices and can open a hole. fill_cavities
+            # used to run only BEFORE it, so such a hole would never have
+            # been repaired -- it did not happen on v11, but the ordering
+            # was wrong.
+            add = fill_cavities(P, self.hexes, self.f2h, self.e2h)
+            if len(add):
+                self.hexes = np.vstack([self.hexes, add])
+                self.n_filled += len(add)
+                self.f2h, self.e2h = bc.build_topology(self.hexes)
+                print(f"[clean_blocks] {len(add)} cells filled AFTER the "
+                      f"collapse (a collapse had opened a cavity)")
         self.n_untangled = 0
         if untangle_mesh:
             self.P, self.n_untangled = untangle(self.P, self.hexes, self.f2h,
@@ -2015,19 +2026,39 @@ def write_blocks(S, path, title="cleaned blocks"):
         for h in c:
             bid[h] = order[r]
             nf[h] = k
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    ev.write_vtk(str(path), S.P, S.hexes, [12] * len(S.hexes), bid,
-                 "block_id", f"{len(cells)} blocks -- {title}")
-    ev.write_vtk(str(path).replace(".vtk", "_nfaces.vtk"), S.P, S.hexes,
-                 [12] * len(S.hexes), nf, "n_block_faces",
-                 "faces per block (6 = cuboid)")
     segs, cid, ncurve = block_edge_curves(S)
     print(f"[clean_blocks] block edges: {len(segs)} segments in "
           f"{ncurve} curves")
-    ovm_io.write_hex_msh(str(path).replace(".vtk", ".msh"), S.P, S.hexes, bid,
+    sj = scaled_jacobians(S.P, S.hexes)
+
+    # Compact once, at the very end, and remap the block edges with the same
+    # table -- they index the same point array.
+    n0 = len(S.P)
+    used = np.unique(S.hexes)
+    remap = np.full(n0, -1, np.int64)
+    remap[used] = np.arange(len(used))
+    P, H = S.P[used], remap[S.hexes]
+    segs = remap[segs] if len(segs) else segs
+    if len(used) != n0:
+        print(f"[clean_blocks] compacted points {n0} -> {len(used)} "
+              f"({n0 - len(used)} unreferenced, left behind by the collapse)")
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ev.write_vtk(str(path), P, H, [12] * len(H), bid,
+                 "block_id", f"{len(cells)} blocks -- {title}")
+    ev.write_vtk(str(path).replace(".vtk", "_nfaces.vtk"), P, H,
+                 [12] * len(H), nf, "n_block_faces",
+                 "faces per block (6 = cuboid)")
+    ev.write_vtk(str(path).replace(".vtk", "_quality.vtk"), P, H,
+                 [12] * len(H), np.round(sj * 1000).astype(int),
+                 "scaled_jacobian_x1000",
+                 f"min {sj.min():.4f}, mean {sj.mean():.4f}, "
+                 f"{int((sj <= 0).sum())} inverted")
+    print(f"wrote {str(path).replace('.vtk', '_quality.vtk')}")
+    ovm_io.write_hex_msh(str(path).replace(".vtk", ".msh"), P, H, bid,
                          lines=segs, line_tags=cid + 1)
-    write_block_edges_vtk(str(path).replace(".vtk", "_edges.vtk"), S.P, segs,
+    write_block_edges_vtk(str(path).replace(".vtk", "_edges.vtk"), P, segs,
                           cid, f"block edges -- {ncurve} curves, {title}")
     print(f"wrote {str(path).replace('.vtk', '_edges.vtk')}")
     return bid

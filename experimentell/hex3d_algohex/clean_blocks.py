@@ -30,7 +30,7 @@ further from the input surface.
     a perfectly good face in two. Labelling by the *neighbouring block*
     instead is both the correct base-complex definition and what TFI needs.
   * a block may legitimately touch the same surface on two opposite sides.
-    In the v9 mesh `shell_hub` appears as ONE connected shell wrapping hub
+    In the v9 mesh `bl_interface_hub` appears as ONE connected shell wrapping hub
     side *and* shroud side, so a passage block touches it top and bottom.
     That is a cuboid, and counting it as a defect was the artefact this
     module had to rule out first. (The shell being connected at all was
@@ -1859,7 +1859,7 @@ def smooth_block_edges(P, hexes, f2h, segs, cid, labeller, iters=30,
     reverted if it inverts a cell.
 
     `skip` excludes curves this cannot legitimately fix. On v9 that is the 14
-    `shell_hub | shell_blade` curves: they carry 45 of the 63 kinks above 30
+    `bl_interface_hub | ogrid_interface` curves: they carry 45 of the 63 kinks above 30
     degrees, but the hex mesh is not aligned to that feature curve at all --
     NO hex boundary vertex lies within 0.010 of it, the staircases run 1-3
     cells beside it (median 0.074). There is no smooth edge chain to move
@@ -1963,9 +1963,11 @@ def smooth_block_edges(P, hexes, f2h, segs, cid, labeller, iters=30,
     return P, len(idx)
 
 
-def _hub_blade_curves(S, segs, cid):
-    """Curves separating two artificial cut surfaces (shell_hub against
-    shell_blade). Excluded from smoothing -- see `smooth_block_edges`."""
+def _ogrid_interface_curves(S, segs, cid):
+    """Curves where the two artificial cut surfaces meet: the interface to
+    the removed hub/shroud boundary layer against the interface to the
+    removed blade O-grid. Neither is a wall -- see the note in
+    `tet_prep_v5.NAMES`. Excluded from smoothing, see `smooth_block_edges`."""
     e2k = defaultdict(set)
     for r in S.cells_of():
         for k, loops in S.patches(r):
@@ -1977,7 +1979,8 @@ def _hub_blade_curves(S, segs, cid):
         for k in e2k[(min(int(a), int(b)), max(int(a), int(b)))]:
             if k[0] == "P":
                 byc[int(c)].add(S.surf_names.get(k[1]))
-    return {c for c, n in byc.items() if {"shell_hub", "shell_blade"} <= n}
+    return {c for c, n in byc.items()
+            if {"bl_interface_hub", "ogrid_interface"} <= n}
 
 
 def write_block_edges_vtk(path, P, segs, cid, title):
@@ -2076,7 +2079,7 @@ if __name__ == "__main__":
         segs, cid, ncurve = block_edge_curves(St)
         if a.smooth_edges:
             ks = edge_kink_stats(St.P, segs, cid)
-            skip = _hub_blade_curves(St, segs, cid)
+            skip = _ogrid_interface_curves(St, segs, cid)
             allA = np.concatenate([v[1] for v in ks.values() if len(v[1])])
             print(f"[clean_blocks] kinks before: median {np.median(allA):.1f} "
                   f"deg, p95 {np.percentile(allA, 95):.1f}, "

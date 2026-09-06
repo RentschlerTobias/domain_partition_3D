@@ -18,11 +18,11 @@ to read and relabel.
 
 **Hub/shroud boundary layer -- regenerated.** It is 121 080 triangular
 PRISMS, not hexahedra, so it cannot be reused as hex blocks at all. It is
-rebuilt by extruding the AlgoHex boundary faces that carry the `shell_hub`
+rebuilt by extruding the AlgoHex boundary faces that carry the `bl_interface_hub`
 label out to the wall they belong to. Which wall -- hub or shroud -- is
 decided by nearest-face lookup against the MSH's own tagged wall triangles
 (geom 1 at r = 0.500, geom 2 at r = 1.900), never by a radius threshold:
-`shell_hub` is ONE connected shell spanning r = 0.577 … 1.804 and wrapping
+`bl_interface_hub` is ONE connected shell spanning r = 0.577 … 1.804 and wrapping
 both sides, so a threshold would cut straight through it.
 
 **On conformity.** The three parts do not share nodes; each keeps its own
@@ -96,9 +96,9 @@ class _Tris:
         self.tree = cKDTree(P[tris].mean(1))
 
 
-def boundary_layer_blocks(S, walls, shell="shell_hub", verbose=True):
+def boundary_layer_blocks(S, walls, shell="bl_interface_hub", verbose=True):
     """Rebuild the hub/shroud boundary layer as one hex block per AlgoHex
-    block face lying on `shell`.
+    block face lying on `shell` (the boundary-layer interface).
 
     Each such face is extruded to the wall it belongs to. One layer of cells
     is enough: the block is the entity that matters here, and TFI supplies
@@ -149,7 +149,7 @@ def boundary_layer_blocks(S, walls, shell="shell_hub", verbose=True):
         tgt = dh if wall == "hub" else ds
         thick = np.linalg.norm(Q - tgt, axis=1)
         # A patch that is not adjacent to a wall cannot be a boundary-layer
-        # block. Measured: one shell_hub patch sits mid-passage at r = 0.977,
+        # block. Measured: one bl_interface_hub patch sits mid-passage at r = 0.977,
         # 0.48 from the hub and 0.92 from the shroud, i.e. 5x the layer
         # thickness of every other patch. Extruding it would sweep a block
         # across half the channel.
@@ -190,7 +190,7 @@ def boundary_layer_blocks(S, walls, shell="shell_hub", verbose=True):
               f"{int((sj <= 0).sum())} inverted; layer thickness "
               f"{t.min():.4f} … {t.max():.4f}")
         for nq, r, t0, t1 in skipped:
-            print(f"[reattach]   SKIPPED a {nq}-quad shell_hub patch at "
+            print(f"[reattach]   SKIPPED a {nq}-quad bl_interface_hub patch at "
                   f"r = {r:.3f}: distance to the nearest wall {t0:.3f} … "
                   f"{t1:.3f}, not a boundary-layer face")
     return P, H, B, side
@@ -210,14 +210,14 @@ def interface_gap(S, P_og, H_og, verbose=True):
     og_c = P_og[np.asarray(og_bnd)].mean(1)
     from scipy.spatial import cKDTree
     tree = cKDTree(og_c)
-    sid = next((k for k, v in S.surf_names.items() if v == "shell_blade"), None)
+    sid = next((k for k, v in S.surf_names.items() if v == "ogrid_interface"), None)
     sel = [lp for (fk, _h), lp in zip(S.bnd, S.bnd_loops)
            if S.surf_of[fk] == sid]
     if not sel:
         return None
     d, _i = tree.query(S.P[np.asarray(sel)].mean(1))
     if verbose:
-        print(f"[reattach] shell_blade interface: {len(sel)} AlgoHex quads, "
+        print(f"[reattach] O-grid interface: {len(sel)} AlgoHex quads, "
               f"distance to the nearest O-grid boundary quad "
               f"median {np.median(d):.4f} p95 {np.percentile(d, 95):.4f} "
               f"max {d.max():.4f}")

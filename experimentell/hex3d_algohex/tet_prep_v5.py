@@ -48,11 +48,17 @@ GEOM_PER_A, GEOM_PER_B = 6, 5
 GEOM_HUB, GEOM_SHROUD = 1, 2          # the real walls (r = 0.5 / 1.9)
 
 S_INLET, S_OUTLET, S_PER_A, S_PER_B = 1, 2, 3, 4
-S_SHELL_HUB, S_SHELL_SHROUD, S_SHELL_BLADE = 5, 6, 7
+S_BL_IFACE_HUB, S_BL_IFACE_SHROUD, S_OGRID_IFACE = 5, 6, 7
 S_HUB, S_SHROUD = 8, 9                # only present with --keep-prisms
 NAMES = {S_INLET: "inlet", S_OUTLET: "outlet", S_PER_A: "periodic_A",
-         S_PER_B: "periodic_B", S_SHELL_HUB: "shell_hub",
-         S_SHELL_SHROUD: "shell_shroud", S_SHELL_BLADE: "shell_blade",
+         S_PER_B: "periodic_B",
+         # These three are INTERFACES to cells cut out of the domain, not
+         # walls. The name "shell_blade" cost three wrong diagnoses: the
+         # blade wall is not in this mesh at all, the surface is the cut
+         # face towards the removed O-grid.
+         S_BL_IFACE_HUB: "bl_interface_hub",
+         S_BL_IFACE_SHROUD: "bl_interface_shroud",
+         S_OGRID_IFACE: "ogrid_interface",
          S_HUB: "hub", S_SHROUD: "shroud"}
 
 
@@ -153,10 +159,10 @@ def classify(nodes, tris, look, removed_kind):
     # above 30 deg). The cell-type boundary follows real mesh lines.
     rest = np.where(ids == 0)[0]
     for i in rest:
-        ids[i] = S_SHELL_BLADE if removed_kind.get(frozenset(tris[i])) == "ogrid" \
-            else S_SHELL_HUB
+        ids[i] = S_OGRID_IFACE if removed_kind.get(frozenset(tris[i])) == "ogrid" \
+            else S_BL_IFACE_HUB
     # the boundary-layer shell falls apart into hub side and shroud side
-    bl = ids == S_SHELL_HUB
+    bl = ids == S_BL_IFACE_HUB
     comp, ncomp = tp._connected_components(tris, bl)
     if ncomp >= 2:
         sizes = Counter(comp.values())
@@ -165,7 +171,7 @@ def classify(nodes, tris, look, removed_kind):
         shroud_c = max(rmed, key=lambda c: rmed[c])
         for i, c in comp.items():
             if c == shroud_c:
-                ids[i] = S_SHELL_SHROUD
+                ids[i] = S_BL_IFACE_SHROUD
         print(f"[v5] BL shell split into {ncomp} components "
               f"{sorted(sizes.values(), reverse=True)}")
     for sid in sorted(NAMES):

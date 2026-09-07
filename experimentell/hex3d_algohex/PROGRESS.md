@@ -1466,3 +1466,230 @@ cuboids as before.
 the mislabelled v9 and are superseded by v11 (6 arcs, 16 blocks, and its own
 success criteria already met). The re-measurement is scheduled after TFI,
 because TFI is what defines "good enough".
+
+---
+
+## Stage 7: transfinite interpolation (steps 1-4 of TFI_RESEARCH.md)
+
+### Step 1 -- the map itself, and the feasibility question
+
+Trilinear Gordon-Hall over the six faces of each block, tested
+self-referentially: keep only a block's boundary, rebuild its interior, and
+compare against the interior that was there.
+
+```
+16 blocks, all structured lattices, 0 not a lattice
+whole mesh scaled Jacobian 0.1524 -> 0.1194,  0 -> 0 inverted
+largest vertex move 0.0276 against a local edge length of ~0.05
+```
+
+**TFI does not fold on this geometry** -- the failure mode `TFI_RESEARCH.md`
+names as the main risk. All seven CFD metrics, before -> after:
+
+| metric | before | after |
+|---|---|---|
+| scaled Jacobian | 0.1524 | 0.1194 |
+| non-orthogonality | 65.38 (2 bad) | 65.71 (2 bad) |
+| skewness | 0.4594 | 0.4594 |
+| aspect ratio | 1528 (2 bad) | 1528 (2 bad) |
+| face flatness | 0 (3 bad) | 0 (**8 bad**) |
+
+Honest reading: TFI is **neutral to slightly worse** here. It reproduces the
+mesh almost exactly, which is the point of the test, but it improves nothing
+-- it was handed the boundary of an already good mesh. Its value only appears
+when the resolution actually changes.
+
+**A bug worth recording.** The neighbour orientations in `block_lattice` were
+first written out by hand as a permutation per direction. They were wrong,
+and invisibly so: the lattice had 893 distinct vertices in 986 slots, yet
+every check that only *counts* (`prod(dims) == len(cells)`, `(vert < 0).any()`)
+passed. Only comparing the reconstructed cell set against the real one
+exposed it -- 121 of 448 cells matched. Replaced by deriving each unknown
+corner as the unique edge-neighbour of a known one, plus a consistency check
+that fires when two cells claim the same lattice slot with different
+vertices.
+
+### Step 2 -- face parametrisation
+
+Falls out of the lattice: `vert[i, j, k]` gives every block face as an
+ordered grid with neighbours agreeing on the shared edge sampling. This was
+scheduled as its own step and turned out to be free.
+
+### Step 3 -- conforming divisions in 3D
+
+`direction_classes` groups the block axes that must carry the same count:
+**11 classes over 48 block axes** (16 blocks x 3), class sizes
+[16, 4, 4, 4, 4, 3, 3, 3, 3, 2, 2]. The largest couples 16 block directions
+to a single number (28 divisions).
+
+Validated against the existing divisions: they agree inside every class,
+which they must -- the blocks come out of one hex mesh. A failure would have
+meant the classes are wrong, not the mesh.
+
+Consequence: a target cell size is 11 integer variables, not 108 edge curves.
+And the 16-axis class couples hub, shroud and blade surroundings, so a
+uniform refinement at the wall would drag the whole passage with it -- which
+is exactly what the wall clustering is for.
+
+### Step 4 -- wall clustering
+
+The first cell height is not derivable from geometry; it follows from y+ and
+therefore from the operating point. Taken from the source mesh's own first
+prism layer, measured over 10090 wall faces:
+
+```
+hub    first prism layer: median 0.000889  (0.000817 ... 0.000938)
+shroud first prism layer: median 0.000892  (0.000868 ... 0.000945)
+```
+
+`reattach.py --layers 17` distributes the extrusion with
+`dp3d/tmesh.py:811 edge_fractions`, ratio = L / (n * h1). Result: first wall
+cell **0.000890** against the reference 0.000889. Full domain 165 356 cells,
+53 blocks, **0 inverted**, volume ratio 0.191 (growth ~1.2 per layer).
+
+### A regression that was not one
+
+Non-orthogonality above 65 deg went from 4 cells to 56, and I called it a
+regression I had introduced. It is not. The 54 boundary-layer violations sit
+on **4 (theta, z) positions** out of ~3911: the same four skewed base quads,
+now counted once per layer instead of once. The layer as a whole is good --
+median 8.0 deg, p95 25.6, p99 43.0.
+
+Same error as with the blade: reading a refinement (or a coarsening) as
+damage because a count changed. The proposed fix -- blending the extrusion
+direction from the interface normal to radial -- was aimed at a cause that
+the measurement then placed elsewhere: the violations are spread over the
+whole layer thickness (16 near-wall, 26 middle, 12 outer), because a skewed
+column is skewed everywhere.
+
+## Full audit of the AlgoHex input
+
+Prompted by the suspicion that small input defects cause the block-structure
+problem at the blade. The input is clean:
+
+```
+closed 2-manifold                      edge multiplicity {2: 27822}
+label boundaries vs feature edges      534 vs 534, 0 missing, 0 extra
+dangling feature ends                  0
+branch points == declared feature verts 8 == 8
+feature curve kink                     median 2.2, p95 8.2, max 20.1 deg
+every surface                          exactly 1 connected component
+```
+
+One thing stands out -- triangle quality per surface (1.0 = equilateral):
+
+| surface | tris | q min | q p5 | aspect max | q < 0.2 |
+|---|---|---|---|---|---|
+| inlet / outlet / periodic | 1027…1414 | 0.38…0.57 | 0.85…0.87 | 2.6 | **0** |
+| bl_interface_hub | 2178 | 0.410 | 0.754 | 4.0 | **0** |
+| bl_interface_shroud | 7912 | 0.655 | 0.871 | 2.3 | **0** |
+| **ogrid_interface** | 3584 | **0.098** | **0.127** | **17.3** | **848 (24 %)** |
+
+### The diagonal is not the cause
+
+`orient_and_triangulate` splits every quad on a fixed diagonal, so the
+obvious fix was to take the shorter one. Computed over all 1792 quads:
+
+| split | q p5 | q < 0.2 |
+|---|---|---|
+| current (0-2) | 0.1275 | 860 |
+| always (1-3) | 0.1271 | 848 |
+| **shorter diagonal** | **0.1284** | **822** |
+
+0.7 % better. The reason: **the two diagonals differ by a median factor of
+1.05**, at most 1.78 -- an O-grid quad is a parallelogram, not a stretched
+rectangle, so there is no short diagonal to pick. The anisotropy is in the
+quads themselves (aspect median 4.57, p95 13.45, max 17.25) and is
+*intended*: the O-grid is the blade boundary layer.
+
+### And it is not co-located with the defect
+
+| | distance |
+|---|---|
+| pinch -> nearest bad input triangle | 0.126 / 0.182 |
+| pinch -> feature curve bl_interface_hub \| ogrid_interface | **0.0074 / 0.0075** |
+
+None of the 848 bad triangles lies within 0.05 of that feature curve (median
+distance 0.567). The pinch sits essentially *on* the curve -- a sixth of a
+cell away.
+
+### What a feature edge is, and the claim that had to be withdrawn
+
+A feature edge is a constraint on the frame field: one axis of the frame must
+follow it, so the hex mesh carries an edge chain along it. The usual
+detection criterion is the dihedral angle (AlgoHex: `--dihedral-angle`,
+default 70 deg). **Our `feature_graph` uses no angle at all** -- it declares
+every boundary between two surface labels to be a feature edge.
+
+I claimed that made the `bl_interface_hub | ogrid_interface` curve an
+artefact with "no kink, nothing for a frame field to hold on to". Measured:
+
+```
+bl_interface_hub | ogrid_interface   112 edges   median kink 80.1 deg   86 of 112 above 70
+overall: 479 of 534 feature edges above 70 deg
+```
+
+The kink is real -- the prism layer follows the wall, the O-grid follows the
+blade, and where they meet two directions collide. The claim was inferred
+from "both are artificial cut surfaces" instead of measured, and is withdrawn.
+
+## Run v12: `--full-constraints`
+
+Run on the premise that the field ignores that feature curve -- "no hex
+boundary vertex within 0.010 of it". **That premise was false.** It was
+measured on v9, the mislabelled run, and carried into the v11 context without
+re-measuring:
+
+| run | cells | inverted | min sJ | vertices within 0.010 of the curve | raw blocks | cuboids |
+|---|---|---|---|---|---|---|
+| v11 | 61 546 | 21 | −0.4938 | **55** | 117 | 114 (97 %) |
+| v12 | 59 291 | 17 | −0.6232 | 53 | 84 | 80 (95 %) |
+
+v11 already meets the constraint. `--full-constraints` changes the alignment
+not at all, worsens the worst cell (−0.49 -> −0.62), and leaves the pinch in
+place (the same 2 "not cube-adjacent" blocks). **Not adopted as a basis.**
+
+One side finding worth keeping: v12 starts from **84 raw blocks instead of
+117** at a comparable cuboid share. Whether that collapses below 16 is
+untested -- see the TODO below.
+
+## The O-grid interface has two different neighbours
+
+Asked whether the prism layer next to the O-grid could serve as the cut
+surface instead. Measured:
+
+```
+O-grid outer faces: 4480
+  behind them: 1792 pyramids, 2688 prisms
+```
+
+Not one neighbour but two. The 1792 pyramids are the transition to the
+unstructured tet region (quad base on the O-grid, four triangles towards the
+tets); the 2688 prisms are the hub/shroud boundary layer meeting the O-grid
+where the blade joins the walls.
+
+Cutting behind the pyramid layer instead would give:
+
+| cut surface | triangles | q p5 | q < 0.2 |
+|---|---|---|---|
+| current (O-grid quads halved) | 3584 | 0.127 | 848 (24 %) |
+| pyramid side triangles | 7168 | **0.193** | **456 (6 %)** |
+
+A real improvement but not an elimination -- the pyramid faces stand on the
+same anisotropic quad bases. It doubles the triangle count on that surface,
+and it would replace only the pyramid part of the interface, leaving a new
+seam against the prism part.
+
+---
+
+## TODO, for later investigation
+
+- **v12 with the sheet collapse.** 84 raw blocks against v11's 117; whether
+  that ends below 16 blocks is open. ~45 min.
+- **Re-triangulating the O-grid interface**, either isotropically or by
+  cutting behind the pyramid layer (6 % bad triangles instead of 24 %).
+- **The pinch at vertex 19** -- still the only topological defect, 2 of 16
+  blocks, a point contact. Whether TFI cares is still unanswered.
+- **Target resolution**: prescribe h, solve the 11 class counts, re-fill the
+  blocks by TFI. The step that turns this from a rebuild tool into a
+  generator.

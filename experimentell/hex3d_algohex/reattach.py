@@ -43,6 +43,7 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "experimentell" / "hex3d_algohex"))
 
 from dp3d.extraction import parse_msh                                 # noqa: E402
+import dp3d.tmesh as tm                                               # noqa: E402
 import base_complex as bc                                             # noqa: E402
 import clean_blocks as cb                                             # noqa: E402
 from clean_blocks import BlockStructure                               # noqa: E402
@@ -98,13 +99,19 @@ class _Tris:
 
 def boundary_layer_blocks(S, walls,
                           shells=("bl_interface_hub", "bl_interface_shroud"),
-                          verbose=True):
+                          n_layers=1, first_height=None, verbose=True):
     """Rebuild the hub/shroud boundary layer as one hex block per AlgoHex
     block face lying on `shell` (the boundary-layer interface).
 
-    Each such face is extruded to the wall it belongs to. One layer of cells
-    is enough: the block is the entity that matters here, and TFI supplies
-    the wall-normal division (tanh clustering, `dp3d/tmesh.py:811`) later."""
+    Each such face is extruded to the wall it belongs to.
+
+    With `n_layers` > 1 the extrusion is subdivided by the tanh clustering of
+    `dp3d/tmesh.py:811 edge_fractions`, so the first cell at the wall has
+    height `first_height`. That number is not derivable from the geometry --
+    it follows from y+ and hence from the operating point. The default taken
+    here is the source mesh's own first prism layer, 8.9e-4, measured on the
+    MSH: hub median 0.000889, shroud 0.000892, and remarkably uniform
+    (0.000817 ... 0.000945 over 10090 wall faces)."""
     # BOTH interfaces. Before the quad-diagonal fix `shell_hub` wrongly
     # covered the shroud side as well, so processing one surface happened to
     # cover both; with correct labels they are separate and taking only the
@@ -168,16 +175,29 @@ def boundary_layer_blocks(S, walls,
         sc = R_WALL[wall] / rr
         tgt = np.column_stack([Q[:, 0] * sc, Q[:, 1] * sc, Q[:, 2]])
         bi += 1
-        newP.append(Q)
-        newP.append(tgt)
         n = len(vs)
-        for lp in loops:
-            a, b, c, d = (base + loc[int(v)] for v in lp)
-            e, f, g, h = (base + n + loc[int(v)] for v in lp)
-            newH.append([a, b, c, d, e, f, g, h])
-            newB.append(bi)
+        # wall-normal distribution: t = 0 is the interface, t = 1 the wall,
+        # so the clustering goes at the END
+        if n_layers > 1:
+            L = float(np.median(np.linalg.norm(Q - tgt, axis=1)))
+            h1 = first_height if first_height else L / n_layers
+            ratio = max(1.0, L / (n_layers * h1))
+            frac = tm.edge_fractions(n_layers, False, True, ratio)
+        else:
+            frac = np.array([0.0, 1.0])
+        layers = [Q + f * (tgt - Q) for f in frac]
+        for lay in layers:
+            newP.append(lay)
+        for li in range(len(layers) - 1):
+            o0 = base + li * n
+            o1 = base + (li + 1) * n
+            for lp in loops:
+                a, b, c, d = (o0 + loc[int(v)] for v in lp)
+                e, f, g, h = (o1 + loc[int(v)] for v in lp)
+                newH.append([a, b, c, d, e, f, g, h])
+                newB.append(bi)
         side.append(wall)
-        base += 2 * n
+        base += len(layers) * n
     if not newH:
         return np.zeros((0, 3)), np.zeros((0, 8), np.int64), np.zeros(0, int), []
     P = np.vstack(newP)
@@ -250,7 +270,8 @@ def _part_structure(P, H, B):
     return S
 
 
-def assemble(blocks_vtk, out_vtk, verbose=True):
+def assemble(blocks_vtk, out_vtk, n_layers=1, first_height=8.9e-4,
+             verbose=True):
     """Read a postprocessed AlgoHex block mesh, re-attach both parts, write
     the combined structure with a global `block_id`."""
     import meshio
@@ -271,7 +292,8 @@ def assemble(blocks_vtk, out_vtk, verbose=True):
     nodes, elements = parse_msh(MSH)
     Po, Ho, Bo = ogrid_blocks(elements, nodes, verbose)
     walls = wall_triangles(elements, nodes)
-    Pb, Hb, Bb, _side = boundary_layer_blocks(S, walls, verbose=verbose)
+    Pb, Hb, Bb, _side = boundary_layer_blocks(
+        S, walls, n_layers=n_layers, first_height=first_height, verbose=verbose)
     interface_gap(S, Po, Ho, verbose)
 
     # concatenate; the parts stay non-conforming by design
@@ -336,5 +358,10 @@ if __name__ == "__main__":
                     default=str(OUT / "deliverable" / "T1_9_blocks_v9_gao.vtk"))
     ap.add_argument("--out", default=str(OUT / "deliverable"
                                          / "T1_9_blocks_v9_full.vtk"))
+    ap.add_argument("--layers", type=int, default=1,
+                    help="wall-normal cells in the regenerated boundary layer")
+    ap.add_argument("--first-height", type=float, default=8.9e-4,
+                    help="first cell height at the wall; default is the "
+                         "source mesh's own first prism layer")
     a = ap.parse_args()
-    assemble(a.blocks, a.out)
+    assemble(a.blocks, a.out, n_layers=a.layers, first_height=a.first_height)

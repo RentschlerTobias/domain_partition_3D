@@ -497,6 +497,85 @@ def solve_block_divisions(lat, classes, P, target_h, h_map=None,
     return {ci: int(counts[ci]) for ci in range(n)}
 
 
+def _lerp_axis(Q, frac, axis):
+    """Linear resampling of `Q` along `axis` at normalized positions `frac`.
+
+    The parameter is the NORMALIZED INDEX of the source grid, not its arc
+    length. That choice is what makes the refill weld: a block edge sampled
+    on its own and the same edge sampled as the border of either adjacent
+    face land on identical points, and two blocks resampling the face they
+    share agree to the last bit however their lattices are oriented. With
+    arc-length parameters they would not -- a face's interior rows have
+    different lengths from its border, so the border would move depending on
+    which face resampled it, and the mesh would come apart along exactly the
+    seams it must not.
+
+    The price is that the new grid inherits the source's spacing rather than
+    being uniform in space. The AlgoHex core is near-uniform by construction,
+    so the two differ little (measured and reported by the refill), and at
+    identical counts every BOUNDARY vertex comes back to within 2e-15 of where
+    it was -- the interior is the Gordon-Hall map, which is the fold gate's
+    whole point, and costs the known min scaled Jacobian 0.1524 -> 0.1194."""
+    n = Q.shape[axis]
+    x = np.asarray(frac, float) * (n - 1)
+    i0 = np.clip(np.floor(x).astype(int), 0, n - 2)
+    t = (x - i0).reshape([-1 if d == axis else 1
+                          for d in range(Q.ndim)])
+    A = np.take(Q, i0, axis=axis)
+    Bq = np.take(Q, i0 + 1, axis=axis)
+    return (1 - t) * A + t * Bq
+
+
+def resample_face_grid(Q, fu, fv):
+    """A face's (n, m, 3) vertex grid resampled to (len(fu), len(fv), 3)."""
+    return _lerp_axis(_lerp_axis(Q, fu, 0), fv, 1)
+
+
+def uniform_fractions(n):
+    """n cells -> n+1 normalized sample positions."""
+    return np.linspace(0.0, 1.0, n + 1)
+
+
+def clustered_fractions(n, first_height, length):
+    """Tanh-clustered sample positions, `dp3d.tmesh.edge_fractions`.
+
+    Present so the near-wall distribution is available to the refill, but the
+    complex-level refill does not use it: a one-sided distribution is not
+    invariant under the mirror that relates two blocks' views of a shared
+    face, so clustering a class would tear the seam it is supposed to weld.
+    The grading that matters for CFD enters through `reattach.py`, which
+    extrudes the hub/shroud boundary layer with exactly this function and sets
+    the first cell height -- the core's outer faces are interfaces to the
+    re-attached parts, not walls."""
+    sys.path.insert(0, str(REPO))
+    from dp3d.tmesh import edge_fractions
+    return np.asarray(edge_fractions(n, length, first_height), float)
+
+
+def refill_block(P, vert, new_dims, fractions=None):
+    """One block's vertex positions at new division counts.
+
+    The six boundary faces are resampled from the block's existing faces --
+    so the new boundary follows the old surface instead of a Coons patch
+    stretched between four curves, which is what keeps a curved face on the
+    input geometry -- and the interior is filled by the Gordon-Hall map.
+
+    `fractions[axis]` overrides the sample positions along that axis."""
+    ni, nj, nk = (int(d) for d in new_dims)
+    fr = {ax: (fractions or {}).get(ax, uniform_fractions(d))
+          for ax, d in zip((0, 1, 2), (ni, nj, nk))}
+    X = np.zeros((ni + 1, nj + 1, nk + 1, 3), float)
+    for ax in (0, 1, 2):
+        o0, o1 = [a for a in (0, 1, 2) if a != ax]
+        for side in (0, 1):
+            F = resample_face_grid(P[face_grid(vert, ax, side)],
+                                   fr[o0], fr[o1])
+            sl = [slice(None)] * 3
+            sl[ax] = 0 if side == 0 else -1
+            X[tuple(sl)] = F
+    return tfi(X)
+
+
 def class_of_axis(classes):
     """{(block, axis): class index}."""
     return {k: ci for ci, c in enumerate(classes) for k in c}
@@ -522,6 +601,143 @@ def class_table(lat, classes, counts, P, target_h):
                      "count_now": now, "count_new": int(counts[ci]),
                      "h_eff": float(np.mean(lens)) / int(counts[ci])})
     return rows
+
+
+def interface_classes(P, H, B, lat, classes, input_vtk):
+    """{class index: surface labels the class runs NORMAL to}.
+
+    Which directions point across the boundary layer, in other words -- the
+    ones a user would want a finer h or a graded distribution on. The
+    deliverable VTK carries only `block_id`, no face labels, so they come from
+    the AlgoHex input mesh by nearest face (`clean_blocks.SurfaceLabeller`),
+    the same route `reattach.py` uses.
+
+    The labels to look for are `bl_interface_hub`, `bl_interface_shroud` and
+    `ogrid_interface`: this core has no hub or shroud WALLS in it at all --
+    they were cut out of the domain and are re-attached later -- and reading
+    "shell_blade" as a blade wall already cost this branch three wrong
+    diagnoses."""
+    import tet_prep_v5 as v5
+    P0, tri0, tid0 = cb.read_input_surface(input_vtk)
+    lab = cb.SurfaceLabeller(P0, tri0, tid0, v5.NAMES)
+    f2h, _e2h = bc.build_topology(H)
+    cof = class_of_axis(classes)
+    out = defaultdict(set)
+    for r, (_dims, vert) in lat.items():
+        for ax in (0, 1, 2):
+            for side in (0, 1):
+                G = face_grid(vert, ax, side)
+                quads, keys = [], []
+                for i in range(G.shape[0] - 1):
+                    for j in range(G.shape[1] - 1):
+                        q = (int(G[i, j]), int(G[i + 1, j]),
+                             int(G[i + 1, j + 1]), int(G[i, j + 1]))
+                        if len(f2h.get(frozenset(q), ())) == 1:
+                            quads.append(q)
+                            keys.append(frozenset(q))
+                if not quads:
+                    continue
+                ids = lab.label(P[np.array(quads)].mean(1))
+                for s in set(int(x) for x in ids):
+                    out[cof[(r, ax)]].add(v5.NAMES.get(s, s))
+    return out
+
+
+def weld(points, tol=1e-9):
+    """Merge coincident points. Returns (unique points, old -> new index).
+
+    Two blocks resample the face they share independently and land on the same
+    coordinates to the last bit or so, but with their own vertex numbering;
+    this is what turns "the same position" into "the same vertex". Pairs
+    within `tol` are unioned rather than bucketed by rounding, which has no
+    knife edge at a bucket boundary."""
+    from scipy.spatial import cKDTree
+    par = np.arange(len(points))
+
+    def find(x):
+        while par[x] != x:
+            par[x] = par[par[x]]
+            x = par[x]
+        return x
+
+    for a, b in cKDTree(points).query_pairs(tol, output_type="ndarray"):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            par[max(ra, rb)] = min(ra, rb)
+    root = np.array([find(i) for i in range(len(points))])
+    keep = np.unique(root)
+    remap = np.zeros(len(points), int)
+    remap[keep] = np.arange(len(keep))
+    return points[keep], remap[root]
+
+
+def refill_complex(P, H, B, f2h, lat, classes, counts, fractions=None,
+                   verbose=True):
+    """Refill every lattice block at the solved counts; keep the rest.
+
+    Blocks that are not lattices cannot be refilled and are passed through
+    with their cells unchanged -- which is safe only because the MILP pinned
+    every class adjoining them to their existing counts, so the faces they
+    share still match vertex for vertex.
+
+    Returns (points, hexes, block id, report)."""
+    dims_new = block_counts(lat, classes, counts)
+    cof = class_of_axis(classes)
+    chunks, cells, bid = [], [], []
+    for r in sorted(lat):
+        _dims, vert = lat[r]
+        fr = None
+        if fractions:
+            fr = {ax: fractions[cof[(r, ax)]] for ax in (0, 1, 2)
+                  if cof[(r, ax)] in fractions}
+        X = refill_block(P, vert, dims_new[r], fr)
+        base = sum(len(c) for c in chunks)
+        ids = np.arange(base, base + X[..., 0].size).reshape(X.shape[:3])
+        chunks.append(X.reshape(-1, 3))
+        cells.append(block_cells(ids))
+        bid.append(np.full(len(cells[-1]), r, int))
+    passthrough = sorted(set(range(int(B.max()) + 1)) - set(lat))
+    for r in passthrough:
+        sel = np.where(B == r)[0]
+        base = sum(len(c) for c in chunks)
+        old = np.unique(H[sel])
+        loc = {int(v): base + i for i, v in enumerate(old)}
+        chunks.append(P[old])
+        cells.append(np.vectorize(loc.get)(H[sel]))
+        bid.append(np.full(len(sel), r, int))
+
+    pts = np.vstack(chunks)
+    Hn = np.vstack(cells)
+    Bn = np.concatenate(bid)
+    pts_w, remap = weld(pts)
+    Hn = remap[Hn]
+    rep = {"cells_before": int(len(H)), "cells_after": int(len(Hn)),
+           "points_before": int(len(P)), "points_after": int(len(pts_w)),
+           "welded": int(len(pts) - len(pts_w)),
+           "passthrough_blocks": passthrough}
+    if verbose:
+        print(f"[tfi] refill: {len(H)} -> {len(Hn)} cells, {len(pts)} -> "
+              f"{len(pts_w)} points ({rep['welded']} welded), "
+              f"{len(passthrough)} blocks passed through")
+    return pts_w, Hn, Bn, rep
+
+
+def check_watertight(P, H, verbose=True):
+    """Vertex-level conformity: the refilled complex is still ONE mesh.
+
+    The weld is the only thing that joins two blocks, so this is where a face
+    resampled inconsistently would show up -- as a face used by one cell on
+    one side and two half-faces on the other, i.e. as extra boundary. A
+    genuine boundary face is fine; a face used by three or more cells, or a
+    boundary that has grown, is not."""
+    f2h, _e2h = bc.build_topology(H)
+    per = Counter(len(v) for v in f2h.values())
+    bad = {k: v for k, v in per.items() if k > 2}
+    bnd = per.get(1, 0)
+    if verbose:
+        print(f"[tfi] faces by incident cells: {dict(sorted(per.items()))}"
+              f"{'  <-- NON-MANIFOLD' if bad else ''}")
+    return not bad, bnd
 
 
 def load_blocks(blocks_vtk):
@@ -568,7 +784,16 @@ if __name__ == "__main__":
     ap.add_argument("--solve-divisions", action="store_true",
                     help="solve the conforming division counts for "
                          "--target-h and write them next to the input")
+    ap.add_argument("--apply-divisions", action="store_true",
+                    help="also refill every block at those counts and write "
+                         "the result to --out")
+    ap.add_argument("--out", default=None, help="output blocks VTK")
+    ap.add_argument("--input-vtk",
+                    default=str(REPO / "data" / "T1_9" / "T1_9_tet_v5.vtk"),
+                    help="AlgoHex input mesh, for the surface labels")
     a = ap.parse_args()
+    if a.apply_divisions:
+        a.solve_divisions = True
     if a.solve_divisions:
         if a.target_h is None:
             ap.error("--solve-divisions needs --target-h")
@@ -604,5 +829,30 @@ if __name__ == "__main__":
                                               in frozen.items()},
                                    "passthrough_blocks": missing}, indent=1))
         print(f"\n[tfi] wrote {out}")
+        for ci, labs in sorted(interface_classes(P, H, B, lat, classes,
+                                                 a.input_vtk).items()):
+            print(f"[tfi] class {ci} is normal to {sorted(labs)}")
+        if not a.apply_divisions:
+            raise SystemExit(0)
+
+        Pn, Hn, Bn, rep = refill_complex(P, H, B, f2h, lat, classes, counts)
+        ok, _bnd = check_watertight(Pn, Hn)
+        sj = cb.scaled_jacobians(Pn, Hn)
+        print(f"[tfi] refilled mesh: scaled Jacobian min {sj.min():.4f}, "
+              f"mean {sj.mean():.4f}, {int((sj <= 0).sum())} inverted")
+        if not ok:
+            print("[tfi] REFUSING to write: the refilled complex is not "
+                  "watertight -- shared faces disagree")
+            raise SystemExit(2)
+        edge = np.linalg.norm(Pn[Hn[:, 1]] - Pn[Hn[:, 0]], axis=1)
+        print(f"[tfi] cell size along the first edge: mean {edge.mean():.4f}, "
+              f"p5 {np.percentile(edge, 5):.4f}, p95 "
+              f"{np.percentile(edge, 95):.4f} (target h {a.target_h})")
+        outv = a.out or str(Path(a.blocks).with_name(
+            Path(a.blocks).stem + f"_h{a.target_h}.vtk"))
+        import export_vtk as ev
+        ev.write_vtk(outv, Pn, Hn, [12] * len(Hn), Bn, "block_id",
+                     f"{int(Bn.max()) + 1} blocks refilled at h={a.target_h}")
+        print(f"[tfi] wrote {outv}")
         raise SystemExit(0)
     run(a.blocks)

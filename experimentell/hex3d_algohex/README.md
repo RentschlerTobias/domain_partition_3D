@@ -18,7 +18,10 @@ twist). A per-surface 2D field with a ruled lift cannot represent that, which
 is why the existing 3D lift needs a morph hack. A 3D field represents it
 natively.
 
-**Status**: Stages 0–6 done. Best result: **v11 → 16 blocks, all 6-faced, 0
+> **Starting fresh? Read `HANDOFF.md` first.** It has the current state, the
+> reproduce commands, the one open defect, and the traps.
+
+**Status**: Stages 0–7 done (TFI steps 1–4). Best result: **v11 → 16 blocks, all 6-faced, 0
 inverted cells, validator VALID** (`clean_blocks.py --collapse-rounds 5
 --untangle` on `T1_9_hex_v11.ovm`). Older text below still describes the v9
 path; see PROGRESS.md "Runs v10 and v11".
@@ -112,6 +115,9 @@ as an input file `T1_9_tet_vN.vtk`. Explicitly:
 | **v9** | `T1_9_tet_v5_diagbug.vtk` | reduced, exact labels | 550 | 60000 | **completed, 2 inverted cells** |
 | **v11** | `T1_9_tet_v5.vtk` | same domain, **labels corrected** | 534 | 60000 | **13 min, 21 inverted, no cavities — best block structure** |
 | v10 | `T1_9_tet_v6.vtk` | only the blade layer cut | 854 | 60000 | 1 h 29, 19 inverted, 198 blocks |
+| v12 | `T1_9_tet_v5.vtk` | `--full-constraints` | 534 | 60000 | 18 min, pinch unchanged, not adopted |
+| v13 | `T1_9_tet_v7.vtk` | O-grid interface re-meshed isotropically | 534 | 60000 | 19 min, 14 inverted, 84 blocks, does not collapse |
+| v14 | `T1_9_tet_v8.vtk` | cut surfaces merged, rings removed | **310** | 60000 | 25 min, **100 % cuboids** but 96 inverted |
 
 Logs and metrics per run: `output/hex3d_algohex/hexmeshing_<tag>.log`,
 `T1_9_hex_metrics_<tag>.json`.
@@ -389,6 +395,7 @@ ParaView renders only the outer hull of an unstructured grid — use `Clip` or
 - `MESH_QUALITY.md` — the CFD quality criteria, measured on our own mesh
 - `TFI_RESEARCH.md` — transfinite interpolation for CFD meshes, and the
   implementation plan for the 3D stage
+- `HANDOFF.md` — **start here**: state, reproduce, open defect, traps
 - `RUNS.md` — every AlgoHex run: input, domain, runtime, outcome, and the
   mesh/block metrics side by side
 - `SHOWCASE.md` — the 11-step visual analysis and what each metric caught

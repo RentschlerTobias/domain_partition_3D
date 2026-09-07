@@ -1693,3 +1693,135 @@ seam against the prism part.
 - **Target resolution**: prescribe h, solve the 11 class counts, re-fill the
   blocks by TFI. The step that turns this from a rebuild tool into a
   generator.
+
+---
+
+## Runs v13 and v14: the feature-curve trade-off, measured
+
+Two targeted interventions on the input, both aimed at the pinch at vertex 19.
+
+### v13 -- re-mesh the O-grid interface isotropically
+
+The one bad surface in the input: 848 of 3584 triangles below quality 0.2,
+because it is the O-grid's anisotropic quads cut in half (aspect median 4.6,
+max 17.3). Every other surface has **zero** such triangles.
+
+Two dead ends first. **The diagonal is not the cause**: over all 1792 quads
+the shorter diagonal gains 0.7 % (q p5 0.1275 -> 0.1284), because the two
+diagonals differ by a median factor of only 1.05 -- an O-grid quad is a
+parallelogram, not a stretched rectangle. And **cutting behind the pyramid
+layer** (the user's idea) reaches q p5 0.193 instead of 0.127, but the O-grid
+has *two* different neighbours -- 1792 pyramids and 2688 prisms -- so it
+would replace only part of the interface and leave a new 4.64-long seam right
+through the blade-root region.
+
+What worked: re-meshing the surface itself with gmsh at h = 0.035, boundary
+node-for-node fixed. Three attempts:
+
+* `classifySurfaces` + `createGeometry` invents its own boundary curves and
+  re-meshes them: 224 -> 93 boundary edges, nodes off by up to 0.021.
+* a discrete surface with no declared boundary meshes to **nothing** (0 nodes).
+* the route that works: boundary loops as discrete CURVES carrying their own
+  mesh, handed to `addDiscreteEntity(2, tag, boundary=...)`. Plus
+  `MeshSizeExtendFromBoundary` and `MeshSizeFromPoints` off, or the surface
+  inherits the fine boundary spacing (21 984 triangles instead of 5 998).
+
+A fourth trap, caught by the manifold check: mapping the output nodes back by
+**gmsh tag** left 447 dangling edges and one edge with three faces, because
+gmsh assigns its own tags when it regenerates and they collide with the ones
+handed in. The standalone test had said "max node distance 0.000000" -- it
+compared positions, not identities. Fixed by matching back by position.
+
+Result: the input is clean for the first time -- **0 boundary triangles below
+quality 0.2**, whole-boundary q p5 0.211 -> 0.852, feature edges unchanged at
+534.
+
+**The pinch survives.** Both "not cube-adjacent" blocks are still there. The
+distance measurement had already suggested this (the bad triangles sit
+0.13-0.18 from the pinch, the feature curve 0.0075) but was not conclusive;
+now it is.
+
+What v13 *did* buy: inverted cells 21 -> 14, mean scaled Jacobian 0.9767 ->
+0.9792 (best of all runs), raw blocks 117 -> 84, and Hausdorff 0.0341 ->
+0.0128. But it **does not collapse** -- not a single sheet improves the
+structure, so it stays at 84 blocks where v11 fell to 16.
+
+### v14 -- merge the three artificial cut surfaces into one label
+
+Their mutual boundaries are two closed rings of 112 edges each, around blade
+root and tip. They are artefacts of where we cut: in the uncut domain the hub
+runs on and the blade runs on. Merging the labels removes both rings whole,
+so no dangling ends are created. Feature edges 534 -> 310.
+
+Before running it, the curve structure was measured: the pinch sits **0.89
+and 0.95 from the nearest branch point**, i.e. on the smooth part of the
+113-edge ring, and 26 of the 112 hub-ring edges have a kink below 70 deg.
+
+**The pinch is gone -- completely.**
+
+```
+v14 raw: 242 blocks, 242 cuboids (100 %), faces per block {6: 242}
+```
+
+The first block structure in this project with no topological defect at all.
+Three interventions were needed to find it: `--full-constraints` (v12) and the
+re-triangulation (v13) did not move it, removing the artificial rings did.
+
+**And it costs a great deal:**
+
+| | v11 | v13 | v14 |
+|---|---|---|---|
+| feature edges | 534 | 534 | **310** |
+| cells | 61 546 | 58 788 | 65 008 |
+| inverted (raw) | 21 | 14 | **96** |
+| min scaled Jacobian (raw) | −0.494 | −0.517 | **−0.990** |
+| singular edges | 164 | 160 | **276** |
+| raw blocks | 117 | 84 | 242 |
+
+This is the fifth confirmation of README "What was learned" 1: fewer feature
+constraints, worse field. v3 diverged, v7/v8 OOM-died, and v14 arrives with
+96 inverted cells.
+
+### Post-processing, and a re-ordering that mattered
+
+`untangle` now runs **before** the collapse as well. The collapse guard
+compares against the starting inverted count, so beginning at 96 made it
+toothless -- a collapse holding at 96 would have been waved through. The
+pre-pass took **96 -> 17**. A second guard was added: reject a sheet if the
+worst cell gets worse, not only if the count rises. It held (min stayed at
+−0.814 through the round).
+
+Final comparison of the three bases:
+
+| | v11 | v13 | v14 |
+|---|---|---|---|
+| blocks | **16** | 84 | 217 |
+| cuboid share | 88 % | 96 % | **100 %** |
+| non-cuboid | 2 | 3 | **0** |
+| blocks < 10 cells | **0** | 2 | 41 |
+| smallest block | 224 cells | 4 | **1 cell** |
+| inverted | **0** | 4 | 14 |
+| min scaled Jacobian | **+0.152** | −0.304 | −0.452 |
+| Hausdorff | 0.0341 | **0.0128** | 0.0233 |
+| validator | **VALID** | INVALID | INVALID |
+
+v14 collapses only once (242 -> 217) and then no sheet improves, against
+v11's three rounds 117 -> 16. And 41 of its blocks are under 10 cells, the
+smallest a **single cell** -- for TFI that is worthless, it would force its
+whole direction class to one division.
+
+**v11 remains the recommended basis.** 16 clean blocks with one point contact
+beat 217 blocks of which 41 are tiny. v14's value is the knowledge: the
+artificial feature rings cause the pinch, and removing them costs more than
+the pinch does.
+
+### Two reporting bugs found
+
+`_structure_stats` never had the `protected` key -- it came from a patch that
+was cancelled mid-edit -- so the `min_sj` guard was inserted against a string
+that did not exist and the run died with `KeyError: 'min_sj'` after 20
+minutes of collapsing. Added to the real return.
+
+`untangle`'s summary line reports "17 -> 17" for a run that went 96 -> 17,
+because `g0` is reassigned when the escalation to boundary sliding fires. The
+improvement is real, the message is wrong. Not yet fixed.

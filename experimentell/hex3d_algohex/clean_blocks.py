@@ -521,6 +521,7 @@ def _structure_stats(P, hexes, labeller):
             "excess": exc, "sing": len(sing),
             "tiny": int(sum(1 for s in sizes if s < 10)),
             "inverted": int((sj <= 0).sum()),
+            "min_sj": float(sj.min()),
             "hausdorff": float(labeller.max_dist)}
 
 
@@ -546,6 +547,10 @@ def collapse_mesh_sheets(P, hexes, labeller, max_rounds=4, verbose=True):
                 continue
             st = _structure_stats(Q, H, labeller)
             if st["inverted"] > base["inverted"]:
+                continue
+            # and never let the worst cell get worse: the count alone can
+            # stay flat while a cell folds further
+            if st["min_sj"] < base["min_sj"] - 1e-9:
                 continue
             if st["hausdorff"] > base["hausdorff"] + 1e-9:
                 continue
@@ -903,6 +908,15 @@ class BlockStructure:
                 self.hexes = np.vstack([self.hexes, add])
                 self.n_filled = len(add)
                 self.f2h, self.e2h = bc.build_topology(self.hexes)
+        self.n_untangled = 0
+        # Untangle BEFORE collapsing, not only after. The collapse guard
+        # compares against the starting inverted-cell count, so starting from
+        # 96 makes it toothless: a collapse that keeps 96 is waved through.
+        # Repairing first gives the guard something to protect.
+        if untangle_mesh:
+            self.P, n = untangle(self.P, self.hexes, self.f2h, labeller)
+            self.n_untangled += n
+            P = self.P
         self.collapse_log = []
         if collapse_rounds and labeller is not None:
             self.P, self.hexes, self.collapse_log = collapse_mesh_sheets(
@@ -920,10 +934,9 @@ class BlockStructure:
                 self.f2h, self.e2h = bc.build_topology(self.hexes)
                 print(f"[clean_blocks] {len(add)} cells filled AFTER the "
                       f"collapse (a collapse had opened a cavity)")
-        self.n_untangled = 0
         if untangle_mesh:
-            self.P, self.n_untangled = untangle(self.P, self.hexes, self.f2h,
-                                                labeller)
+            self.P, n = untangle(self.P, self.hexes, self.f2h, labeller)
+            self.n_untangled += n
             P = self.P
         self.sing = bc.singular_edges(self.hexes, P, self.f2h, self.e2h)
         self.sheet_of, self.n_sheet = bfx.label_sheets(self.hexes, self.f2h,

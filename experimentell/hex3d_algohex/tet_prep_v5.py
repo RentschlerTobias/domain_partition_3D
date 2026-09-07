@@ -187,12 +187,145 @@ def classify(nodes, tris, look, removed_kind):
     return ids
 
 
-def main(size_max=0.12, out_name="T1_9_tet_v5.vtk", drop_prisms=True):
+def remesh_patch(nodes, tris, ids, sid, h):
+    """Re-mesh one labelled surface isotropically, boundary node-for-node fixed.
+
+    The O-grid interface is the one surface of the input whose triangulation
+    is bad -- 24 % of its triangles below quality 0.2, because it is the
+    O-grid's anisotropic quads cut in half (aspect median 4.6, up to 17).
+    Every other surface is clean. It is a cut face, not geometry, so nothing
+    stops us from meshing it better.
+
+    Its boundary must survive exactly: those 224 edges are shared with the
+    two boundary-layer interfaces, and they are the feature curves. Two gmsh
+    routes fail here -- `classifySurfaces` invents its own boundary curves and
+    re-meshes them (224 -> 93 edges), and a discrete surface without declared
+    boundary meshes to nothing. The route that works is to add the boundary
+    loops as discrete CURVES carrying their own mesh and hand them to
+    `addDiscreteEntity(2, tag, boundary=...)`. `MeshSizeExtendFromBoundary`
+    and `MeshSizeFromPoints` must be off, or the surface inherits the fine
+    boundary spacing and comes out at 22k triangles instead of 6k."""
+    import gmsh
+    from collections import defaultdict
+    keep = [t for t, i in zip(tris, ids) if i != sid]
+    keep_ids = [i for i in ids if i != sid]
+    patch = [t for t, i in zip(tris, ids) if i == sid]
+    used = sorted({v for t in patch for v in t})
+    tag = {v: i + 1 for i, v in enumerate(used)}
+    ec = defaultdict(int)
+    for t in patch:
+        for k in range(3):
+            u, v = t[k], t[(k + 1) % 3]
+            ec[(min(u, v), max(u, v))] += 1
+    bnd = [g for g, c in ec.items() if c == 1]
+    adj = defaultdict(list)
+    for a, b in bnd:
+        adj[a].append(b)
+        adj[b].append(a)
+    loops, seen = [], set()
+    for s0 in adj:
+        if s0 in seen:
+            continue
+        lp, cur, prev = [s0], s0, None
+        seen.add(s0)
+        while True:
+            nx = [w for w in adj[cur] if w != prev]
+            if not nx or nx[0] == s0:
+                break
+            prev, cur = cur, nx[0]
+            lp.append(cur)
+            seen.add(cur)
+        loops.append(lp)
+
+    gmsh.initialize()
+    gmsh.option.setNumber("General.Terminal", 0)
+    gmsh.model.add("patch")
+    ct = []
+    for li, lp in enumerate(loops, 1):
+        c = gmsh.model.addDiscreteEntity(1, li)
+        ct.append(c)
+        gmsh.model.mesh.addNodes(1, c, [tag[v] for v in lp],
+                                 np.array([nodes[v] for v in lp], float).ravel().tolist())
+        seg = []
+        for k in range(len(lp)):
+            seg += [tag[lp[k]], tag[lp[(k + 1) % len(lp)]]]
+        gmsh.model.mesh.addElementsByType(c, 1, [], seg)
+    sf = gmsh.model.addDiscreteEntity(2, 1, ct)
+    onb = {x for lp in loops for x in lp}
+    inner = [v for v in used if v not in onb]
+    gmsh.model.mesh.addNodes(2, sf, [tag[v] for v in inner],
+                             np.array([nodes[v] for v in inner], float).ravel().tolist())
+    gmsh.model.mesh.addElementsByType(sf, 2, [],
+                                      [tag[int(v)] for t in patch for v in t])
+    gmsh.model.mesh.createGeometry([(2, sf)])
+    gmsh.model.geo.synchronize()
+    for k, v in (("Mesh.MeshSizeMin", h), ("Mesh.MeshSizeMax", h),
+                 ("Mesh.MeshSizeFromCurvature", 0),
+                 ("Mesh.MeshSizeExtendFromBoundary", 0),
+                 ("Mesh.MeshSizeFromPoints", 0), ("Mesh.Algorithm", 6)):
+        gmsh.option.setNumber(k, v)
+    gmsh.model.mesh.generate(2)
+    nt, nc, _ = gmsh.model.mesh.getNodes()
+    Q = np.array(nc).reshape(-1, 3)
+    et, _i, ev = gmsh.model.mesh.getElements(2)
+    T = next(np.array(vv).reshape(-1, 3) for t, vv in zip(et, ev) if t == 2)
+    row = {int(t): i for i, t in enumerate(nt)}
+    T = np.array([[row[int(x)] for x in t] for t in T])
+    gmsh.finalize()
+
+    # Map back by POSITION, not by tag. gmsh assigns its own node tags when
+    # it regenerates the surface, and they collide with the ones handed in --
+    # trusting them silently mismapped the boundary and left 447 dangling
+    # edges plus one edge with three faces, which the manifold check caught.
+    from scipy.spatial import cKDTree
+    ref = np.array([nodes[v] for v in used], float)
+    tree = cKDTree(ref)
+    d, j = tree.query(Q)
+    back = {}
+    nxt = max(nodes) + 1
+    for r in range(len(Q)):
+        if d[r] < 1e-9:
+            back[r] = used[j[r]]
+        else:
+            nodes[nxt] = tuple(Q[r])
+            back[r] = nxt
+            nxt += 1
+    reused = sum(1 for r in back if back[r] in set(used))
+    print(f"[v5]   {reused} of {len(Q)} output nodes coincide with input nodes")
+    new = [[back[int(x)] for x in t] for t in T]
+    print(f"[v5] remeshed surface {NAMES[sid]}: {len(patch)} -> {len(new)} "
+          f"triangles at h={h}, {len(bnd)} boundary edges kept")
+    return keep + new, np.array(keep_ids + [sid] * len(new), int)
+
+
+def main(size_max=0.12, out_name="T1_9_tet_v5.vtk", drop_prisms=True,
+         remesh_ogrid=None, merge_interfaces=False):
     nodes, elements = parse_msh(MSH)
     tris = reduced_boundary(nodes, elements, drop_prisms)
     look = tagged_2d_lookup(elements)
     removed_kind = removed_face_kind(elements)
     ids = classify(nodes, tris, look, removed_kind)
+    if merge_interfaces:
+        # Give the three artificial cut surfaces ONE label. Their mutual
+        # boundaries -- two closed rings of 112 edges each around the blade
+        # root and tip -- then stop being label boundaries and disappear from
+        # the feature graph. They are artefacts of where we cut: in the
+        # uncut domain the hub runs on and the blade runs on, there is no
+        # edge there. The pinch sits on the hub ring, 0.89 away from the
+        # nearest branch point, i.e. on its smooth part.
+        # Whole closed curves vanish, so no dangling ends are created -- the
+        # failure that gave run v2 a SIGSEGV.
+        n0 = int(((ids == S_BL_IFACE_SHROUD) | (ids == S_OGRID_IFACE)).sum())
+        ids[ids == S_BL_IFACE_SHROUD] = S_BL_IFACE_HUB
+        ids[ids == S_OGRID_IFACE] = S_BL_IFACE_HUB
+        print(f"[v5] merged the 3 cut surfaces into one: {n0} triangles "
+              f"relabelled to {NAMES[S_BL_IFACE_HUB]}")
+    if remesh_ogrid:
+        tris, ids = remesh_patch(nodes, tris, ids, S_OGRID_IFACE, remesh_ogrid)
+        hist = tp.check_manifold(tris)
+        print(f"[v5] after remeshing, edge multiplicity {dict(hist)}")
+        if set(hist) - {2}:
+            raise RuntimeError("remeshing broke the closed 2-manifold")
     feat, fverts = v2.feature_graph(nodes, tris, ids)
 
     P, tets, idx, used = v2.mesh_interior(nodes, tris, size_max)
@@ -215,7 +348,15 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--size-max", type=float, default=0.12)
     ap.add_argument("--out", default="T1_9_tet_v5.vtk")
+    ap.add_argument("--merge-interfaces", action="store_true",
+                    help="one label for all three artificial cut surfaces, "
+                         "which removes their mutual feature rings")
+    ap.add_argument("--remesh-ogrid", type=float, default=None,
+                    metavar="H",
+                    help="re-mesh the O-grid interface isotropically at edge "
+                         "length H, keeping its boundary node-for-node")
     ap.add_argument("--keep-prisms", action="store_true",
                     help="keep the hub/shroud boundary layer in the domain")
     a = ap.parse_args()
-    main(a.size_max, a.out, drop_prisms=not a.keep_prisms)
+    main(a.size_max, a.out, drop_prisms=not a.keep_prisms,
+         remesh_ogrid=a.remesh_ogrid, merge_interfaces=a.merge_interfaces)

@@ -298,35 +298,142 @@ def remesh_patch(nodes, tris, ids, sid, h):
     return keep + new, np.array(keep_ids + [sid] * len(new), int)
 
 
+def ring_census(nodes, tris, ids, verbose=True):
+    """The two mutual rings of the three artificial cut surfaces, with the
+    dihedral angle of every one of their edges.
+
+    Ring = the label boundary between the O-grid interface and one of the two
+    boundary-layer interfaces: a closed curve of 112 edges around the blade
+    root (hub side) and another around the tip (shroud side).
+
+    They are not the pure artefacts an earlier session claimed. Measured on
+    the hub ring: median kink 80.1 deg, 86 of 112 edges above AlgoHex's own
+    70 deg feature threshold -- the prism layer follows the wall, the O-grid
+    follows the blade, and where they meet two directions really do collide.
+    Deleting both rings whole (`--merge-interfaces`, run v14) removes the
+    pinch but throws away 224 constraints, and the field pays for it: 96
+    inverted cells instead of 21.
+
+    The angle is between the two incident triangles' OUTWARD normals, so 0 is
+    flat -- the same convention as AlgoHex's `--dihedral-angle`. Winding is
+    consistent because `orient_and_triangulate` made it so.
+
+    Returns {(sid_a, sid_b): {edge: angle_deg}}."""
+    e2t = defaultdict(list)
+    for i, t in enumerate(tris):
+        for a in range(3):
+            p, q = t[a], t[(a + 1) % 3]
+            e2t[(min(p, q), max(p, q))].append(i)
+    nrm = {}
+
+    def normal(i):
+        if i not in nrm:
+            a, b, c = (np.asarray(nodes[v], float) for v in tris[i])
+            n = np.cross(b - a, c - a)
+            ln = np.linalg.norm(n)
+            nrm[i] = n / ln if ln > 1e-15 else n
+        return nrm[i]
+
+    out = {}
+    for pair in ((S_BL_IFACE_HUB, S_OGRID_IFACE),
+                 (S_BL_IFACE_SHROUD, S_OGRID_IFACE)):
+        ring = {}
+        for e, inc in e2t.items():
+            if len(inc) != 2:
+                continue
+            if {ids[inc[0]], ids[inc[1]]} != set(pair):
+                continue
+            d = float(np.clip(np.dot(normal(inc[0]), normal(inc[1])), -1, 1))
+            ring[e] = float(np.degrees(np.arccos(d)))
+        out[pair] = ring
+        if verbose and ring:
+            a = np.array(list(ring.values()))
+            print(f"[v5] ring {NAMES[pair[0]]} | {NAMES[pair[1]]}: "
+                  f"{len(ring)} edges, median kink {np.median(a):.1f} deg, "
+                  f"{int((a > 70).sum())} above 70, {int((a > 30).sum())} "
+                  f"above 30")
+    return out
+
+
+def filter_ring_edges(feat, rings, deg, verbose=True):
+    """Drop ring edges whose kink is below `deg`, keep the rest.
+
+    The middle ground between v11 (both rings whole, 534 edges, one pinch) and
+    v14 (both rings gone, 310 edges, no pinch but a wrecked field): the pinch
+    sits on the SMOOTH part of the hub ring, 0.89 from the nearest branch
+    point, so the artificial part of the ring and the part that regularises
+    the field are separable.
+
+    This does create dangling curve ends, which is how run v2 earned its
+    SIGSEGV -- so the endpoints have to end up in the feature-VERTEX set. They
+    do: the caller recomputes it from the filtered edge valences."""
+    drop = {e for ring in rings.values() for e, a in ring.items() if a < deg}
+    kept = [e for e in feat if (min(e), max(e)) not in drop]
+    if verbose:
+        n_ring = sum(len(r) for r in rings.values())
+        print(f"[v5] ring kink filter at {deg} deg: dropped {len(feat) - len(kept)} "
+              f"of {n_ring} ring edges, {len(kept)} feature edges left")
+    return kept
+
+
+def feature_vertices(feat):
+    """Curve endpoints and branch points of a feature graph: valence != 2.
+
+    `feature_graph` derives these itself, but a filtered edge set has
+    different ones -- and its new dangling ends MUST be declared, or AlgoHex
+    walks off the end of a curve."""
+    val = Counter()
+    for a, b in feat:
+        val[a] += 1
+        val[b] += 1
+    return sorted(v for v, c in val.items() if c != 2)
+
+
 def main(size_max=0.12, out_name="T1_9_tet_v5.vtk", drop_prisms=True,
-         remesh_ogrid=None, merge_interfaces=False):
+         remesh_ogrid=None, merge_interfaces=None, ring_kink=None):
     nodes, elements = parse_msh(MSH)
     tris = reduced_boundary(nodes, elements, drop_prisms)
     look = tagged_2d_lookup(elements)
     removed_kind = removed_face_kind(elements)
     ids = classify(nodes, tris, look, removed_kind)
-    if merge_interfaces:
-        # Give the three artificial cut surfaces ONE label. Their mutual
-        # boundaries -- two closed rings of 112 edges each around the blade
-        # root and tip -- then stop being label boundaries and disappear from
-        # the feature graph. They are artefacts of where we cut: in the
-        # uncut domain the hub runs on and the blade runs on, there is no
-        # edge there. The pinch sits on the hub ring, 0.89 away from the
-        # nearest branch point, i.e. on its smooth part.
-        # Whole closed curves vanish, so no dangling ends are created -- the
-        # failure that gave run v2 a SIGSEGV.
-        n0 = int(((ids == S_BL_IFACE_SHROUD) | (ids == S_OGRID_IFACE)).sum())
-        ids[ids == S_BL_IFACE_SHROUD] = S_BL_IFACE_HUB
-        ids[ids == S_OGRID_IFACE] = S_BL_IFACE_HUB
-        print(f"[v5] merged the 3 cut surfaces into one: {n0} triangles "
-              f"relabelled to {NAMES[S_BL_IFACE_HUB]}")
+    # Re-mesh BEFORE merging. The merge relabels S_OGRID_IFACE away, and
+    # remesh_patch selects its patch by that label -- the other order hands
+    # gmsh an empty patch.
     if remesh_ogrid:
         tris, ids = remesh_patch(nodes, tris, ids, S_OGRID_IFACE, remesh_ogrid)
         hist = tp.check_manifold(tris)
         print(f"[v5] after remeshing, edge multiplicity {dict(hist)}")
         if set(hist) - {2}:
             raise RuntimeError("remeshing broke the closed 2-manifold")
+    rings = ring_census(nodes, tris, ids)
+    if merge_interfaces:
+        # Give the artificial cut surfaces ONE label. Their mutual boundaries
+        # -- two closed rings of 112 edges each around the blade root and tip
+        # -- then stop being label boundaries and disappear from the feature
+        # graph. They are artefacts of where we cut: in the uncut domain the
+        # hub runs on and the blade runs on. The pinch sits on the hub ring,
+        # 0.89 away from the nearest branch point, i.e. on its smooth part.
+        # Whole closed curves vanish, so no dangling ends are created -- the
+        # failure that gave run v2 a SIGSEGV.
+        #
+        # "hub" merges only the O-grid interface into the hub-side one, which
+        # removes the root ring (the one carrying the pinch) and leaves the
+        # tip ring standing -- still a closed curve, since it is now the
+        # boundary of the merged surface against the shroud side.
+        sel = ids == S_OGRID_IFACE
+        if merge_interfaces == "all":
+            sel |= ids == S_BL_IFACE_SHROUD
+        elif merge_interfaces != "hub":
+            raise ValueError(f"unknown merge mode {merge_interfaces!r}")
+        n0 = int(sel.sum())
+        ids[sel] = S_BL_IFACE_HUB
+        print(f"[v5] merged cut surfaces ({merge_interfaces}): {n0} triangles "
+              f"relabelled to {NAMES[S_BL_IFACE_HUB]}")
     feat, fverts = v2.feature_graph(nodes, tris, ids)
+    if ring_kink:
+        feat = filter_ring_edges(feat, rings, ring_kink)
+        fverts = feature_vertices(feat)
+        print(f"[v5] feature vertices after filtering: {len(fverts)}")
 
     P, tets, idx, used = v2.mesh_interior(nodes, tris, size_max)
     remap = {ot: idx[nt] for nt, ot in
@@ -348,9 +455,17 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--size-max", type=float, default=0.12)
     ap.add_argument("--out", default="T1_9_tet_v5.vtk")
-    ap.add_argument("--merge-interfaces", action="store_true",
-                    help="one label for all three artificial cut surfaces, "
-                         "which removes their mutual feature rings")
+    ap.add_argument("--merge-interfaces", nargs="?", const="all",
+                    choices=("all", "hub"), default=None,
+                    help="one label for the artificial cut surfaces, which "
+                         "removes their mutual feature rings. 'all' (the "
+                         "default when the flag is bare) drops both rings, "
+                         "'hub' drops only the root ring that carries the "
+                         "pinch and leaves the tip ring standing")
+    ap.add_argument("--ring-kink", type=float, default=None, metavar="DEG",
+                    help="keep only those ring edges whose dihedral angle is "
+                         "at least DEG; the smooth remainder is the "
+                         "artificial part (70 = AlgoHex's own threshold)")
     ap.add_argument("--remesh-ogrid", type=float, default=None,
                     metavar="H",
                     help="re-mesh the O-grid interface isotropically at edge "
@@ -359,4 +474,5 @@ if __name__ == "__main__":
                     help="keep the hub/shroud boundary layer in the domain")
     a = ap.parse_args()
     main(a.size_max, a.out, drop_prisms=not a.keep_prisms,
-         remesh_ogrid=a.remesh_ogrid, merge_interfaces=a.merge_interfaces)
+         remesh_ogrid=a.remesh_ogrid, merge_interfaces=a.merge_interfaces,
+         ring_kink=a.ring_kink)

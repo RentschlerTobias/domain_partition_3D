@@ -277,16 +277,6 @@ def run(blocks_vtk, verbose=True):
     return P, Pnew, H, B
 
 
-if __name__ == "__main__":
-    import argparse
-    ap = argparse.ArgumentParser()
-    ap.add_argument("blocks", nargs="?",
-                    default=str(REPO / "output" / "hex3d_algohex" / "deliverable"
-                               / "T1_9_blocks_v11.vtk"))
-    a = ap.parse_args()
-    run(a.blocks)
-
-
 # --------------------------------------------------------------------------
 # step 3: conforming divisions over the block complex
 # --------------------------------------------------------------------------
@@ -376,3 +366,243 @@ def check_conformity(lat, classes):
     print(f"[tfi] conformity of the existing divisions: "
           f"{'OK' if bad == 0 else str(bad) + ' classes disagree'}")
     return bad == 0
+
+
+# --------------------------------------------------------------------------
+# step 3b: how many cells each direction class gets
+# --------------------------------------------------------------------------
+
+def axis_length(P, vert, axis):
+    """Mean physical length of the lattice lines running along `axis`.
+
+    Along the polyline, not corner to corner: these blocks are curved, and a
+    straight-line extent would ask for too few cells exactly where the passage
+    bends most. The mean over all lines of that direction, so one short line at
+    a corner cannot set the count for the whole face."""
+    Q = P[vert]
+    d = np.linalg.norm(np.diff(Q, axis=axis), axis=-1).sum(axis=axis)
+    return float(d.mean())
+
+
+def frozen_from_missing(lat, hexes, f2h, blk_of):
+    """Axis counts that must not change because a neighbour has no lattice.
+
+    A block whose `block_lattice` came back None cannot be refilled and keeps
+    its cells. Its neighbours therefore may not re-divide the faces they share
+    with it, or the two sides stop matching and the complex gets hanging
+    nodes. Empirically all 16 v11 blocks do yield lattices, so this returns
+    nothing there -- but a basis with a pinch is exactly where it might not,
+    and silently welding a hanging face is not a failure mode worth having."""
+    frozen = {}
+    for r, (dims, vert) in lat.items():
+        for ax in (0, 1, 2):
+            for side in (0, 1):
+                G = face_grid(vert, ax, side)
+                other = [a for a in (0, 1, 2) if a != ax]
+                for i in range(G.shape[0] - 1):
+                    for j in range(G.shape[1] - 1):
+                        fk = frozenset((int(G[i, j]), int(G[i + 1, j]),
+                                        int(G[i + 1, j + 1]), int(G[i, j + 1])))
+                        for h in f2h.get(fk, ()):
+                            s = int(blk_of[h])
+                            if s != r and s not in lat:
+                                frozen[(r, other[0])] = int(dims[other[0]])
+                                frozen[(r, other[1])] = int(dims[other[1]])
+    return frozen
+
+
+def solve_block_divisions(lat, classes, P, target_h, h_map=None,
+                          frozen_counts=None, verbose=True):
+    """Cells per direction class for a prescribed target cell size.
+
+    The 3D counterpart of `dp3d.tmesh.solve_edge_divisions`: one integer
+    variable per class, minimising the L1 distance to each axis's own ideal
+    count `round(len/h)`, with the class lower bound at the FINEST of its
+    axes so no cell comes out coarser than asked for.
+
+    Conformity needs no constraint matrix. `direction_classes` already unions
+    exactly the axes that span a shared face, so one variable per class IS the
+    constraint -- and the three opposite-face families of a block are vacuous
+    inside a lattice, where opposite faces are spanned by the same two axes
+    (`OPPOSITE` is kept as a post-solve assertion, not as a row). What the
+    program is actually for is `frozen_counts`: classes touching a block that
+    cannot be refilled are pinned to that block's existing counts, and those
+    equalities do propagate through the complex.
+
+    `h_map` overrides the target per class index (the wall-normal families get
+    a finer h). Returns {class index: count}."""
+    from scipy.optimize import milp, Bounds, LinearConstraint
+    h_map = h_map or {}
+    frozen_counts = frozen_counts or {}
+    n = len(classes)
+    ideal, lb = [], []
+    for ci, c in enumerate(classes):
+        h = h_map.get(ci, target_h)
+        want = [max(1, int(round(axis_length(P, lat[r][1], ax) / h)))
+                for r, ax in c]
+        ideal.append(want)
+        lb.append(max(want))
+    lo = np.array(lb, float)
+    hi = np.full(n, np.inf)
+
+    pinned = {}
+    for ci, c in enumerate(classes):
+        vals = {frozen_counts[k] for k in c if k in frozen_counts}
+        if len(vals) > 1:
+            raise RuntimeError(f"class {ci} is pinned to conflicting counts "
+                               f"{sorted(vals)} -- the passthrough blocks "
+                               f"themselves are non-conforming")
+        if vals:
+            v = float(vals.pop())
+            pinned[ci] = int(v)
+            lo[ci] = hi[ci] = v
+
+    # L1 objective: minimise sum |x_c - ideal| over every axis of the class,
+    # linearised with one slack per class (t >= x - ideal_k, t >= ideal_k - x).
+    rows, rl, ru = [], [], []
+    for ci, want in enumerate(ideal):
+        for w in set(want):
+            row = np.zeros(2 * n)
+            row[ci], row[n + ci] = 1.0, -1.0
+            rows.append(row), rl.append(-np.inf), ru.append(float(w))
+            row = np.zeros(2 * n)
+            row[ci], row[n + ci] = -1.0, -1.0
+            rows.append(row), rl.append(-np.inf), ru.append(-float(w))
+    c_obj = np.concatenate([np.zeros(n), np.ones(n)])
+    res = milp(c=c_obj,
+               constraints=[LinearConstraint(np.array(rows), rl, ru)],
+               integrality=np.concatenate([np.ones(n), np.zeros(n)]),
+               bounds=Bounds(np.concatenate([lo, np.zeros(n)]),
+                             np.concatenate([hi, np.full(n, np.inf)])))
+    counts = (np.round(res.x[:n]).astype(int) if res.success
+              else lo.astype(int))
+    if not res.success and verbose:
+        print(f"[tfi] MILP WARNING: {res.message} -- falling back to the "
+              f"lower bounds")
+
+    for ci, c in enumerate(classes):
+        assert counts[ci] >= lb[ci], f"class {ci} below its lower bound"
+    # what `OPPOSITE` would have constrained: inside a lattice the two faces
+    # normal to an axis are spanned by the same two axes, so the family is
+    # vacuous. Asserted rather than argued.
+    for r, (_dims, vert) in lat.items():
+        for ax in (0, 1, 2):
+            assert face_grid(vert, ax, 0).shape == face_grid(vert, ax, 1).shape, \
+                f"block {r}: faces normal to axis {ax} differ in shape"
+
+    if verbose:
+        print(f"[tfi] target h={target_h}: {n} classes, counts "
+              f"{sorted(counts.tolist())}, {len(pinned)} pinned "
+              f"({'optimal' if res.success else 'FALLBACK'})")
+    return {ci: int(counts[ci]) for ci in range(n)}
+
+
+def class_of_axis(classes):
+    """{(block, axis): class index}."""
+    return {k: ci for ci, c in enumerate(classes) for k in c}
+
+
+def block_counts(lat, classes, counts):
+    """{block: (ni, nj, nk)} of cells after applying the class counts."""
+    cof = class_of_axis(classes)
+    return {r: tuple(counts[cof[(r, ax)]] for ax in (0, 1, 2)) for r in lat}
+
+
+def class_table(lat, classes, counts, P, target_h):
+    """One row per direction class: what it carries now, what it would get."""
+    rows = []
+    for ci, c in enumerate(classes):
+        lens = [axis_length(P, lat[r][1], ax) for r, ax in c]
+        now = sorted({int(lat[r][0][ax]) for r, ax in c})
+        rows.append({"class": ci, "axes": len(c),
+                     "blocks": sorted({int(r) for r, _ax in c}),
+                     "len_mean": float(np.mean(lens)),
+                     "len_min": float(np.min(lens)),
+                     "len_max": float(np.max(lens)),
+                     "count_now": now, "count_new": int(counts[ci]),
+                     "h_eff": float(np.mean(lens)) / int(counts[ci])})
+    return rows
+
+
+def load_blocks(blocks_vtk):
+    """(P, hexes, block id per cell, f2h) from a written deliverable."""
+    import meshio
+    m = meshio.read(blocks_vtk)
+    H = np.vstack([b.data for b in m.cells if b.type == "hexahedron"])
+    B = np.concatenate([np.asarray(d).ravel() for b, d in
+                        zip(m.cells, m.cell_data["block_id"])
+                        if b.type == "hexahedron"])
+    P = np.asarray(m.points, float)
+    f2h, _e2h = bc.build_topology(H)
+    return P, H, B.astype(int), f2h
+
+
+def lattices(P, H, B, f2h, verbose=True):
+    """{block: (dims, vert)} for every block that is a structured grid."""
+    lat, missing = {}, []
+    for r in range(int(B.max()) + 1):
+        cells = np.where(B == r)[0]
+        if not len(cells):
+            continue
+        got = block_lattice(H, cells, f2h)
+        if got is None:
+            missing.append(r)
+            continue
+        dims, vert = got
+        lat[r] = (dims, _fix_handedness(P, vert))
+    if verbose and missing:
+        print(f"[tfi] {len(missing)} blocks are not lattices and will be "
+              f"passed through unchanged: {missing}")
+    return lat, missing
+
+
+if __name__ == "__main__":
+    import argparse
+    import json
+    ap = argparse.ArgumentParser()
+    ap.add_argument("blocks", nargs="?",
+                    default=str(REPO / "output" / "hex3d_algohex" / "deliverable"
+                               / "T1_9_blocks_v11.vtk"))
+    ap.add_argument("--target-h", type=float, default=None,
+                    help="prescribed cell size for --solve-divisions")
+    ap.add_argument("--solve-divisions", action="store_true",
+                    help="solve the conforming division counts for "
+                         "--target-h and write them next to the input")
+    a = ap.parse_args()
+    if a.solve_divisions:
+        if a.target_h is None:
+            ap.error("--solve-divisions needs --target-h")
+        P, H, B, f2h = load_blocks(a.blocks)
+        print(f"[tfi] {a.blocks}: {len(H)} cells, {int(B.max()) + 1} blocks")
+        lat, missing = lattices(P, H, B, f2h)
+        classes = direction_classes(lat, f2h, H, B)
+        check_conformity(lat, classes)
+        frozen = frozen_from_missing(lat, H, f2h, B)
+        if frozen:
+            print(f"[tfi] {len(frozen)} axes pinned by non-lattice "
+                  f"neighbours: {sorted(frozen)}")
+        counts = solve_block_divisions(lat, classes, P, a.target_h,
+                                       frozen_counts=frozen)
+        rows = class_table(lat, classes, counts, P, a.target_h)
+        print(f"\n{'class':>5} {'axes':>5} {'len mean':>9} {'now':>10} "
+              f"{'new':>5} {'h eff':>8}  blocks")
+        for w in rows:
+            print(f"{w['class']:5d} {w['axes']:5d} {w['len_mean']:9.4f} "
+                  f"{str(w['count_now']):>10} {w['count_new']:5d} "
+                  f"{w['h_eff']:8.4f}  {w['blocks']}")
+        bc_ = block_counts(lat, classes, counts)
+        total = sum(int(np.prod(d)) for d in bc_.values())
+        now = sum(int(np.prod(lat[r][0])) for r in lat)
+        print(f"\n[tfi] cells in the lattice blocks: {now} -> {total}")
+        out = Path(a.blocks).with_suffix(".divisions.json")
+        out.write_text(json.dumps({"target_h": a.target_h,
+                                   "counts": counts, "classes":
+                                   [[list(map(int, k)) for k in c]
+                                    for c in classes],
+                                   "table": rows,
+                                   "frozen": {str(k): v for k, v
+                                              in frozen.items()},
+                                   "passthrough_blocks": missing}, indent=1))
+        print(f"\n[tfi] wrote {out}")
+        raise SystemExit(0)
+    run(a.blocks)

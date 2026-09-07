@@ -1179,6 +1179,104 @@ def duplicate_surface_faces(patches):
     return opp, bad
 
 
+def _patch_shared_edges(patches):
+    """{(i, j): [edges]} for every pair of patches that share mesh edges."""
+    e2p = defaultdict(set)
+    for pi, (_k, loops) in enumerate(patches):
+        for lp in loops:
+            for a in range(4):
+                u, v = lp[a], lp[(a + 1) % 4]
+                e2p[(min(u, v), max(u, v))].add(pi)
+    shared = defaultdict(list)
+    for e, ps in e2p.items():
+        ps = sorted(ps)
+        for x in range(len(ps)):
+            for y in range(x + 1, len(ps)):
+                shared[(ps[x], ps[y])].append(e)
+    return shared
+
+
+def detect_pinch(S, verbose=True):
+    """Blocks pinched at an edge: two faces that ought to be OPPOSITE touch.
+
+    This is the one topological defect left in the v11 structure -- two of the
+    16 blocks, at r ~ 0.58, z ~ 1.64 and 1.73, on the hub-side ring where the
+    O-grid interface meets the boundary-layer interface. `cuboid_status`
+    already sees it, but only as "not cube-adjacent" with no location and no
+    way to tell it from any other adjacency defect, and the whole v15-v18
+    input iteration is scored on whether a basis has one.
+
+    It is NOT a mesh defect: the cells around every edge of these blocks form
+    a single fan, checked. It is a defect of the face partition. A block with
+    6 faces is a topological cuboid iff every face shares edges with exactly 4
+    others (then the complement of that graph is a perfect matching, i.e. each
+    face has exactly one opposite). A pinch shows up as a pair of
+    OVER-connected faces -- degree 5, touching each other where they should
+    not -- and, as its consequence, a pair of UNDER-connected faces, degree 3,
+    which have been pushed apart. Measured on v11 block 4: degrees
+    {5, 5, 3, 4, 4, 3}, the two degree-5 faces sharing exactly one mesh edge.
+
+    Note that a pair sharing a single edge is not by itself suspicious: a
+    legitimate block edge can be one cell long, and v11's blocks have three
+    such pairs each on the shroud side. Only the ones between two
+    over-connected faces are contacts that should not exist.
+
+    Returns a list of dicts (block root, the two touching face labels, their
+    shared edges and midpoint in (r, z), and the separated faces)."""
+    out = []
+    cells = S.cells_of()
+    for root in cells:
+        patches = S.patches(root)
+        if len(patches) != 6:
+            continue
+        shared = _patch_shared_edges(patches)
+        deg = Counter({i: 0 for i in range(6)})
+        for i, j in shared:
+            deg[i] += 1
+            deg[j] += 1
+        if all(deg[i] == 4 for i in range(6)):
+            continue
+        def name(i):
+            k = patches[i][0]
+            return (f"surface {S.surf_names.get(k[1], k[1])}" if k[0] == "P"
+                    else f"block {k[1]}")
+
+        over = {i for i in range(6) if deg[i] > 4}
+        under = [name(i) for i in range(6) if deg[i] < 4]
+        hits = [(i, j) for (i, j) in shared if i in over and j in over]
+        for i, j in hits:
+            es = shared[(i, j)]
+            pts = np.array([S.P[v] for e in es for v in e])
+            out.append({"block": int(root), "faces": (name(i), name(j)),
+                        "n_edges": len(es),
+                        "r": float(np.hypot(pts[:, 0], pts[:, 1]).mean()),
+                        "z": float(pts[:, 2].mean()),
+                        "separated": under, "degrees": dict(deg),
+                        "cells": len(cells[root])})
+        if not hits:
+            out.append({"block": int(root), "faces": None, "n_edges": 0,
+                        "r": float("nan"), "z": float("nan"),
+                        "separated": under, "degrees": dict(deg),
+                        "cells": len(cells[root])})
+    if verbose:
+        if not out:
+            print("[clean_blocks] pinch detector: every block is "
+                  "cube-adjacent, no pinch")
+        for p in out:
+            if p["faces"] is None:
+                print(f"[clean_blocks] block {p['block']} ({p['cells']} "
+                      f"cells): not cube-adjacent, degrees "
+                      f"{p['degrees']}, but no over-connected pair -- some "
+                      f"other defect, not a pinch")
+            else:
+                a, b = p["faces"]
+                print(f"[clean_blocks] PINCH block {p['block']} "
+                      f"({p['cells']} cells): faces {a} and {b} touch on "
+                      f"{p['n_edges']} edge(s) at r={p['r']:.3f}, "
+                      f"z={p['z']:.3f}; separated: {p['separated']}")
+    return out
+
+
 # --------------------------------------------------------------------------
 # step 1: diagnose
 # --------------------------------------------------------------------------
@@ -2077,6 +2175,27 @@ def write_blocks(S, path, title="cleaned blocks"):
     return bid
 
 
+def read_blocks_vtk(path, input_vtk):
+    """A written deliverable back into a `BlockStructure`.
+
+    The VTK carries only `block_id` on the cells -- no face labels -- so the
+    surface labels are re-derived from the AlgoHex INPUT mesh by nearest face
+    (`SurfaceLabeller`). Note the input is a free choice: it need not be the
+    file the run used. For a merged-interface run (v14 onwards) pass the
+    UNMERGED `T1_9_tet_v5.vtk`, or the three cut surfaces come back as one
+    label and reattach can no longer tell hub from shroud."""
+    import meshio
+    import tet_prep_v5 as v5
+    m = meshio.read(path)
+    hx = np.vstack([b.data for b in m.cells if b.type == "hexahedron"])
+    bid = np.concatenate([np.asarray(d).ravel() for b, d in
+                          zip(m.cells, m.cell_data["block_id"])
+                          if b.type == "hexahedron"])
+    P0, tri0, tid0 = read_input_surface(input_vtk)
+    lb = SurfaceLabeller(P0, tri0, tid0, v5.NAMES)
+    return BlockStructure.from_arrays(m.points, hx, bid, lb), bid, lb
+
+
 if __name__ == "__main__":
     import argparse
     import tet_prep_v5 as v5
@@ -2099,6 +2218,10 @@ if __name__ == "__main__":
                     help="do not run the pipeline: read an existing blocks "
                          "VTK, recompute its block edges and rewrite the .msh "
                          "with them as 1D elements plus a _edges.vtk")
+    ap.add_argument("--detect-pinch", metavar="BLOCKS_VTK",
+                    help="do not run the pipeline: read an existing blocks "
+                         "VTK and report blocks whose opposite faces touch "
+                         "along an edge. Exits 1 if any is found")
     ap.add_argument("--untangle", action="store_true",
                     help="repair inverted cells by local smoothing (Gao's "
                          "quality-repair half); moves interior vertices, and "
@@ -2110,16 +2233,14 @@ if __name__ == "__main__":
     ap.add_argument("--out", default=str(OUT / "deliverable"
                                          / "T1_9_blocks_v9_clean.vtk"))
     a = ap.parse_args()
+    if a.detect_pinch:
+        St, _bid, _lb = read_blocks_vtk(a.detect_pinch, a.input_vtk)
+        print(f"[clean_blocks] {len(St.cells_of())} blocks in "
+              f"{a.detect_pinch}")
+        found = detect_pinch(St)
+        raise SystemExit(1 if found else 0)
     if a.edges_only:
-        import meshio
-        m = meshio.read(a.edges_only)
-        hx = np.vstack([b.data for b in m.cells if b.type == "hexahedron"])
-        bid = np.concatenate([np.asarray(d).ravel() for b, d in
-                              zip(m.cells, m.cell_data["block_id"])
-                              if b.type == "hexahedron"])
-        P0, tri0, tid0 = read_input_surface(a.input_vtk)
-        lb = SurfaceLabeller(P0, tri0, tid0, v5.NAMES)
-        St = BlockStructure.from_arrays(m.points, hx, bid, lb)
+        St, bid, lb = read_blocks_vtk(a.edges_only, a.input_vtk)
         segs, cid, ncurve = block_edge_curves(St)
         if a.smooth_edges:
             ks = edge_kink_stats(St.P, segs, cid)

@@ -41,12 +41,20 @@ asks for.
 
 ## Where it stands
 
-**Reference structure: `T1_9_blocks_v11m6` — the v11 basis merged to 6 blocks.**
-Decided 2026-09-08 together with what the structure is *for*: it is training
-data for a transformer, filled by TFI in post-processing and then run as a CFD
-mesh, which makes **block count the primary criterion**. The reasoning, the
-alternatives and the measurements are in
-`docs/decisions/2026-09-08-hex3d-block-structure-objective.md`.
+**What the structure is for** was settled on 2026-09-08: it is training data
+for a transformer, filled by TFI in post-processing and then run as a CFD
+mesh, which makes **block count the primary criterion**. Reasoning and
+measurements: `docs/decisions/2026-09-08-hex3d-block-structure-objective.md`.
+
+> **The 6-block structure `v11m6` was tried as the reference and measured
+> unusable for the TFI stage.** Merging costs nothing in mesh quality, but it
+> removes the direction classes that resolution control needs: at h = 0.05 it
+> overshoots to 249 100 cells with 2 inverted (max bound rule), or gives 30 240
+> cells with 4 inverted and cell sizes spread over 5x (median rule). v11m
+> (12 blocks, 8 classes) and v11 (16 blocks, 11 classes) both still fill
+> cleanly. The reference is one of those two — see the D revision in the
+> decision log. `v11m6` remains on disk as the smallest valid block structure,
+> which is a different thing from a usable generator basis.
 
 | structure | blocks | smallest | pinch | inverted | min sJ | Hausdorff | validator |
 |---|---|---|---|---|---|---|---|

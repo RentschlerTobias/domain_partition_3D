@@ -390,8 +390,18 @@ def feature_vertices(feat):
 
 
 def main(size_max=0.12, out_name="T1_9_tet_v5.vtk", drop_prisms=True,
-         remesh_ogrid=None, merge_interfaces=None, ring_kink=None):
-    nodes, elements = parse_msh(MSH)
+         remesh_ogrid=None, merge_interfaces=None, ring_kink=None, msh=None,
+         out_dir=None):
+    """`msh` overrides the input mesh, `out_dir` where the result goes.
+
+    The T1_9 grid was the only geometry for a long time and its path was a
+    module constant. The parametrically generated runners in
+    `data/random_tistos/` carry the same GEOMETRIC entity ids -- hub 1,
+    shroud 2, inlet 3, outlet 4, periodic 5 and 6, O-grid volumes 2-6 -- even
+    though they declare fewer physical names (no `aS_ru_inlet_full_0`), and
+    `classify` reads the geometry ids, so nothing else has to change."""
+    msh = Path(msh) if msh else MSH
+    nodes, elements = parse_msh(msh)
     tris = reduced_boundary(nodes, elements, drop_prisms)
     look = tagged_2d_lookup(elements)
     removed_kind = removed_face_kind(elements)
@@ -445,7 +455,8 @@ def main(size_max=0.12, out_name="T1_9_tet_v5.vtk", drop_prisms=True,
     ok = {frozenset(t) for t in btris} == {frozenset(t) for t in got}
     print(f"[v5] boundary preserved: {'OK' if ok else 'MISMATCH'}")
 
-    out = MSH.parent / out_name
+    out = (Path(out_dir) if out_dir else msh.parent) / out_name
+    out.parent.mkdir(parents=True, exist_ok=True)
     tp.write_algohex_vtk_analytic(P, tets, btris, ids, fe, fv, out)
     return out
 
@@ -453,6 +464,10 @@ def main(size_max=0.12, out_name="T1_9_tet_v5.vtk", drop_prisms=True,
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
+    ap.add_argument("--msh", default=None,
+                    help="source MSH; default is the T1_9 grid")
+    ap.add_argument("--out-dir", default=None,
+                    help="where to write; default is next to the source MSH")
     ap.add_argument("--size-max", type=float, default=0.12)
     ap.add_argument("--out", default="T1_9_tet_v5.vtk")
     ap.add_argument("--merge-interfaces", nargs="?", const="all",
@@ -475,4 +490,4 @@ if __name__ == "__main__":
     a = ap.parse_args()
     main(a.size_max, a.out, drop_prisms=not a.keep_prisms,
          remesh_ogrid=a.remesh_ogrid, merge_interfaces=a.merge_interfaces,
-         ring_kink=a.ring_kink)
+         ring_kink=a.ring_kink, msh=a.msh, out_dir=a.out_dir)

@@ -525,14 +525,48 @@ def _structure_stats(P, hexes, labeller):
             "hausdorff": float(labeller.max_dist)}
 
 
-def collapse_mesh_sheets(P, hexes, labeller, max_rounds=4, verbose=True):
+def collapse_mesh_sheets(P, hexes, labeller, max_rounds=4, verbose=True,
+                         repair=None, guard_ref=None):
     """Greedy sheet collapse -- the operation the merge-only cleanup cannot
     express (see the module docstring).
 
     Accept a sheet only if it adds NO inverted cell, does not push the
     boundary further from the input surface, and strictly improves
-    (excess faces, then block count). Returns (P, hexes, log)."""
+    (excess faces, then block count). Returns (P, hexes, log).
+
+    The quality bar is FIXED for the whole collapse -- `guard_ref`, the state
+    of the mesh as it came out of AlgoHex, before any repair. It is not the
+    current state, and that distinction cost this branch six blocks before it
+    was noticed.
+
+    The guard is a comparison ("does this sheet make the mesh worse?"), so
+    whatever it compares against sets the height of the bar. Repairing the
+    mesh first therefore makes the collapse STRICTER, which is the opposite of
+    what repairing is for. Measured twice over:
+
+    * the pre-collapse untangle, added while chasing v14, lifts v11 from 21
+      inverted / min sJ -0.4938 to 6 / -0.3116 -- and the collapse that used
+      to reach 16 blocks then stops at 22;
+    * a repair between rounds lifted v11's worst cell from -0.19 to +0.15
+      after round 2, after which no sheet could clear the new bar at all.
+
+    Gao's pipeline repairs AFTER simplifying for exactly this reason: quality
+    damage from a collapse is repairable, structure thrown away is not. So the
+    bar stays where the raw mesh put it, the repairs improve the mesh without
+    moving it, and the Hausdorff distance keeps a genuine ceiling at the entry
+    value because boundary fidelity is not something a later untangle can win
+    back.
+
+    `repair(P, hexes) -> P` runs after every accepted round (in practice
+    `untangle_until_stuck`) and repairs the MESH ONLY."""
     base = _structure_stats(P, hexes, labeller)
+    bar = dict(guard_ref) if guard_ref else {"inverted": base["inverted"],
+                                             "min_sj": base["min_sj"]}
+    ceiling = {"hausdorff": base["hausdorff"]}
+    if verbose:
+        print(f"[clean_blocks] collapse guard fixed at {bar['inverted']} "
+              f"inverted / min sJ {bar['min_sj']:.4f}, Hausdorff ceiling "
+              f"{ceiling['hausdorff']:.5f}")
     if verbose:
         print(f"[clean_blocks] sheet collapse, start: {base}")
     log = [dict(base, sheet=None)]
@@ -543,16 +577,16 @@ def collapse_mesh_sheets(P, hexes, labeller, max_rounds=4, verbose=True):
             Q, H, _drop = collapse_sheet(P, hexes, es)
             if not len(H):
                 continue
-            if scaled_jacobians(Q, H).min() <= 0 and base["inverted"] == 0:
+            if scaled_jacobians(Q, H).min() <= 0 and bar["inverted"] == 0:
                 continue
             st = _structure_stats(Q, H, labeller)
-            if st["inverted"] > base["inverted"]:
+            if st["inverted"] > bar["inverted"]:
                 continue
             # and never let the worst cell get worse: the count alone can
             # stay flat while a cell folds further
-            if st["min_sj"] < base["min_sj"] - 1e-9:
+            if st["min_sj"] < bar["min_sj"] - 1e-9:
                 continue
-            if st["hausdorff"] > base["hausdorff"] + 1e-9:
+            if st["hausdorff"] > ceiling["hausdorff"] + 1e-9:
                 continue
             key = (st["excess"], st["blocks"])
             if key < (base["excess"], base["blocks"]) and \
@@ -567,6 +601,19 @@ def collapse_mesh_sheets(P, hexes, labeller, max_rounds=4, verbose=True):
             print(f"[clean_blocks] round {rnd + 1}: collapsed sheet {i} "
                   f"({len(sheets)} candidates) -> {base}")
         log.append(dict(base, sheet=i))
+        if repair is not None and base["inverted"]:
+            Q = repair(P.copy(), hexes)
+            st = _structure_stats(Q, hexes, labeller)
+            if st["hausdorff"] > ceiling["hausdorff"] + 1e-9:
+                print(f"[clean_blocks] repair rejected: Hausdorff "
+                      f"{st['hausdorff']:.5f} over the entry ceiling "
+                      f"{ceiling['hausdorff']:.5f}")
+            else:
+                # the mesh improves; the bar does not move (see the docstring)
+                P, base = Q, st
+                if verbose:
+                    print(f"[clean_blocks] round {rnd + 1} after repair: {st}")
+                log.append(dict(st, sheet="repair"))
     return P, hexes, log
 
 
@@ -620,7 +667,7 @@ def untangle(P, hexes, f2h, labeller=None, rings=1, verbose=True):
     Pl = np.array([P[v] for v in loc])
     Hl = np.array([[loc[int(x)] for x in hexes[c]] for c in cells])
     fidx = np.array([loc[v] for v in free])
-    g0 = (int((sj <= 0).sum()), -sj.min())
+    g0 = g_entry = (int((sj <= 0).sum()), -sj.min())
     best = _smooth(P, hexes, Pl, Hl, free, fidx, cells, g0, None, verbose)
     # Escalate whenever cells are still inverted, NOT merely when the
     # interior sweep failed outright: that sweep does improve the worst value
@@ -659,10 +706,44 @@ def untangle(P, hexes, f2h, labeller=None, rings=1, verbose=True):
         return P, 0
     g, P, drift = best
     if verbose:
+        # against g_entry, not g0: g0 is reassigned when the escalation to
+        # boundary sliding fires, which made a 96 -> 17 repair report "17 -> 17"
         print(f"[clean_blocks] untangle: {len(free)} vertices moved over "
-              f"{len(cells)} cells; inverted {g0[0]} -> {g[0]}, min scaled "
-              f"Jacobian {-g0[1]:.4f} -> {-g[1]:.4f}, boundary drift {drift:.6f}")
+              f"{len(cells)} cells; inverted {g_entry[0]} -> {g[0]}, min scaled "
+              f"Jacobian {-g_entry[1]:.4f} -> {-g[1]:.4f}, boundary drift "
+              f"{drift:.6f}")
     return P, len(free)
+
+
+def untangle_until_stuck(P, hexes, f2h, labeller=None, rounds=1, rings=1,
+                         verbose=True):
+    """`untangle` repeatedly, widening the free-vertex neighbourhood when a
+    sweep stops helping.
+
+    One sweep with `rings=1` was all this module ever did, and on v11 that was
+    enough -- 21 inverted cells to 0. On the two bases whose field is worse it
+    is not: v13 stops at 4 inverted / min sJ -0.304, v14 at 17 / -0.814. That
+    residue is what disarms the sheet collapse afterwards, because its guard
+    refuses any sheet that lowers `min_sj`, and with the worst cell already at
+    -0.814 almost every sheet does. v13 then stalls at 84 blocks and v14 at
+    217, where v11 walks down to 16.
+
+    So: repeat, and when a sweep cannot improve, free one more ring of
+    vertices around the inverted cells before giving up. `rounds=1, rings=1`
+    is exactly the old behaviour."""
+    total, r = 0, rings
+    for _ in range(max(1, rounds)):
+        if not (scaled_jacobians(P, hexes) <= 0).any():
+            break
+        P, n = untangle(P, hexes, f2h, labeller, rings=r, verbose=verbose)
+        total += n
+        if n == 0:
+            if r - rings >= 2:
+                break
+            r += 1
+            if verbose:
+                print(f"[clean_blocks] untangle stuck, widening to {r} rings")
+    return P, total
 
 
 def _smooth(P, hexes, Pl, Hl, free, fidx, cells, g0, slide, verbose,
@@ -896,7 +977,8 @@ class BlockStructure:
     stops separating. The hex mesh is never modified."""
 
     def __init__(self, ovm_path, labeller=None, sharp_deg=40.0, fill=True,
-                 collapse_rounds=0, untangle_mesh=False):
+                 collapse_rounds=0, untangle_mesh=False, untangle_rounds=1,
+                 untangle_rings=1):
         P, e, f, poly = ovm_io.read_ovm(ovm_path)
         self.P = P
         self.hexes, skipped = ovm_io.ovm_to_cells(P, e, f, poly)
@@ -913,14 +995,32 @@ class BlockStructure:
         # compares against the starting inverted-cell count, so starting from
         # 96 makes it toothless: a collapse that keeps 96 is waved through.
         # Repairing first gives the guard something to protect.
+        def repair(Q, H):
+            f2h, _e2h = bc.build_topology(H)
+            Q, n = untangle_until_stuck(Q, H, f2h, labeller,
+                                        rounds=untangle_rounds,
+                                        rings=untangle_rings)
+            self.n_untangled += n
+            return Q
+
+        # the quality the mesh came out of AlgoHex with, captured BEFORE any
+        # repair: this is what the collapse guard compares against for the
+        # whole run, so that repairing the mesh cannot raise the bar
+        sj0 = scaled_jacobians(self.P, self.hexes)
+        guard_ref = {"inverted": int((sj0 <= 0).sum()),
+                     "min_sj": float(sj0.min())}
         if untangle_mesh:
-            self.P, n = untangle(self.P, self.hexes, self.f2h, labeller)
+            self.P, n = untangle_until_stuck(self.P, self.hexes, self.f2h,
+                                             labeller, rounds=untangle_rounds,
+                                             rings=untangle_rings)
             self.n_untangled += n
             P = self.P
         self.collapse_log = []
         if collapse_rounds and labeller is not None:
             self.P, self.hexes, self.collapse_log = collapse_mesh_sheets(
-                self.P, self.hexes, labeller, max_rounds=collapse_rounds)
+                self.P, self.hexes, labeller, max_rounds=collapse_rounds,
+                repair=repair if untangle_mesh else None,
+                guard_ref=guard_ref)
             P = self.P
             self.f2h, self.e2h = bc.build_topology(self.hexes)
             # A collapse welds vertices and can open a hole. fill_cavities
@@ -935,7 +1035,9 @@ class BlockStructure:
                 print(f"[clean_blocks] {len(add)} cells filled AFTER the "
                       f"collapse (a collapse had opened a cavity)")
         if untangle_mesh:
-            self.P, n = untangle(self.P, self.hexes, self.f2h, labeller)
+            self.P, n = untangle_until_stuck(self.P, self.hexes, self.f2h,
+                                             labeller, rounds=untangle_rounds,
+                                             rings=untangle_rings)
             self.n_untangled += n
             P = self.P
         self.sing = bc.singular_edges(self.hexes, P, self.f2h, self.e2h)
@@ -1830,7 +1932,8 @@ class HexBlockValidator:
 
 def postprocess(ovm_path, input_vtk=None, names=None, sheet_frac=0.30,
                 min_cells=10, fix_non_cuboid=True, fill=True,
-                collapse_rounds=0, untangle_mesh=False, verbose=True):
+                collapse_rounds=0, untangle_mesh=False, untangle_rounds=1,
+                untangle_rings=1, verbose=True):
     """`sheet_frac` is a fraction of the MEDIAN sheet size. The plan asked
     for "~5 %, i.e. the 27/54/154-face sheets", but on v9 the median is 533,
     so 5 % is 26 and catches none of them -- the two numbers in the plan
@@ -1843,7 +1946,9 @@ def postprocess(ovm_path, input_vtk=None, names=None, sheet_frac=0.30,
         labeller = SurfaceLabeller(P, tri, tid, names)
     S = BlockStructure(ovm_path, labeller, fill=fill,
                        collapse_rounds=collapse_rounds,
-                       untangle_mesh=untangle_mesh)
+                       untangle_mesh=untangle_mesh,
+                       untangle_rounds=untangle_rounds,
+                       untangle_rings=untangle_rings)
     print(f"[clean_blocks] surface labels from: {S.label_source}")
     # step 0: fix the classification before any geometry/topology is touched
     label_cavities(S, verbose)
@@ -2226,6 +2331,14 @@ if __name__ == "__main__":
                     help="repair inverted cells by local smoothing (Gao's "
                          "quality-repair half); moves interior vertices, and "
                          "boundary vertices only along the input surface")
+    ap.add_argument("--untangle-rounds", type=int, default=1,
+                    help="repeat the untangle sweep up to N times and once "
+                         "more between every pair of collapse rounds; a "
+                         "sweep that cannot improve widens its neighbourhood "
+                         "instead of giving up (1 = the old single pass)")
+    ap.add_argument("--untangle-rings", type=int, default=1,
+                    help="rings of vertices around each inverted cell that "
+                         "the untangle sweep may move")
     ap.add_argument("--no-fill", action="store_true",
                     help="leave internal cavities open (they are refilled by "
                          "default; this is the only step that adds cells)")
@@ -2272,7 +2385,8 @@ if __name__ == "__main__":
     S, before, after, v = postprocess(
         a.ovm, None if a.no_input_vtk else a.input_vtk, v5.NAMES,
         a.sheet_frac, a.min_cells, fill=not a.no_fill,
-        collapse_rounds=a.collapse_rounds, untangle_mesh=a.untangle)
+        collapse_rounds=a.collapse_rounds, untangle_mesh=a.untangle,
+        untangle_rounds=a.untangle_rounds, untangle_rings=a.untangle_rings)
     write_blocks(S, a.out)
     print("\nbefore/after:")
     for k in before:

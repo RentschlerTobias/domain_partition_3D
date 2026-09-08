@@ -142,7 +142,59 @@ def enumerate_groups(adj, seeds, max_group, cap=200000):
     return out
 
 
-def is_valid_merge(S, g, cells_of, root_of, mode):
+def feature_edges(S):
+    """Mesh edges on the domain boundary where two surface labels meet.
+
+    These are the feature curves of the input, seen from the hex mesh: the
+    blade-root and blade-tip rings between the cut surfaces, the inlet and
+    outlet rims, the periodic seams. A block edge that lies on one of them is
+    load-bearing, because the geometry has a real kink there -- the hub ring's
+    median dihedral angle is 81 degrees."""
+    e2s = defaultdict(set)
+    for (fk, _h), lp in zip(S.bnd, S.bnd_loops):
+        s = S.surf_of[fk]
+        for a in range(4):
+            u, v = int(lp[a]), int(lp[(a + 1) % 4])
+            e2s[(min(u, v), max(u, v))].add(s)
+    return {e for e, s in e2s.items() if len(s) > 1}
+
+
+def crosses_feature(S, g, cells_of, root_of, feats):
+    """Would merging this group dissolve a block edge that sits on a feature?
+
+    Merging removes the interfaces between the blocks of the group. If one of
+    those interfaces meets the domain boundary along a feature curve, the
+    merged block spans a geometric kink, and the Gordon-Hall fill then bridges
+    that kink linearly through the block's interior.
+
+    OFF BY DEFAULT, because measuring it refuted the idea it was built for.
+    The hypothesis was that v11's [4, 9, 13, 15] merge folds on refill because
+    it spans the blade-root ring. It does not cross a feature edge at all --
+    `crosses_feature` returns False for it -- so this check never touched it.
+    What it does reject is [4, 5, 7, 13] and [9, 11], which are precisely the
+    two merges that make up the 12-block structure that refills cleanly. And
+    with the check on, the 6-block refill went from 2 inverted cells to 40.
+
+    So it blocks the good merges and lets the bad one through, on this data.
+    Kept because "block edges belong on feature curves" is standard practice
+    in block-structured meshing and may earn its keep on another geometry --
+    but nothing here justifies switching it on."""
+    inner = set()
+    for r in g:
+        for h in cells_of[r]:
+            c = S.hexes[h]
+            for fc in cb.HF:
+                lp = [int(c[i]) for i in fc]
+                k = frozenset(lp)
+                nb = [x for x in S.f2h[k] if x != h]
+                if nb and root_of[nb[0]] in g and root_of[nb[0]] != r:
+                    for a in range(4):
+                        u, v = lp[a], lp[(a + 1) % 4]
+                        inner.add((min(u, v), max(u, v)))
+    return bool(inner & feats)
+
+
+def is_valid_merge(S, g, cells_of, root_of, mode, feats=None):
     """Would this group still be a usable block after merging?
 
     `lattice` also rejects a merge that would fold the block around a wall --
@@ -150,6 +202,8 @@ def is_valid_merge(S, g, cells_of, root_of, mode):
     `duplicate_surface_faces`, the guard `merge_non_cuboids` already applies.
     Without it, minimising the block count would happily weld a block across
     the passage and hand TFI a block with the inlet on two touching sides."""
+    if feats and crosses_feature(S, g, cells_of, root_of, feats):
+        return False
     if mode == "cuboid":
         st, _d = cb.cuboid_status(group_patches(S, g, cells_of, root_of))
         return st == "cuboid"
@@ -162,7 +216,7 @@ def is_valid_merge(S, g, cells_of, root_of, mode):
 
 
 def solve(S, max_group=4, min_cells=10, mode="lattice", seed="all",
-          verbose=True):
+          keep_features=False, verbose=True):
     cells_of = S.cells_of()
     root_of = {h: S.root(S.blk0[h]) for h in range(len(S.hexes))}
     blocks = sorted(cells_of)
@@ -186,7 +240,12 @@ def solve(S, max_group=4, min_cells=10, mode="lattice", seed="all",
         print(f"[merge_ilp] {len(cand)} connected candidate groups of size "
               f"2..{max_group}, testing them against '{mode}' ...")
 
-    valid = [g for g in cand if is_valid_merge(S, g, cells_of, root_of, mode)]
+    feats = feature_edges(S) if keep_features else None
+    if verbose and feats:
+        print(f"[merge_ilp] {len(feats)} boundary edges lie on a feature "
+              f"curve; merges that would dissolve one are rejected")
+    valid = [g for g in cand
+             if is_valid_merge(S, g, cells_of, root_of, mode, feats)]
     if verbose:
         print(f"[merge_ilp] {len(valid)} of them stay a valid block")
 
@@ -251,6 +310,11 @@ def main():
                     default="lattice",
                     help="what a merged group must still be; see the module "
                          "docstring -- 'cuboid' admits nothing on this data")
+    ap.add_argument("--keep-features", action="store_true",
+                    help="reject merges that dissolve a block edge sitting on "
+                         "a feature curve. Off by default -- measured to block "
+                         "the merges that work and not the one that folds; "
+                         "see crosses_feature")
     ap.add_argument("--seed", choices=("all", "defective"), default="all",
                     help="which blocks may seed a candidate group. 'all' "
                          "minimises the block count (v11: 16 -> 6), "
@@ -262,7 +326,8 @@ def main():
     a = ap.parse_args()
 
     S, bid, lab = cb.read_blocks_vtk(a.blocks, a.input_vtk)
-    out = solve(S, a.max_group, a.min_cells, a.valid, a.seed)
+    out = solve(S, a.max_group, a.min_cells, a.valid, a.seed,
+                keep_features=a.keep_features)
     if out is None or not a.apply:
         return
     # apply the merges to the structure itself and export through

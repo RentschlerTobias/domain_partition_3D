@@ -193,3 +193,38 @@ holds the block edges as 1D elements with the curve id as physical tag.
 * Implementation of G2.
 * What "learnable" requires beyond block count: canonical block numbering, a
   stable ordering across geometries. Not yet sharp enough to decide.
+
+## D (revision). The 6-block structure does not carry the generator
+
+Measured immediately after the decision above, on the refill at h = 0.05. The
+lower bound of a direction class is the MAX over its axes, so a class that
+bundles a long and a short axis forces the long axis's cell count onto the
+short one. With few classes, that is every class.
+
+| structure | classes | bound rule | cells | inverted | min sJ | edge p5 … p95 |
+|---|---|---|---|---|---|---|
+| v11m6 | 4 | max | 249100 | 2 | −0.6318 | 0.0099 … 0.0525 |
+| v11m6 | 4 | median | 30240 | 4 | −0.7470 | 0.0314 … 0.1639 |
+| v11m | 8 | max | 76025 | 3 | −0.1121 | 0.0102 … 0.0651 |
+| v11m | 8 | median | 43488 | **0** | **+0.1127** | 0.0248 … 0.1002 |
+| v11 | 11 | max | 49550 | **0** | **+0.1357** | 0.0310 … 0.0684 |
+| v11 | 11 | median | 43008 | **0** | **+0.1484** | 0.0329 … 0.0724 |
+
+Target was h = 0.05 and roughly 50 000 cells.
+
+**The trade-off is direct and was not visible in any static metric.** Merging
+costs nothing in mesh quality — the merged structures are byte-identical to
+their basis in inverted count, min sJ and Hausdorff — but it destroys the
+ability to REGENERATE the mesh at a prescribed resolution, because it removes
+the degrees of freedom that resolution control needs. v11m6 overshoots the
+target by 5x under the max rule and produces cells spread over 5x in size
+under the median rule; both leave inverted cells.
+
+So "block count is the primary criterion" holds only down to the point where
+the structure still has enough direction classes to be filled. Between 16 and
+12 blocks the generator still works; at 6 it does not.
+
+**Status.** `v11m6` is NOT a usable reference for the TFI stage. The choice is
+between v11 (16 blocks, 11 classes, works under both rules, tightest cell-size
+spread) and v11m (12 blocks, 8 classes, works under the median rule, cells up
+to 2x the requested h). Pending the user's call.

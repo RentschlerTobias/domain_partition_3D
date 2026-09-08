@@ -643,6 +643,74 @@ def interface_classes(P, H, B, lat, classes, input_vtk):
     return out
 
 
+def ogrid_target():
+    """A `SurfaceLabeller` over the blade O-grid block's OWN boundary.
+
+    The core's `ogrid_interface` is not real geometry -- it is the cut face
+    towards the O-grid that was removed from the AlgoHex domain and that
+    `reattach.py` glues back on. There is therefore no geometry to be faithful
+    to there; what matters is that the two parts share one surface. The O-grid
+    block is reused verbatim from the source MSH, which makes it the more
+    trustworthy of the two discretisations, so it is the target rather than
+    the input triangulation."""
+    from dp3d.extraction import parse_msh
+    import reattach
+    nodes, elements = parse_msh(reattach.MSH)
+    Po, Ho, _Bo = reattach.ogrid_blocks(elements, nodes, verbose=False)
+    f2h, _e2h = bc.build_topology(Ho)
+    quads = np.asarray([cb._loop_of(Ho, hs[0], fk)
+                        for fk, hs in f2h.items() if len(hs) == 1])
+    tris = np.vstack([quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]])
+    return cb.SurfaceLabeller(Po, tris, np.zeros(len(tris), int))
+
+
+def project_ogrid_interface(P, H, f2h, input_vtk, verbose=True):
+    """Pull the core's O-grid cut face onto the O-grid block's surface.
+
+    Applied per VERTEX on the whole complex, before any block is refilled, so
+    that the six-face resampling and the Gordon-Hall fill inherit the moved
+    boundary and absorb it -- rather than snapping afterwards and asking
+    `untangle` to repair the damage locally.
+
+    Only vertices in the INTERIOR of the patch are moved: a vertex on the ring
+    where the O-grid interface meets a boundary-layer interface belongs to
+    both surfaces, and pulling it onto one would drag it off the other. That
+    ring is a feature curve of the input and stays where it is.
+
+    Returns (new points, report)."""
+    import tet_prep_v5 as v5
+    P0, tri0, tid0 = cb.read_input_surface(input_vtk)
+    lab = cb.SurfaceLabeller(P0, tri0, tid0, v5.NAMES)
+    bnd = [(fk, hs[0]) for fk, hs in f2h.items() if len(hs) == 1]
+    loops = np.asarray([cb._loop_of(H, h, fk) for fk, h in bnd])
+    sids = lab.label(P[loops].mean(1))
+    want = next(k for k, v in v5.NAMES.items() if v == "ogrid_interface")
+
+    on, off = defaultdict(int), defaultdict(int)
+    for lp, s in zip(loops, sids):
+        for v in lp:
+            (on if s == want else off)[int(v)] += 1
+    verts = np.array(sorted(v for v in on if off[v] == 0), dtype=np.int64)
+    if not len(verts):
+        return P, {"projected": 0}
+
+    tgt = ogrid_target()
+    Q = cb.project_to_surface(tgt, P[verts])
+    d = np.linalg.norm(Q - P[verts], axis=1)
+    Pn = P.copy()
+    Pn[verts] = Q
+    rep = {"projected": int(len(verts)),
+           "kept_on_ring": int(sum(1 for v in on if off[v])),
+           "move_median": float(np.median(d)), "move_p95": float(np.percentile(d, 95)),
+           "move_max": float(d.max())}
+    if verbose:
+        print(f"[tfi] O-grid projection: {rep['projected']} vertices moved "
+              f"(median {rep['move_median']:.5f}, p95 {rep['move_p95']:.5f}, "
+              f"max {rep['move_max']:.5f}), {rep['kept_on_ring']} ring "
+              f"vertices left in place")
+    return Pn, rep
+
+
 def weld(points, tol=1e-9):
     """Merge coincident points. Returns (unique points, old -> new index).
 
@@ -784,6 +852,10 @@ if __name__ == "__main__":
     ap.add_argument("--solve-divisions", action="store_true",
                     help="solve the conforming division counts for "
                          "--target-h and write them next to the input")
+    ap.add_argument("--project-ogrid", action="store_true",
+                    help="pull the O-grid cut face onto the O-grid block's "
+                         "surface before refilling, so the Gordon-Hall fill "
+                         "absorbs the motion (see project_ogrid_interface)")
     ap.add_argument("--apply-divisions", action="store_true",
                     help="also refill every block at those counts and write "
                          "the result to --out")
@@ -799,6 +871,8 @@ if __name__ == "__main__":
             ap.error("--solve-divisions needs --target-h")
         P, H, B, f2h = load_blocks(a.blocks)
         print(f"[tfi] {a.blocks}: {len(H)} cells, {int(B.max()) + 1} blocks")
+        if a.project_ogrid:
+            P, _rep = project_ogrid_interface(P, H, f2h, a.input_vtk)
         lat, missing = lattices(P, H, B, f2h)
         classes = direction_classes(lat, f2h, H, B)
         check_conformity(lat, classes)

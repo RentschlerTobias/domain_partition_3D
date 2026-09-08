@@ -94,6 +94,55 @@ it removes the two at the inlet and simplifies the graph.
 The final v11 structure has **all 16 blocks with exactly 6 faces**; the two
 non-cuboids fail the cube-adjacency test, not the face count.
 
+### Merging the blocks: the ILP, and the reference structure
+
+`merge_ilp.py` solves the merge as a weighted exact cover instead of merging
+greedily. A merge changes no geometry — it is a union-find union on the cut
+set — so the quality columns below are identical within each family, and the
+only thing at stake is the block topology.
+
+| structure | blocks | smallest | non-cuboid | pinch | inverted | min sJ | Hausdorff | validator | TFI classes |
+|---|---|---|---|---|---|---|---|---|---|
+| v11 | 16 | 224 | 2 | 2 | 0 | 0.1524 | 0.03405 | VALID | 11 |
+| v11m | 12 | 476 | 2 | 0 | 0 | 0.1524 | 0.03405 | VALID | 8 |
+| **v11m6** | **6** | 448 | 4 | 0 | 0 | 0.1524 | 0.03405 | VALID | 4 |
+| v16 | 103 | 3 | 2 | 0 | 0 | 0.0159 | 0.01377 | VALID | 15 |
+| v16m | 26 | 51 | 23 | 0 | 0 | 0.0159 | 0.01377 | VALID | 3 |
+
+Every block of every row is a valid TFI lattice. **`v11m6` is the reference
+structure** (see `docs/decisions/2026-09-08-hex3d-block-structure-objective.md`).
+
+Two things decide the outcome, and neither is the one that looks obvious:
+
+* **The validity criterion.** Judged by `cuboid_status` — 6 patches, each
+  adjacent to 4 others — not one of 1650 candidate groups on v16 is
+  mergeable, because patches are keyed by the neighbour behind them and a
+  union facing two blocks on one side has 8 to 11 of them. Judged by
+  `tfi.block_lattice`, all 44 seed-neighbour pairs pass. The lattice test is
+  the one TFI actually needs.
+* **The seed set, not the group size.** Which blocks may seed a candidate
+  group decides everything; how large groups may get decides nothing:
+
+  | max-group | seeds | v11 |
+  |---|---|---|
+  | 4 | defective only | 16 → 12 |
+  | 4 | all | 16 → **6** |
+  | 6 | defective only | 16 → 12 |
+  | 6 | all | 16 → **6** |
+
+  Seeding from defective blocks only is a repair objective and costs six
+  blocks. The same numbers show why one global solve beats iterating:
+  16 → 6 in one pass, against 16 → 12 → 7 in two.
+
+On v11 the ILP also merges each pinched block with exactly the neighbour it
+was pinching against, which makes the offending interface block-interior.
+
+```bash
+$PY experimentell/hex3d_algohex/merge_ilp.py \
+      output/hex3d_algohex/deliverable/T1_9_blocks_v11.vtk --seed all \
+      --apply output/hex3d_algohex/deliverable/T1_9_blocks_v11m6.vtk
+```
+
 ### The v15-v18 bases, scored on one card
 
 `basis_report.py` (full table: `output/hex3d_algohex/basis_scorecard.md`), all

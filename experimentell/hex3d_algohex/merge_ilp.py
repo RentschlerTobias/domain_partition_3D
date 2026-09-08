@@ -101,10 +101,22 @@ def group_patches(S, group, cells_of, root_of):
 def enumerate_groups(adj, seeds, max_group, cap=200000):
     """Connected block sets up to `max_group` that contain at least one seed.
 
-    Only groups touching a defective block are worth testing: merging two
-    perfectly good cuboids cannot repair anything and only coarsens the
-    structure. That restriction is what keeps the enumeration in the
-    thousands instead of the millions."""
+    Which blocks may seed a group decides the result far more than how large
+    groups may get. Measured on v11:
+
+        max-group  seeds       blocks
+            4      defective   16 -> 12
+            4      all         16 ->  6
+            6      defective   16 -> 12
+            6      all         16 ->  6
+
+    Group size is irrelevant here; the seed set is everything. Seeding only
+    from defective blocks expresses a REPAIR objective -- fix the tiny and
+    non-cuboid ones, leave the rest alone -- and it costs six blocks when the
+    goal is actually the smallest structure.
+
+    The same numbers also show why this is solved globally rather than
+    iteratively: 16 -> 6 in one solve beats 16 -> 12 -> 7 in two."""
     out, seen = [], set()
     for s in seeds:
         frontier = [frozenset((s,))]
@@ -149,7 +161,8 @@ def is_valid_merge(S, g, cells_of, root_of, mode):
     return not bad
 
 
-def solve(S, max_group=4, min_cells=10, mode="lattice", verbose=True):
+def solve(S, max_group=4, min_cells=10, mode="lattice", seed="all",
+          verbose=True):
     cells_of = S.cells_of()
     root_of = {h: S.root(S.blk0[h]) for h in range(len(S.hexes))}
     blocks = sorted(cells_of)
@@ -157,13 +170,15 @@ def solve(S, max_group=4, min_cells=10, mode="lattice", verbose=True):
     adj = block_graph(S, cells_of, root_of)
 
     status = {r: cb.cuboid_status(S.patches(r))[0] for r in blocks}
-    seeds = [r for r in blocks
-             if status[r] != "cuboid" or size[r] < min_cells]
+    defective = [r for r in blocks
+                 if status[r] != "cuboid" or size[r] < min_cells]
+    seeds = blocks if seed == "all" else defective
     if verbose:
         print(f"[merge_ilp] {len(blocks)} blocks, {sum(len(v) for v in adj.values()) // 2} "
-              f"adjacencies, {len(seeds)} defective (non-cuboid or < {min_cells} cells)")
+              f"adjacencies, {len(defective)} defective (non-cuboid or "
+              f"< {min_cells} cells), seeding from {len(seeds)}")
     if not seeds:
-        print("[merge_ilp] nothing to repair")
+        print("[merge_ilp] nothing to merge")
         return None
 
     cand = enumerate_groups(adj, seeds, max_group)
@@ -236,24 +251,31 @@ def main():
                     default="lattice",
                     help="what a merged group must still be; see the module "
                          "docstring -- 'cuboid' admits nothing on this data")
+    ap.add_argument("--seed", choices=("all", "defective"), default="all",
+                    help="which blocks may seed a candidate group. 'all' "
+                         "minimises the block count (v11: 16 -> 6), "
+                         "'defective' only repairs tiny and non-cuboid "
+                         "blocks and leaves the rest alone (16 -> 12)")
     ap.add_argument("--max-group", type=int, default=4)
     ap.add_argument("--min-cells", type=int, default=10)
     ap.add_argument("--apply", default=None, metavar="OUT_VTK")
     a = ap.parse_args()
 
     S, bid, lab = cb.read_blocks_vtk(a.blocks, a.input_vtk)
-    out = solve(S, a.max_group, a.min_cells, a.valid)
+    out = solve(S, a.max_group, a.min_cells, a.valid, a.seed)
     if out is None or not a.apply:
         return
-    new = np.zeros(len(S.hexes), int)
-    for i, g in enumerate(out["chosen"]):
-        for r in g:
-            for h in out["cells_of"][r]:
-                new[h] = i
-    import export_vtk as ev
-    ev.write_vtk(a.apply, S.P, S.hexes, [12] * len(S.hexes), new, "block_id",
-                 f"{out['blocks_after']} blocks after the merge ILP")
-    print(f"[merge_ilp] wrote {a.apply}")
+    # apply the merges to the structure itself and export through
+    # clean_blocks.write_blocks, so the result carries the same artifacts as
+    # every other deliverable: .vtk, .msh with the block edges as 1D cells,
+    # _edges.vtk, _nfaces.vtk and _quality.vtk
+    for g in out["merges"]:
+        it = iter(sorted(g))
+        first = next(it)
+        for r in it:
+            S.merge(first, r)
+    cb.write_blocks(S, a.apply,
+                    f"{out['blocks_after']} blocks after the merge ILP")
 
 
 if __name__ == "__main__":

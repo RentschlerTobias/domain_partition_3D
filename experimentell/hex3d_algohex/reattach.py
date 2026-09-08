@@ -227,27 +227,41 @@ def interface_gap(S, P_og, H_og, verbose=True):
     """How far apart are the two discretisations of the O-grid interface?
 
     The parts are deliberately non-conforming, so this cannot be zero. What
-    matters is that it stays at the scale of one cell -- a larger gap would
-    mean the removed region and the re-attached one are not the same volume."""
+    matters is that it stays well inside one cell -- a larger gap would mean
+    the removed region and the re-attached one are not the same volume.
+
+    Measured point-to-SURFACE, not centroid-to-centroid. The centroid version
+    this replaced compared the midpoints of quads of different size and so
+    reported a gap wherever the two discretisations merely disagreed on where
+    to put a node: median 0.0218 against a true 0.00214, an order of magnitude
+    too pessimistic. That number was quoted as evidence that the two parts
+    "do not meet" and it drove a projection experiment that then cost five
+    inverted cells for nothing."""
     f2h, _e2h = bc.build_topology(H_og)
-    og_bnd = []
-    for fk, hs in f2h.items():
-        if len(hs) == 1:
-            og_bnd.append(cb._loop_of(H_og, hs[0], fk))
-    og_c = P_og[np.asarray(og_bnd)].mean(1)
+    quads = np.asarray([cb._loop_of(H_og, hs[0], fk)
+                        for fk, hs in f2h.items() if len(hs) == 1])
+    tris = np.vstack([quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]])
     from scipy.spatial import cKDTree
-    tree = cKDTree(og_c)
+    tree = cKDTree(P_og[tris].mean(1))
     sid = next((k for k, v in S.surf_names.items() if v == "ogrid_interface"), None)
     sel = [lp for (fk, _h), lp in zip(S.bnd, S.bnd_loops)
            if S.surf_of[fk] == sid]
     if not sel:
         return None
-    d, _i = tree.query(S.P[np.asarray(sel)].mean(1))
+    Q = S.P[np.unique(np.asarray(sel))]
+    k = min(16, len(tris))
+    _dd, cand = tree.query(Q, k=k)
+    T = tris[cand]
+    d2 = cb._closest_point_dist2(Q, P_og[T[..., 0]], P_og[T[..., 1]],
+                                 P_og[T[..., 2]])
+    d = np.sqrt(d2.min(axis=1))
     if verbose:
+        edge = np.linalg.norm(S.P[np.asarray(sel)[:, 1]]
+                              - S.P[np.asarray(sel)[:, 0]], axis=1)
         print(f"[reattach] O-grid interface: {len(sel)} AlgoHex quads, "
-              f"distance to the nearest O-grid boundary quad "
-              f"median {np.median(d):.4f} p95 {np.percentile(d, 95):.4f} "
-              f"max {d.max():.4f}")
+              f"{len(Q)} vertices to the O-grid SURFACE: median "
+              f"{np.median(d):.5f} p95 {np.percentile(d, 95):.5f} max "
+              f"{d.max():.5f} (local cell edge median {np.median(edge):.5f})")
     return d
 
 

@@ -248,3 +248,110 @@ if __name__ == "__main__":
     if not a.no_render:
         render(a.out, mm.points, H, m, VIOLATION)
     print(f"\n[mesh_quality] fields written next to {a.out}")
+
+
+# --------------------------------------------------------------------------
+# the same metrics on a mixed-cell mesh, for comparing against the source
+# --------------------------------------------------------------------------
+
+# faces of each cell type, by vertex count, in VTK ordering and wound
+# consistently; the sign is fixed per cell against its own centroid below
+CELL_FACES = {
+    4: ((0, 2, 1), (0, 1, 3), (1, 2, 3), (0, 3, 2)),                # tet
+    5: ((0, 3, 2, 1), (0, 1, 4), (1, 2, 4), (2, 3, 4), (3, 0, 4)),  # pyramid
+    6: ((0, 2, 1), (3, 4, 5), (0, 1, 4, 3), (1, 2, 5, 4),
+        (2, 0, 3, 5)),                                              # prism
+    8: HF,                                                          # hex
+}
+
+
+def mixed_metrics(P, cells, verbose=True):
+    """`metrics` for a mesh of mixed cell types.
+
+    The whole point of this branch is the claim that a structured hex mesh is
+    better for the solver than the unstructured source. Testing that claim
+    with two different implementations would prove nothing, so this is the one
+    used for BOTH sides: the same non-orthogonality, skewness, face-weight and
+    volume-ratio formulas as `metrics`, over faces enumerated per cell type.
+
+    `cells` is a list of index lists. Volume comes from the divergence
+    theorem over the cell's own faces, which holds for any closed polyhedron;
+    face normals are oriented outward against the cell centroid first."""
+    P = np.asarray(P, float)
+    n = len(cells)
+    ctr = np.array([P[np.asarray(c)].mean(0) for c in cells])
+
+    f2c = defaultdict(list)
+    floop = {}
+    vol = np.zeros(n)
+    for ci, c in enumerate(cells):
+        fcs = CELL_FACES.get(len(c))
+        if fcs is None:
+            raise ValueError(f"unsupported cell with {len(c)} vertices")
+        v = 0.0
+        for fc in fcs:
+            lp = [int(c[i]) for i in fc]
+            Q = P[np.asarray(lp)]
+            fcen = Q.mean(0)
+            Sf = np.zeros(3)
+            for t in range(1, len(lp) - 1):
+                Sf = Sf + np.cross(Q[t] - Q[0], Q[t + 1] - Q[0]) / 2.0
+            if np.dot(Sf, fcen - ctr[ci]) < 0:      # orient outward
+                Sf = -Sf
+            v += float(np.dot(fcen, Sf)) / 3.0
+            k = frozenset(lp)
+            f2c[k].append(ci)
+            floop.setdefault(k, lp)
+        vol[ci] = v
+
+    non_ortho = np.zeros(n)
+    skew = np.zeros(n)
+    vol_ratio = np.ones(n)
+    face_weight = np.ones(n)
+    for k, hs in f2c.items():
+        if len(hs) != 2:
+            continue
+        a, b = hs
+        lp = floop[k]
+        Q = P[np.asarray(lp)]
+        fcen = Q.mean(0)
+        Sf = np.zeros(3)
+        for t in range(1, len(lp) - 1):
+            Sf = Sf + np.cross(Q[t] - Q[0], Q[t + 1] - Q[0]) / 2.0
+        na = np.linalg.norm(Sf)
+        if na < 1e-30:
+            continue
+        nf = Sf / na
+        d = ctr[b] - ctr[a]
+        nd = float(np.linalg.norm(d))
+        if nd <= 0:
+            continue
+        ang = np.degrees(np.arccos(np.clip(abs(float(np.dot(d / nd, nf))), 0, 1)))
+        den = float(np.dot(d, nf))
+        if abs(den) < 1e-12:
+            continue
+        t = float(np.dot(fcen - ctr[a], nf) / den)
+        sk = float(np.linalg.norm((ctr[a] + t * d) - fcen) / nd)
+        fw = min(abs(t), abs(1 - t))
+        for h in (a, b):
+            non_ortho[h] = max(non_ortho[h], ang)
+            skew[h] = max(skew[h], sk)
+            face_weight[h] = min(face_weight[h], fw)
+        r = min(abs(vol[a]), abs(vol[b])) / max(abs(vol[a]), abs(vol[b]), 1e-30)
+        vol_ratio[a] = min(vol_ratio[a], r)
+        vol_ratio[b] = min(vol_ratio[b], r)
+
+    aspect = np.zeros(n)
+    for ci, c in enumerate(cells):
+        Q = P[np.asarray(c)]
+        dd = np.linalg.norm(Q[:, None, :] - Q[None, :, :], axis=-1)
+        pos = dd[dd > 1e-30]
+        aspect[ci] = pos.max() / pos.min() if len(pos) else 1.0
+
+    out = {"non_orthogonality_deg": non_ortho, "skewness": skew,
+           "vol_ratio": vol_ratio, "face_weight": face_weight,
+           "aspect_ratio": aspect, "volume": vol}
+    if verbose:
+        print(f"[mesh_quality] mixed mesh: {n} cells, "
+              f"{sum(1 for v in f2c.values() if len(v) == 2)} internal faces")
+    return out

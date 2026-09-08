@@ -412,7 +412,7 @@ def frozen_from_missing(lat, hexes, f2h, blk_of):
 
 
 def solve_block_divisions(lat, classes, P, target_h, h_map=None,
-                          frozen_counts=None, verbose=True):
+                          frozen_counts=None, bound="max", verbose=True):
     """Cells per direction class for a prescribed target cell size.
 
     The 3D counterpart of `dp3d.tmesh.solve_edge_divisions`: one integer
@@ -441,7 +441,15 @@ def solve_block_divisions(lat, classes, P, target_h, h_map=None,
         want = [max(1, int(round(axis_length(P, lat[r][1], ax) / h)))
                 for r, ax in c]
         ideal.append(want)
-        lb.append(max(want))
+        # `max` guarantees no cell coarser than h, but a class bundling a long
+        # and a short axis then forces the long axis's count onto the short
+        # one. That is harmless with many classes and ruinous with few:
+        # measured at h=0.05, v11 (11 classes) gives 49550 cells either way,
+        # while a 6-block structure (4 classes) overshoots to 249100 with 2
+        # inverted cells. `median` trades "never coarser than h" for hitting
+        # the target size -- v11m (8 classes) goes from 3 inverted to 0.
+        lb.append(max(want) if bound == "max"
+                  else max(1, int(round(float(np.median(want))))))
     lo = np.array(lb, float)
     hi = np.full(n, np.inf)
 
@@ -847,6 +855,11 @@ if __name__ == "__main__":
     ap.add_argument("blocks", nargs="?",
                     default=str(REPO / "output" / "hex3d_algohex" / "deliverable"
                                / "T1_9_blocks_v11.vtk"))
+    ap.add_argument("--bound", choices=("max", "median"), default="max",
+                    help="how a direction class takes its cell count from its "
+                         "axes. 'max' never leaves a cell coarser than h; "
+                         "'median' hits the target size when few classes have "
+                         "to cover many axes of different length")
     ap.add_argument("--target-h", type=float, default=None,
                     help="prescribed cell size for --solve-divisions")
     ap.add_argument("--solve-divisions", action="store_true",
@@ -881,7 +894,7 @@ if __name__ == "__main__":
             print(f"[tfi] {len(frozen)} axes pinned by non-lattice "
                   f"neighbours: {sorted(frozen)}")
         counts = solve_block_divisions(lat, classes, P, a.target_h,
-                                       frozen_counts=frozen)
+                                       frozen_counts=frozen, bound=a.bound)
         rows = class_table(lat, classes, counts, P, a.target_h)
         print(f"\n{'class':>5} {'axes':>5} {'len mean':>9} {'now':>10} "
               f"{'new':>5} {'h eff':>8}  blocks")

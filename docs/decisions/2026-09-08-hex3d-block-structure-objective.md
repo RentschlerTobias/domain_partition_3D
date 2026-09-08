@@ -228,3 +228,68 @@ the structure still has enough direction classes to be filled. Between 16 and
 between v11 (16 blocks, 11 classes, works under both rules, tightest cell-size
 spread) and v11m (12 blocks, 8 classes, works under the median rule, cells up
 to 2x the requested h). Pending the user's call.
+
+## D (final). Merging harms the generator — v11 unmerged is the reference
+
+The refill was run on every structure. Merging damages it in two independent
+ways, and the bound rule is not the cause:
+
+| structure | blocks | rule | cells | inverted | boundary p95 | boundary max |
+|---|---|---|---|---|---|---|
+| **v11** | **16** | max | 49550 | **0** | **0.0060** | **0.0343** |
+| v11m | 12 | max | 76025 | 3 | 0.1845 | 0.3710 |
+| v11m | 12 | median | 47256 | 0 | 0.1739 | 0.3743 |
+| v11m6 | 6 | max | 249100 | 2 | 0.2162 | 0.4466 |
+
+(boundary = distance of every boundary vertex to the input surface; the
+unrefilled meshes all measure max 0.0349, so this is damage done by the
+refill, not inherited.)
+
+v11m is equally bad under both bound rules, so the cause is the merging. The
+mechanism is the same one that produces the inverted cells: AlgoHex put the
+block edges where the frame field needed them, which is where the geometry
+bends. Dissolving an edge makes the refill interpolate across the bend, and
+at reduced counts it cuts the corner.
+
+**This answers a question open since the first handoff:** the pinch does not
+harm TFI. v11 refills with 0 inverted cells and an unchanged boundary while
+carrying it.
+
+**Merging keeps its value as analysis, not as a pipeline stage.** It proves
+what the structure *could* be (6 blocks, all valid lattices, quality
+untouched) and it removes the pinch — but a structure that cannot be refilled
+is not a generator basis.
+
+## B/G2 (final). The O-grid projection is not worth it
+
+Implemented as `tfi.project_ogrid_interface` and measured on v11: it moves
+1378 vertices (median 0.00267, max 0.02734), leaves the 104 ring vertices in
+place, and turns a clean refill into **5 inverted cells**. The inversions are
+not at the ring — all five have 0 of 8 nodes on it — so they are not a
+step-at-the-ring artefact but the result of pulling vertices onto a different
+discretisation with its own bumps.
+
+The premise was also weaker than it looked: the decision was taken believing
+the gap was median 0.0218 (`interface_gap`, centroid-to-centroid). The true
+point-to-surface gap is median **0.00214**, 5 % of a local cell. Off by
+default; the code and this measurement stay.
+
+## Validation against the source mesh
+
+The claim the whole branch rests on, measured with ONE implementation
+(`mesh_quality.mixed_metrics`) over both meshes:
+
+| metric (OpenFOAM limit) | source, hybrid, 257 219 cells | structured, 161 619 hexes |
+|---|---|---|
+| non-orthogonality > 65° | **5105** | **56** |
+| p50 / p95 / p99 | 18.4 / 50.2 / 73.4 | 10.9 / 44.1 / 52.8 |
+| skewness > 4 | 4 | **0** |
+| p50 / p95 / p99 | 0.141 / 0.472 / 0.899 | 0.015 / 0.048 / 0.106 |
+| face weight < 0.05 | 34 | **0** |
+| volume ratio p50 | 0.699 | 0.797 |
+| aspect ratio p50 / p95 | 3.9 / 49.1 | 7.6 / 65.8 |
+
+91x fewer non-orthogonality violations with 37 % fewer cells, skewness an
+order of magnitude better at every quantile. The one metric that is worse is
+the aspect ratio, which is deliberate: 17 extruded boundary-layer cells with a
+first height of 8.9e-4.

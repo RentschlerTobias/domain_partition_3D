@@ -23,7 +23,8 @@ BUILD_VOLUME = "algohex-build-cache"
 HEXMESHING_BIN = "/app/build/Build/bin/HexMeshing"
 
 
-def run_hexmeshing(extra_args=(), tag="", in_vtk=None, prefix="T1_9"):
+def run_hexmeshing(extra_args=(), tag="", in_vtk=None, prefix="T1_9",
+                   cpus=None):
     """``tag`` suffixes every output so concurrent runs (e.g. a fast
     --without-integrable-field-optimization probe alongside the full run)
     cannot clobber each other."""
@@ -43,8 +44,13 @@ def run_hexmeshing(extra_args=(), tag="", in_vtk=None, prefix="T1_9"):
     sm_out = OUT_DIR / f"{prefix}_seamless{sfx}.hexex"
     final_tet = OUT_DIR / f"{prefix}_final_tet{sfx}.ovm"
 
+    # A cgroup quota around the CLIENT does not touch the container -- it
+    # lives in the docker daemon's cgroup -- so limiting AlgoHex has to happen
+    # here. Matters on a box with a fair-use CPU limit, where the rest of the
+    # pipeline is already capped.
+    limit = ["--cpus", str(cpus)] if cpus else []
     cmd = [
-        "docker", "run", "--rm", "--network=host",
+        "docker", "run", "--rm", "--network=host", *limit,
         "-v", f"{REPO}:/work",
         "-v", f"{BUILD_VOLUME}:/app/build",
         IMAGE, HEXMESHING_BIN,
@@ -74,6 +80,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--tag", default="", help="suffix for all output files")
     ap.add_argument("--in-vtk", default=None, help="input tet mesh .vtk")
+    ap.add_argument("--cpus", type=float, default=None,
+                    help="limit the container to N CPUs (docker run --cpus)")
     ap.add_argument("--prefix", default="T1_9",
                     help="output filename prefix; T1_9 was hard-coded while "
                          "that was the only geometry")
@@ -82,5 +90,5 @@ if __name__ == "__main__":
     a = ap.parse_args()
     extra = [x for x in a.rest if x != "--"]
     rc, out_ovm, json_out, log_path = run_hexmeshing(
-        extra, tag=a.tag, in_vtk=a.in_vtk, prefix=a.prefix)
+        extra, tag=a.tag, in_vtk=a.in_vtk, prefix=a.prefix, cpus=a.cpus)
     sys.exit(rc)

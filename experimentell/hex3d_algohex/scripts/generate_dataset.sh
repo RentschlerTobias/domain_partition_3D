@@ -42,6 +42,7 @@ for cand in "$@"; do
     || { echo "[$name] tet_prep FAILED"; echo '{"stage":"tet_prep","ok":false}' > "$d/status.json"; continue; }
 
   $PY $E/run_algohex.py --tag "$name" --prefix gen --in-vtk "$d/${name}_tet.vtk" \
+      ${ALGOHEX_CPUS:+--cpus $ALGOHEX_CPUS} \
       -- -n 60000 > "$d/algohex.log" 2>&1 \
     || { echo "[$name] AlgoHex FAILED"; echo '{"stage":"algohex","ok":false}' > "$d/status.json"; continue; }
 

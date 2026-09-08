@@ -118,6 +118,10 @@ as an input file `T1_9_tet_vN.vtk`. Explicitly:
 | v12 | `T1_9_tet_v5.vtk` | `--full-constraints` | 534 | 60000 | 18 min, pinch unchanged, not adopted |
 | v13 | `T1_9_tet_v7.vtk` | O-grid interface re-meshed isotropically | 534 | 60000 | 19 min, 14 inverted, 84 blocks, does not collapse |
 | v14 | `T1_9_tet_v8.vtk` | cut surfaces merged, rings removed | **310** | 60000 | 25 min, **100 % cuboids** but 96 inverted |
+| v15 | `T1_9_tet_v9.vtk` | merged **and** O-grid interface re-meshed | 310 | 60000 | 30 min, 129 inverted, 120 blocks |
+| **v16** | `T1_9_tet_v10.vtk` | **only the root ring** merged, re-meshed | **422** | 60000 | 19 min, 32 inverted, **103 blocks, no pinch, VALID** |
+| v17 | `T1_9_tet_v11.vtk` | ring edges below 70° dropped, re-meshed | 499 | 60000 | 26 min, 46 inverted, 70 blocks, no pinch |
+| v18 | `T1_9_tet_v9.vtk` (`--full-constraints`) | merged, re-meshed | 310 | 60000 | 22 min, 102 inverted, **120 raw blocks** (v15: 242) |
 
 Logs and metrics per run: `output/hex3d_algohex/hexmeshing_<tag>.log`,
 `T1_9_hex_metrics_<tag>.json`.
@@ -206,6 +210,31 @@ field into a simpler, hex-meshable singularity graph. Removing them gives a
 smoother field that is *not* hex-meshable. The v7/v8 OOM was therefore not a
 memory-size problem: the same domain with proper labels (v9, 550 edges)
 completes in 45 min.
+
+**1b. ...but the constraints are separable, and only one of them costs the pinch.**
+The two artificial rings between the cut surfaces are not equivalent. The
+pinch sits on the ROOT ring (hub side), on the smooth part of it, 0.89 from
+the nearest branch point. Deleting both rings (v14, 310 edges) removes the
+pinch and costs 96 inverted cells; deleting only the root ring (v16, 422
+edges) removes the pinch just as completely and costs 32. And the rings are
+not the artefacts they were once called: the hub ring's median dihedral kink
+is 81°, and 86 of its 112 edges are above AlgoHex's own 70° feature
+threshold. Measure a constraint before removing it — `tet_prep_v5.py
+--merge-interfaces hub` and `--ring-kink DEG` exist for exactly this.
+
+**1c. A repair before a relative guard makes the guard stricter.**
+`collapse_mesh_sheets` rejects a sheet that lowers the mesh's worst cell, so
+whatever it compares against sets the bar. Untangling first therefore blocks
+collapses instead of enabling them: the pre-collapse untangle added while
+chasing v14 lifts v11 from 21 inverted / −0.4938 to 6 / −0.3116, and the
+collapse that reached 16 blocks before it existed stops at 22 with it. The
+guard is now pinned to the raw AlgoHex quality for the whole collapse. Gao
+repairs *after* simplifying for this reason: quality damage is repairable,
+structure thrown away is not.
+
+**1d. `--full-constraints` is null on a rich feature set and not on a poor one.**
+v12 changed nothing on v11's 534 edges. On the 310-edge merged input it halves
+the raw block count, 242 → 120 (v18 against v15).
 
 **2. IGM validity does not predict mesh quality.**
 v9's parametrization is the worse one by AlgoHex's own numbers (9030 invalid

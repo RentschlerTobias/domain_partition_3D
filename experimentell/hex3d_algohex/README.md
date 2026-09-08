@@ -236,6 +236,19 @@ structure thrown away is not.
 v12 changed nothing on v11's 534 edges. On the 310-edge merged input it halves
 the raw block count, 242 → 120 (v18 against v15).
 
+**1e. Greedy merging leaves half the blocks on the table.**
+Block merging changes no geometry — it is a union-find union on the cut set —
+so it can be solved exactly as a weighted exact cover ILP (`merge_ilp.py`)
+instead of greedily. Two things decide the result, and the obvious one does
+not: the candidate group SIZE is irrelevant (max-group 4 and 6 give the same
+answer), while the SEED SET is everything. Seeding only from defective blocks
+is a repair objective and gives v11 16 → 12; seeding from all blocks gives
+16 → **6**. And one global solve beats iterating: 16 → 6 in one pass against
+16 → 12 → 7 in two. The validity test matters just as much — by
+`cuboid_status` not one of 1650 candidates is mergeable, by
+`tfi.block_lattice` all 44 pairs are, and the lattice test is the one TFI
+needs.
+
 **2. IGM validity does not predict mesh quality.**
 v9's parametrization is the worse one by AlgoHex's own numbers (9030 invalid
 tets vs v5's 0, HexEx reporting `Invalid Input`) yet its extracted mesh has

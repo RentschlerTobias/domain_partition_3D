@@ -41,7 +41,34 @@ asks for.
 
 ## Where it stands
 
-**Recommended basis: run v11.** After post-processing:
+**Reference structure: `T1_9_blocks_v11m6` — the v11 basis merged to 6 blocks.**
+Decided 2026-09-08 together with what the structure is *for*: it is training
+data for a transformer, filled by TFI in post-processing and then run as a CFD
+mesh, which makes **block count the primary criterion**. The reasoning, the
+alternatives and the measurements are in
+`docs/decisions/2026-09-08-hex3d-block-structure-objective.md`.
+
+| structure | blocks | smallest | pinch | inverted | min sJ | Hausdorff | validator |
+|---|---|---|---|---|---|---|---|
+| v11 (raw basis) | 16 | 224 | 2 | 0 | 0.1524 | 0.03405 | VALID |
+| v11m | 12 | 476 | 0 | 0 | 0.1524 | 0.03405 | VALID |
+| **v11m6 (reference)** | **6** | 448 | 0 | 0 | 0.1524 | 0.03405 | VALID |
+| v16m | 26 | 51 | 0 | 0 | 0.0159 | 0.01377 | VALID |
+
+Merging changes no geometry, so every quality column is inherited unchanged
+from the basis; only the topology moves. Every block is a valid TFI lattice.
+`v16m` is kept as the low-boundary-error alternative — it is the only thing
+v16 still wins, and decision B below is aimed at that gap.
+
+Regenerate with:
+
+```bash
+$PY experimentell/hex3d_algohex/merge_ilp.py \
+      output/hex3d_algohex/deliverable/T1_9_blocks_v11.vtk --seed all \
+      --apply output/hex3d_algohex/deliverable/T1_9_blocks_v11m6.vtk
+```
+
+**The v11 basis itself** is unchanged and still the input to all of this:
 
 | | value |
 |---|---|
@@ -126,27 +153,65 @@ from 17 to 13 inverted and its worst cell from −0.81 to −0.30, and it still
 stops at exactly 217 blocks. After two rounds no sheet strictly improves
 (excess faces, block count) — the stall is structural.
 
+## Where the boundary error actually is
+
+Worth knowing before anyone tries to improve it: the Hausdorff distance of
+0.034 is **one surface**, and it is neither a block-size nor a chordal effect.
+
+| surface | faces | max | p99 |
+|---|---|---|---|
+| inlet / outlet | 2044 | 0.00000 | 0.00000 |
+| periodic_A / _B | 3080 | 0.0017 | 0.0012 |
+| bl_interface_shroud | 1945 | 0.0033 | 0.0028 |
+| bl_interface_hub | 1943 | 0.0084 | 0.0060 |
+| **ogrid_interface** | 1430 | **0.03405** | **0.02310** |
+
+All 200 worst faces lie on `ogrid_interface`. Block count does not move the
+number at all (v11 and v11m agree to five decimals — merging changes no
+geometry), and refilling 10 % coarser does not either. Boundary vertices are
+as far off the surface as face interiors (mean 0.00116 against 0.00135), so
+the error is **not chordal**: spline or higher-order block edges would address
+a term of about 0.0002.
+
+`ogrid_interface` is not real geometry — it is the cut face towards the blade
+O-grid that `reattach.py` glues back on. Measured against that O-grid block's
+own surface, the core sits median **0.00214**, p95 0.01566, max 0.02734 away,
+at a local cell edge of 0.042. Note that `reattach.interface_gap` reports this
+as median 0.0218 because it compares CENTROIDS of differently sized quads; it
+overstates the gap by an order of magnitude and should be replaced by a
+point-to-triangle measure.
+
 ## Next steps, in order
 
-1. **Decide the basis** — v11 or v16 — and, if v16, deal with its nine blocks
-   under 10 cells: they are what forces two of its 15 direction classes to a
-   single division, which holds the whole complex at that resolution. The
-   sheet collapse will not remove them (it stops when no sheet improves);
-   `absorb_tiny_blocks` and `collapse_small_sheets` are the levers that have
-   not been tuned for it.
-2. **Finish the v18 comparison.** Its post-processing was still running when
-   this was written — the raw run is done and interesting (`--full-constraints`
-   halves the raw block count on a 310-edge input, 242 → 120), the block
-   structure is not yet measured. `postprocess_bases.sh v18`.
-3. **Wall-normal grading in the core, if it is ever wanted.** `tfi.py` has
+1. **Implement the projection (decision B/G2).** Pull the `ogrid_interface`
+   face grids onto the O-grid block's surface *inside* `tfi.refill_block`,
+   while it resamples them — the Gordon-Hall fill then absorbs the motion. It
+   must be applied per VERTEX at complex level, not per block face, or the
+   coordinate weld in `refill_complex` breaks; `check_watertight` catches that
+   and refuses to write, so it cannot pass silently. This closes both the
+   boundary error and the assembly seam in one step.
+2. **Finish the v18 comparison.** The raw run is done and interesting
+   (`--full-constraints` halves the raw block count on a 310-edge input,
+   242 → 120); the block structure is not measured. `postprocess_bases.sh v18`.
+   Needs a full `clean_blocks` run — see the CPU note below.
+3. **Plateau moves in the sheet collapse.** The collapse still accepts only
+   strict improvement in (excess, blocks) and therefore stops in a local
+   optimum every time. Allowing an equal-cost round with a tabu list is the
+   cheap test of whether a locally-neutral collapse unlocks a later one;
+   `FRAMEFIELD_PLAN.md` §2.2 names the ILP version (Duan 2023) as the real fix.
+4. **Wall-normal grading in the core, if it is ever wanted.** `tfi.py` has
    `clustered_fractions` but the complex refill does not use it: a one-sided
    distribution is not invariant under the mirror relating two blocks' views
    of a shared face, so clustering a direction class would tear the seam.
-   Doing it properly needs an oriented per-class distribution. Today the
-   grading comes from `reattach.py`, which is where the first cell height is
-   set, and the core's outer faces are interfaces rather than walls.
-4. **Dataset generation** — explicitly last, by the user's instruction. See
+   Today the grading comes from `reattach.py`, which is where the first cell
+   height is set, and the core's outer faces are interfaces, not walls.
+5. **Dataset generation** — explicitly last, by the user's instruction. See
    `ANALYSIS_PLAN.md` and the TODO at the end of `PROGRESS.md`.
+
+**Compute note.** This box is a 2-vCPU VPS with a fair-use CPU limit on
+SUSTAINED load. Twelve hours of two parallel `clean_blocks` runs got it
+throttled to ~10 % of its own cores (steal 90 %); ~90 minutes of sequential
+AlgoHex runs did not. Run one compute job at a time.
 
 ## Modules
 

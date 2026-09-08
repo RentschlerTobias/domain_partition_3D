@@ -16,8 +16,28 @@ surface partitions in `dp3d/`.
 source MSH ──> tet_prep_v5.py ──> AlgoHex (frame field → IGM → HexEx) ──> hex mesh
            ──> clean_blocks.py (base complex, cleanup, sheet collapse) ──> blocks
            ──> reattach.py (blade O-grid + hub/shroud layer) ──> full domain
-           ──> tfi.py (transfinite fill) ──> [not finished]
+           ──> tfi.py (prescribe h, solve counts, refill) ──> hex mesh
 ```
+
+**`tfi.py` is a generator now.** Prescribe a cell size and it solves the
+conforming division counts and refills every block:
+
+```bash
+$PY experimentell/hex3d_algohex/tfi.py \
+      output/hex3d_algohex/deliverable/T1_9_blocks_v11.vtk \
+      --target-h 0.05 --apply-divisions --out .../T1_9_blocks_v11_h0.05.vtk
+$PY experimentell/hex3d_algohex/reattach.py .../T1_9_blocks_v11_h0.05.vtk \
+      --layers 17 --out .../T1_9_blocks_v11_h0.05_full.vtk
+```
+
+Measured on v11: core 54 460 → 49 550 cells at h = 0.05, watertight, 0
+inverted, min scaled Jacobian 0.1357; assembled 161 619 cells in 53 blocks, 0
+inverted. Against the on-disk 17-layer v11 full mesh (165 356 cells) the CFD
+metrics tie on five of seven — non-orthogonality 56 violations against 56 —
+and pick up two each on aspect ratio (2 → 4) and face flatness (3 → 5), on a
+mesh 2 % coarser. Refilling at the counts a block already has returns every
+boundary vertex to within 2.2e-15, which is the fold gate `TFI_RESEARCH.md`
+asks for.
 
 ## Where it stands
 
@@ -64,33 +84,68 @@ $PY experimentell/hex3d_algohex/mesh_quality.py
 **AlgoHex runs must be sequential** — it peaks around 6 GB and this box has
 7.7. Two concurrent runs OOM (that is what killed v7 and v8).
 
-## The one open defect: the pinch
+## The pinch, and the basis question it opens
 
-Two of the 16 blocks touch each other at a **single shared edge** between two
-of their opposite faces — a point contact, at r ≈ 0.58, z ≈ 1.64/1.73, on the
-hub-side ring where the O-grid interface meets the boundary-layer interface.
+Two of v11's 16 blocks touch at a **single shared edge** between two of their
+opposite faces — a point contact at r ≈ 0.58, z ≈ 1.64/1.73, where the O-grid
+interface meets the boundary-layer interface on the hub side. `clean_blocks.py
+--detect-pinch BLOCKS_VTK` reports it with its location and exits 1; it is a
+defect of the face partition, not of the mesh (the cells around every edge of
+those blocks form a single fan, checked).
 
-It is **caused by the artificial feature rings** between the cut surfaces.
-That is established, not guessed: removing them (run v14) removes the pinch
-entirely — 217 of 217 blocks become cuboids. But it costs 96 inverted cells
-instead of 21, 217 blocks instead of 16, and 41 blocks under 10 cells. Not
-worth it. Two other attempts did **not** move the pinch: `--full-constraints`
-(v12) and re-meshing the O-grid interface isotropically (v13).
+**The pinch is now removable at its cause, and cheaply.** It is created by the
+artificial rings between the cut surfaces, but the two rings are separable and
+only the root one matters:
 
-Whether the pinch actually harms TFI is **still unanswered**. That question
-resolves itself when the target-resolution step runs.
+| | v11 | v14 | **v16** |
+|---|---|---|---|
+| rings | both kept | both deleted | root ring deleted |
+| feature edges | 534 | 310 | **422** |
+| pinch | 2 blocks | none | **none** |
+| raw inverted | 21 | 96 | **32** |
+| blocks after collapse | **16** | 217 | 103 |
+| blocks < 10 cells | **0** | 50 | 9 |
+| Hausdorff | 0.0341 | 0.0233 | **0.0138** |
+| validator | VALID | INVALID | **VALID** |
+
+`tet_prep_v5.py --merge-interfaces hub --remesh-ogrid 0.035` builds that input.
+Dropping only the ring edges whose dihedral kink is below 70° (`--ring-kink
+70`, run v17) also removes the pinch and keeps 499 edges, but leaves 3
+inverted cells and does not validate.
+
+**Which basis to build on is a real choice, not a formality.** v16 is the only
+valid pinch-free basis and halves the boundary error; v11 has six times fewer
+blocks, none of them tiny, and a much better worst cell (0.152 against 0.016).
+For a hand-editable topology v11 still wins; for boundary fidelity and a clean
+complex, v16 does. Full table: `output/hex3d_algohex/basis_scorecard.md`,
+regenerate with `basis_report.py --map scripts/bases.json`.
+
+One hypothesis was **refuted** on the way: v14's collapse does not stall
+because its inverted cells disarm the guard. Iterating the untangle takes it
+from 17 to 13 inverted and its worst cell from −0.81 to −0.30, and it still
+stops at exactly 217 blocks. After two rounds no sheet strictly improves
+(excess faces, block count) — the stall is structural.
 
 ## Next steps, in order
 
-1. **Target resolution.** `tfi.direction_classes` already gives the degrees of
-   freedom — 11 classes over 48 block axes, validated. What is missing:
-   prescribe a cell size h, solve the 11 integer counts, re-fill the blocks by
-   TFI at the new counts. This is the step that turns the tooling into a
-   generator; everything before it only rebuilds what AlgoHex produced.
-2. **Re-measure `FRAMEFIELD_PLAN.md` step 0** afterwards — its numbers are
-   from the mislabelled v9 and it carries a banner saying so. It may have
-   become unnecessary; TFI defines what "good enough" means.
-3. **Dataset generation** — explicitly last, by the user's instruction. See
+1. **Decide the basis** — v11 or v16 — and, if v16, deal with its nine blocks
+   under 10 cells: they are what forces two of its 15 direction classes to a
+   single division, which holds the whole complex at that resolution. The
+   sheet collapse will not remove them (it stops when no sheet improves);
+   `absorb_tiny_blocks` and `collapse_small_sheets` are the levers that have
+   not been tuned for it.
+2. **Finish the v18 comparison.** Its post-processing was still running when
+   this was written — the raw run is done and interesting (`--full-constraints`
+   halves the raw block count on a 310-edge input, 242 → 120), the block
+   structure is not yet measured. `postprocess_bases.sh v18`.
+3. **Wall-normal grading in the core, if it is ever wanted.** `tfi.py` has
+   `clustered_fractions` but the complex refill does not use it: a one-sided
+   distribution is not invariant under the mirror relating two blocks' views
+   of a shared face, so clustering a direction class would tear the seam.
+   Doing it properly needs an oriented per-class distribution. Today the
+   grading comes from `reattach.py`, which is where the first cell height is
+   set, and the core's outer faces are interfaces rather than walls.
+4. **Dataset generation** — explicitly last, by the user's instruction. See
    `ANALYSIS_PLAN.md` and the TODO at the end of `PROGRESS.md`.
 
 ## Modules
@@ -130,6 +185,14 @@ collapse as well.
 **Never classify a surface by a coordinate threshold.** It cuts across the
 triangulation. Transfer labels from the input mesh by nearest face; the
 machinery is `clean_blocks.SurfaceLabeller`.
+
+**A relative guard is only as good as what it points at.** The sheet-collapse
+guard rejects anything that lowers the worst cell *relative to now*, so
+improving the mesh first raises the bar and blocks the collapse. That silently
+cost v11 six blocks (16 → 22) once the pre-collapse untangle was added, and it
+cost them again when a repair was tried between rounds. The bar is now fixed
+at the raw AlgoHex quality for the whole collapse. Any future "let us clean
+this up first" idea should be checked against that pattern.
 
 **Beware counts that look like progress.** This branch has been fooled at
 least six times by a metric moving the right way while the structure got

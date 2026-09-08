@@ -46,15 +46,39 @@ for a transformer, filled by TFI in post-processing and then run as a CFD
 mesh, which makes **block count the primary criterion**. Reasoning and
 measurements: `docs/decisions/2026-09-08-hex3d-block-structure-objective.md`.
 
-> **The 6-block structure `v11m6` was tried as the reference and measured
-> unusable for the TFI stage.** Merging costs nothing in mesh quality, but it
-> removes the direction classes that resolution control needs: at h = 0.05 it
-> overshoots to 249 100 cells with 2 inverted (max bound rule), or gives 30 240
-> cells with 4 inverted and cell sizes spread over 5x (median rule). v11m
-> (12 blocks, 8 classes) and v11 (16 blocks, 11 classes) both still fill
-> cleanly. The reference is one of those two — see the D revision in the
-> decision log. `v11m6` remains on disk as the smallest valid block structure,
-> which is a different thing from a usable generator basis.
+**The reference is v11, unmerged.** Merging the blocks was tried down to 6 and
+measured: it is free in every static metric and it wrecks the refill.
+
+| structure | blocks | rule | cells at h=0.05 | inverted | boundary p95 | boundary max |
+|---|---|---|---|---|---|---|
+| **v11** | **16** | max | 49 550 | **0** | **0.0060** | **0.0343** |
+| v11m | 12 | max | 76 025 | 3 | 0.1845 | 0.3710 |
+| v11m | 12 | median | 47 256 | 0 | 0.1739 | 0.3743 |
+| v11m6 | 6 | max | 249 100 | 2 | 0.2162 | 0.4466 |
+
+The unrefilled structures all measure 0.0349, so that is damage the refill
+does. AlgoHex puts block edges where the frame field needs them — which is
+where the geometry bends — and dissolving one makes the refill interpolate
+across the bend. `v11m` and `v11m6` stay on disk as the smallest valid block
+structures, which is a different thing from a usable generator basis.
+
+**The pinch does not harm TFI.** Open since the first handoff, now measured:
+v11 refills with 0 inverted cells and an unchanged boundary while carrying it.
+
+**The structured mesh beats the source mesh**, measured with one
+implementation (`mesh_quality.mixed_metrics`) over both:
+
+| metric (OpenFOAM limit) | source hybrid, 257 219 cells | structured, 161 619 hexes |
+|---|---|---|
+| non-orthogonality > 65° | 5105 | **56** |
+| skewness > 4 | 4 | **0** |
+| skewness p95 | 0.472 | **0.048** |
+| face weight < 0.05 | 34 | **0** |
+| aspect ratio p95 | **49.1** | 65.8 |
+
+91x fewer non-orthogonality violations with 37 % fewer cells. The aspect ratio
+is the one metric that is worse, by design: 17 boundary-layer layers at a
+first cell height of 8.9e-4.
 
 | structure | blocks | smallest | pinch | inverted | min sJ | Hausdorff | validator |
 |---|---|---|---|---|---|---|---|
@@ -191,13 +215,15 @@ point-to-triangle measure.
 
 ## Next steps, in order
 
-1. **Implement the projection (decision B/G2).** Pull the `ogrid_interface`
-   face grids onto the O-grid block's surface *inside* `tfi.refill_block`,
-   while it resamples them — the Gordon-Hall fill then absorbs the motion. It
-   must be applied per VERTEX at complex level, not per block face, or the
-   coordinate weld in `refill_complex` breaks; `check_watertight` catches that
-   and refuses to write, so it cannot pass silently. This closes both the
-   boundary error and the assembly seam in one step.
+1. **The O-grid projection is built and measured — leave it off.**
+   `tfi.project_ogrid_interface` (`--project-ogrid`) pulls the cut face onto
+   the O-grid block's surface per vertex before refilling. It turns a clean
+   v11 refill into 5 inverted cells, and they are not at the ring (0 of 8
+   nodes on it), so it is not a step artefact but the cost of pulling vertices
+   onto a discretisation with its own bumps. The premise was weak too: the gap
+   is median **0.00214**, not the 0.0218 that `interface_gap` reports from
+   centroid-to-centroid distances. If anyone returns to this, the lead is to
+   blend the motion smoothly instead of snapping, and to fix `interface_gap`.
 2. **Finish the v18 comparison.** The raw run is done and interesting
    (`--full-constraints` halves the raw block count on a 310-edge input,
    242 → 120); the block structure is not measured. `postprocess_bases.sh v18`.

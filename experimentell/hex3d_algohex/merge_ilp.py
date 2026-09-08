@@ -1,0 +1,260 @@
+"""Optimal block merging as a weighted exact cover, solved as an ILP.
+
+`clean_blocks.merge_non_cuboids` merges greedily: it takes the neighbour that
+helps most right now, and a merge it makes can block a better one later. The
+sheet collapse has the same shape of problem and stops the same way -- "no
+sheet improves" -- because both accept only strict local improvement.
+
+Merging is the half of this that can be solved exactly, and cheaply, because
+**a block merge changes no geometry at all**. It is a union-find union on the
+cut set: the interface between two blocks stops separating them, no vertex
+moves, no cell changes. Inverted cells, scaled Jacobians and the Hausdorff
+distance are therefore invariant under everything this module does, which
+removes the whole class of "the metric moved the right way while the mesh got
+worse" failures. The only thing at stake is the block topology.
+
+That makes the problem a set-partitioning ILP:
+
+    variables   one binary per candidate group of blocks
+    constraint  every block is covered by exactly one selected group
+    objective   minimise the number of resulting blocks, plus a penalty for
+                every block that stays defective (non-cuboid, or too small)
+
+Candidate groups are restricted to connected sets whose union is still a valid
+block, and singletons are always candidates, so the cover stays feasible and
+the solver can always answer "leave this one alone". The optimum is exact over
+the enumerated candidates -- not over all conceivable block structures, since
+minimum cuboid decomposition is NP-hard in general and the enumeration is
+bounded by `--max-group`.
+
+**What counts as "still a valid block" decides everything here.** Two criteria
+are available and they disagree completely on this data:
+
+* `--valid cuboid` -- `clean_blocks.cuboid_status`: exactly 6 patches, each
+  adjacent to 4 others. Patches are keyed by what lies on the other side, so
+  two faces of the merged region pointing at two different neighbour blocks
+  stay two patches. On v16 not one of 1650 candidate groups passes: the
+  unions come out with 8 to 11 patches. Merging is impossible under it.
+* `--valid lattice` (default) -- `tfi.block_lattice`: the merged cells form a
+  structured (a x b x c) grid. On v16 **all 44** seed-neighbour pairs pass.
+
+The second is the one the deliverable actually needs. TFI fills a block from
+its lattice; it does not care how many distinct neighbours sit on one side of
+it. Judging merges by patch count answers a question nobody asked and reports
+"no merge possible" on a structure where every candidate is a perfect grid.
+
+    PY merge_ilp.py BLOCKS.vtk [--valid lattice|cuboid] [--max-group 4]
+                    [--min-cells 10] [--apply OUT.vtk]
+"""
+
+import argparse
+import sys
+from collections import defaultdict, deque
+from pathlib import Path
+
+import numpy as np
+
+REPO = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(REPO / "experimentell" / "hex3d_algohex"))
+
+import clean_blocks as cb                                              # noqa: E402
+import tfi                                                             # noqa: E402
+
+
+def block_graph(S, cells_of, root_of):
+    """{block: {neighbouring blocks}} from the shared faces."""
+    adj = defaultdict(set)
+    for r in cells_of:
+        adj[r] = set()
+    for fk, hs in S.f2h.items():
+        if len(hs) != 2:
+            continue
+        a, b = root_of[hs[0]], root_of[hs[1]]
+        if a != b:
+            adj[a].add(b)
+            adj[b].add(a)
+    return adj
+
+
+def group_patches(S, group, cells_of, root_of):
+    """The boundary patches of a merged set of blocks.
+
+    Mirrors `BlockStructure.face_records` + `_patch_split`, but asks whether
+    the neighbour is in the GROUP rather than whether it is one particular
+    block -- which is exactly what a merge does to the face records."""
+    rec = []
+    for r in group:
+        for h in cells_of[r]:
+            c = S.hexes[h]
+            for fc in cb.HF:
+                lp = [int(c[i]) for i in fc]
+                k = frozenset(lp)
+                nb = [x for x in S.f2h[k] if x != h]
+                if not nb:
+                    rec.append((("P", S.surf_of[k]), lp))
+                elif root_of[nb[0]] not in group:
+                    rec.append((("B", root_of[nb[0]]), lp))
+    return cb._patch_split(rec)
+
+
+def enumerate_groups(adj, seeds, max_group, cap=200000):
+    """Connected block sets up to `max_group` that contain at least one seed.
+
+    Only groups touching a defective block are worth testing: merging two
+    perfectly good cuboids cannot repair anything and only coarsens the
+    structure. That restriction is what keeps the enumeration in the
+    thousands instead of the millions."""
+    out, seen = [], set()
+    for s in seeds:
+        frontier = [frozenset((s,))]
+        while frontier:
+            nxt = []
+            for g in frontier:
+                if len(g) >= max_group:
+                    continue
+                for r in g:
+                    for nb in adj[r]:
+                        if nb in g:
+                            continue
+                        ng = g | {nb}
+                        if ng in seen:
+                            continue
+                        seen.add(ng)
+                        out.append(ng)
+                        nxt.append(ng)
+                        if len(out) >= cap:
+                            print(f"[merge_ilp] candidate cap {cap} reached")
+                            return out
+            frontier = nxt
+    return out
+
+
+def is_valid_merge(S, g, cells_of, root_of, mode):
+    """Would this group still be a usable block after merging?
+
+    `lattice` also rejects a merge that would fold the block around a wall --
+    two ADJACENT faces landing on the same physical surface -- reusing
+    `duplicate_surface_faces`, the guard `merge_non_cuboids` already applies.
+    Without it, minimising the block count would happily weld a block across
+    the passage and hand TFI a block with the inlet on two touching sides."""
+    if mode == "cuboid":
+        st, _d = cb.cuboid_status(group_patches(S, g, cells_of, root_of))
+        return st == "cuboid"
+    cells = [h for r in g for h in cells_of[r]]
+    if tfi.block_lattice(S.hexes, cells, S.f2h) is None:
+        return False
+    _opp, bad = cb.duplicate_surface_faces(
+        group_patches(S, g, cells_of, root_of))
+    return not bad
+
+
+def solve(S, max_group=4, min_cells=10, mode="lattice", verbose=True):
+    cells_of = S.cells_of()
+    root_of = {h: S.root(S.blk0[h]) for h in range(len(S.hexes))}
+    blocks = sorted(cells_of)
+    size = {r: len(cells_of[r]) for r in blocks}
+    adj = block_graph(S, cells_of, root_of)
+
+    status = {r: cb.cuboid_status(S.patches(r))[0] for r in blocks}
+    seeds = [r for r in blocks
+             if status[r] != "cuboid" or size[r] < min_cells]
+    if verbose:
+        print(f"[merge_ilp] {len(blocks)} blocks, {sum(len(v) for v in adj.values()) // 2} "
+              f"adjacencies, {len(seeds)} defective (non-cuboid or < {min_cells} cells)")
+    if not seeds:
+        print("[merge_ilp] nothing to repair")
+        return None
+
+    cand = enumerate_groups(adj, seeds, max_group)
+    if verbose:
+        print(f"[merge_ilp] {len(cand)} connected candidate groups of size "
+              f"2..{max_group}, testing them against '{mode}' ...")
+
+    valid = [g for g in cand if is_valid_merge(S, g, cells_of, root_of, mode)]
+    if verbose:
+        print(f"[merge_ilp] {len(valid)} of them stay a valid block")
+
+    # singletons keep the status quo and make the cover always feasible
+    groups = [frozenset((r,)) for r in blocks] + valid
+    W_DEFECT, W_TINY = 10.0, 5.0
+    cost = []
+    for g in groups:
+        n = sum(size[r] for r in g)
+        if len(g) == 1:
+            r = next(iter(g))
+            c = 1.0 + (W_DEFECT if status[r] != "cuboid" else 0.0) \
+                + (W_TINY if n < min_cells else 0.0)
+        else:
+            c = 1.0 + (W_TINY if n < min_cells else 0.0)
+        cost.append(c)
+
+    from scipy.optimize import milp, LinearConstraint, Bounds
+    idx = {r: i for i, r in enumerate(blocks)}
+    rows, cols = [], []
+    for j, g in enumerate(groups):
+        for r in g:
+            rows.append(idx[r])
+            cols.append(j)
+    from scipy.sparse import coo_matrix
+    A = coo_matrix((np.ones(len(rows)), (rows, cols)),
+                   shape=(len(blocks), len(groups))).tocsc()
+    res = milp(c=np.array(cost),
+               constraints=[LinearConstraint(A, 1, 1)],
+               integrality=np.ones(len(groups)),
+               bounds=Bounds(0, 1))
+    if not res.success:
+        print(f"[merge_ilp] ILP failed: {res.message}")
+        return None
+
+    chosen = [groups[j] for j in np.where(np.round(res.x) > 0.5)[0]]
+    merges = [g for g in chosen if len(g) > 1]
+    left_defect = [next(iter(g)) for g in chosen
+                   if len(g) == 1 and status[next(iter(g))] != "cuboid"]
+    left_tiny = [g for g in chosen
+                 if sum(size[r] for r in g) < min_cells]
+    if verbose:
+        print(f"[merge_ilp] optimum: {len(chosen)} blocks "
+              f"({len(blocks)} before), {len(merges)} merges")
+        for g in sorted(merges, key=lambda g: -len(g)):
+            print(f"[merge_ilp]   merge {sorted(g)} -> "
+                  f"{sum(size[r] for r in g)} cells")
+        print(f"[merge_ilp] still non-cuboid: {len(left_defect)}; "
+              f"still under {min_cells} cells: {len(left_tiny)}")
+    return {"chosen": chosen, "blocks_before": len(blocks),
+            "blocks_after": len(chosen), "merges": merges,
+            "left_defect": left_defect, "left_tiny": len(left_tiny),
+            "cells_of": cells_of}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("blocks")
+    ap.add_argument("--input-vtk",
+                    default=str(REPO / "data" / "T1_9" / "T1_9_tet_v5.vtk"))
+    ap.add_argument("--valid", choices=("lattice", "cuboid"),
+                    default="lattice",
+                    help="what a merged group must still be; see the module "
+                         "docstring -- 'cuboid' admits nothing on this data")
+    ap.add_argument("--max-group", type=int, default=4)
+    ap.add_argument("--min-cells", type=int, default=10)
+    ap.add_argument("--apply", default=None, metavar="OUT_VTK")
+    a = ap.parse_args()
+
+    S, bid, lab = cb.read_blocks_vtk(a.blocks, a.input_vtk)
+    out = solve(S, a.max_group, a.min_cells, a.valid)
+    if out is None or not a.apply:
+        return
+    new = np.zeros(len(S.hexes), int)
+    for i, g in enumerate(out["chosen"]):
+        for r in g:
+            for h in out["cells_of"][r]:
+                new[h] = i
+    import export_vtk as ev
+    ev.write_vtk(a.apply, S.P, S.hexes, [12] * len(S.hexes), new, "block_id",
+                 f"{out['blocks_after']} blocks after the merge ILP")
+    print(f"[merge_ilp] wrote {a.apply}")
+
+
+if __name__ == "__main__":
+    main()

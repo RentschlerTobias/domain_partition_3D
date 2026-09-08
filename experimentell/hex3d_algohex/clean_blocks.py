@@ -1327,9 +1327,16 @@ def detect_pinch(S, verbose=True):
     shared edges and midpoint in (r, z), and the separated faces)."""
     out = []
     cells = S.cells_of()
+    skipped = 0
     for root in cells:
         patches = S.patches(root)
         if len(patches) != 6:
+            # "cuboid" and therefore "pinch" are undefined for these. Counted
+            # and reported, never silently dropped: after a merge the blocks
+            # that carried the pinch are exactly the ones that grow a seventh
+            # patch, and a detector that skips them quietly reports "no pinch"
+            # about a structure it did not look at.
+            skipped += 1
             continue
         shared = _patch_shared_edges(patches)
         deg = Counter({i: 0 for i in range(6)})
@@ -1361,8 +1368,12 @@ def detect_pinch(S, verbose=True):
                         "separated": under, "degrees": dict(deg),
                         "cells": len(cells[root])})
     if verbose:
+        if skipped:
+            print(f"[clean_blocks] pinch detector: {skipped} of {len(cells)} "
+                  f"blocks have != 6 patches and cannot be judged -- "
+                  f"'no pinch' below refers to the other {len(cells) - skipped}")
         if not out:
-            print("[clean_blocks] pinch detector: every block is "
+            print("[clean_blocks] pinch detector: every block it can judge is "
                   "cube-adjacent, no pinch")
         for p in out:
             if p["faces"] is None:

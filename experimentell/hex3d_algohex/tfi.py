@@ -855,6 +855,11 @@ if __name__ == "__main__":
     ap.add_argument("blocks", nargs="?",
                     default=str(REPO / "output" / "hex3d_algohex" / "deliverable"
                                / "T1_9_blocks_v11.vtk"))
+    ap.add_argument("--require-lattices", action="store_true",
+                    help="exit 3 if any block has no lattice instead of "
+                         "passing it through. For batch dataset generation, "
+                         "where such a sample is better skipped than refilled "
+                         "around a frozen block")
     ap.add_argument("--bound", choices=("max", "median"), default="max",
                     help="how a direction class takes its cell count from its "
                          "axes. 'max' never leaves a cell coarser than h; "
@@ -891,8 +896,30 @@ if __name__ == "__main__":
         check_conformity(lat, classes)
         frozen = frozen_from_missing(lat, H, f2h, B)
         if frozen:
-            print(f"[tfi] {len(frozen)} axes pinned by non-lattice "
-                  f"neighbours: {sorted(frozen)}")
+            # What pinning costs, in full. A block that cannot be refilled
+            # forces its neighbours' faces to keep their counts, and class
+            # equality then carries that constraint across the whole complex:
+            # on the first generated geometry one 725-cell passthrough block
+            # pinned the largest class -- 20 axes -- to 29 divisions where the
+            # free solve wants 24, a 21 % over-refinement everywhere, and the
+            # refill came out with 3 inverted cells.
+            free = solve_block_divisions(lat, classes, P, a.target_h,
+                                         verbose=False)
+            pinned = solve_block_divisions(lat, classes, P, a.target_h,
+                                           frozen_counts=frozen, verbose=False)
+            cof = class_of_axis(classes)
+            hit = sorted({cof[k] for k in frozen if k in cof})
+            print(f"[tfi] {len(frozen)} axes pinned by {len(missing)} "
+                  f"non-lattice block(s); {len(hit)} classes affected:")
+            for ci in hit:
+                mark = "" if pinned[ci] == free[ci] else \
+                    f"   <-- {100 * (pinned[ci] - free[ci]) / free[ci]:+.0f} %"
+                print(f"[tfi]   class {ci:3d} ({len(classes[ci]):3d} axes): "
+                      f"pinned {pinned[ci]:4d}, free {free[ci]:4d}{mark}")
+        if a.require_lattices and missing:
+            print(f"[tfi] REJECTED: {len(missing)} block(s) have no lattice "
+                  f"and cannot be refilled -- {missing}")
+            raise SystemExit(3)
         counts = solve_block_divisions(lat, classes, P, a.target_h,
                                        frozen_counts=frozen, bound=a.bound)
         rows = class_table(lat, classes, counts, P, a.target_h)

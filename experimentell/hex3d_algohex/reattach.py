@@ -285,7 +285,7 @@ def _part_structure(P, H, B):
 
 
 def assemble(blocks_vtk, out_vtk, n_layers=1, first_height=8.9e-4,
-             verbose=True):
+             msh=None, input_vtk=None, verbose=True):
     """Read a postprocessed AlgoHex block mesh, re-attach both parts, write
     the combined structure with a global `block_id`."""
     import meshio
@@ -295,15 +295,18 @@ def assemble(blocks_vtk, out_vtk, n_layers=1, first_height=8.9e-4,
     bid = np.concatenate([np.asarray(d).ravel() for b, d in
                           zip(m.cells, m.cell_data["block_id"])
                           if b.type == "hexahedron"])
-    P0, tri0, tid0 = cb.read_input_surface(REPO / "data" / "T1_9"
-                                           / "T1_9_tet_v5.vtk")
+    P0, tri0, tid0 = cb.read_input_surface(
+        input_vtk or (REPO / "data" / "T1_9" / "T1_9_tet_v5.vtk"))
     lab = cb.SurfaceLabeller(P0, tri0, tid0, v5.NAMES)
     S = cb.BlockStructure.from_arrays(m.points, hx, bid, lab)
     n_core = int(bid.max()) + 1
     if verbose:
         print(f"[reattach] AlgoHex core: {len(hx)} hexes, {n_core} blocks")
 
-    nodes, elements = parse_msh(MSH)
+    # the O-grid and the walls come from the SOURCE mesh of this
+    # geometry, not from T1_9 -- both are reused verbatim, so they
+    # have to belong to the runner the core was cut from
+    nodes, elements = parse_msh(msh or MSH)
     Po, Ho, Bo = ogrid_blocks(elements, nodes, verbose)
     walls = wall_triangles(elements, nodes)
     Pb, Hb, Bb, _side = boundary_layer_blocks(
@@ -377,5 +380,11 @@ if __name__ == "__main__":
     ap.add_argument("--first-height", type=float, default=8.9e-4,
                     help="first cell height at the wall; default is the "
                          "source mesh's own first prism layer")
+    ap.add_argument("--msh", default=None,
+                    help="source MSH the O-grid and walls come from; default "
+                         "is the T1_9 grid")
+    ap.add_argument("--input-vtk", default=None,
+                    help="AlgoHex input mesh for the surface labels")
     a = ap.parse_args()
-    assemble(a.blocks, a.out, n_layers=a.layers, first_height=a.first_height)
+    assemble(a.blocks, a.out, n_layers=a.layers, first_height=a.first_height,
+             msh=a.msh, input_vtk=a.input_vtk)

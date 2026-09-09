@@ -19,6 +19,7 @@
 #   <name>_blocks.vtk     block structure  <- the training target
 #   <name>_blocks.msh     same, with block edges as 1D elements
 #   <name>_blocks_h05.vtk refilled at h=0.05, only if the structure passes
+#   <name>_full.vtk       core + blade O-grid + both wall layers, CFD-ready
 #   status.json           every stage's outcome and timing
 set -u
 cd /root/repos/duty/quadmesh/domain_partition_3D
@@ -52,6 +53,19 @@ for cand in "$@"; do
       --out "$d/${name}_blocks.vtk" > "$d/clean_blocks.log" 2>&1 \
     || { echo "[$name] clean_blocks FAILED"; echo '{"stage":"clean_blocks","ok":false}' > "$d/status.json"; continue; }
 
+  # the CFD-ready variant: the AlgoHex core is the REDUCED domain, with the
+  # blade O-grid and both wall layers cut out. reattach puts them back -- the
+  # O-grid verbatim from the source MSH (5 blocks, dtOO's own split) and the
+  # boundary layer extruded from the core's wall faces, which yields one block
+  # per core block per wall because it has to stay conforming to the partition
+  # above it. Both artifacts are kept: the core is what AlgoHex actually
+  # produces and what a model would have to predict, the full domain is what a
+  # solver can run.
+  $PY $E/reattach.py "$d/${name}_blocks.vtk" --layers "${LAYERS:-17}" \
+      --msh "$msh" --input-vtk "$d/${name}_tet.vtk" \
+      --out "$d/${name}_full.vtk" > "$d/reattach.log" 2>&1 \
+    || echo "[$name] reattach FAILED (core artifacts are still valid)"
+
   $PY $E/tfi.py "$d/${name}_blocks.vtk" --input-vtk "$d/${name}_tet.vtk" \
       --target-h "$H" --require-lattices --apply-divisions \
       --out "$d/${name}_blocks_h${H}.vtk" > "$d/tfi.log" 2>&1
@@ -77,7 +91,11 @@ out = {"name": name, "runtime_s": dt,
        "hausdorff": grab("clean_blocks.log", r"boundary Hausdorff to input surface: ([\d.]+)"),
        "valid": "VALID" in (d / "clean_blocks.log").read_text(),
        "refill_cells": grab("tfi.log", r"-> (\d+) cells"),
-       "refill_inverted": grab("tfi.log", r"mean [\d.]+, (\d+) inverted", int)}
+       "refill_inverted": grab("tfi.log", r"mean [\d.]+, (\d+) inverted", int),
+       "full_cells": grab("reattach.log", r"ASSEMBLED: (\d+) hexes", int),
+       "full_blocks": grab("reattach.log", r"hexes, (\d+) blocks", int),
+       "full_inverted": grab("reattach.log", r"mean [\d.]+, (\d+) inverted", int),
+       "ogrid_gap_median": grab("reattach.log", r"SURFACE: median ([\d.]+)")}
 (d / "status.json").write_text(json.dumps(out, indent=1))
 print(f"[{name}] {out['blocks']} blocks, {out['tiny']} tiny, "
       f"{out['inverted']} inverted, min sJ {out['min_sj']}, "

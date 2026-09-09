@@ -57,10 +57,33 @@ measured: it is free in every static metric and it wrecks the refill.
 | v11m6 | 6 | max | 249 100 | 2 | 0.2162 | 0.4466 |
 
 The unrefilled structures all measure 0.0349, so that is damage the refill
-does. AlgoHex puts block edges where the frame field needs them — which is
-where the geometry bends — and dissolving one makes the refill interpolate
-across the bend. `v11m` and `v11m6` stay on disk as the smallest valid block
-structures, which is a different thing from a usable generator basis.
+does — but **not for the reason first assumed**. An earlier version of this
+document blamed the geometry ("AlgoHex puts block edges where it bends"). That
+was refuted by measurement on the generated geometries: every merged group
+refills *on its own* with the same boundary error as its members, or better
+(factors 0.6-1.0). The damage is arithmetic, not geometric.
+
+A **direction class carries one cell count for all its axes**. Merging unions
+axes into fewer classes, and a class holding axes of 0.06 and 1.01 has no good
+count: 1 leaves the long axis 20x too coarse, 20 leaves the short one 16x too
+fine. Measured on cand_002:
+
+| structure | classes | worst axis-length spread in a class | boundary p95 |
+|---|---|---|---|
+| 22 blocks | 12 | **1.3x** | **0.004** |
+| 7 blocks | 5 | 16.7x | 0.31 |
+
+and not one of the 34 possible single-pair merges stays under 2x (best 2.1x,
+worst 12.5x). So the merged structure is topologically perfect and
+unfillable at a uniform resolution, and `merge_ilp.class_spread` is the
+millisecond check that sees it — where block metrics do not: the 7-block
+refill has 0 inverted cells and a min scaled Jacobian of 0.5668, better than
+the unmerged 0.5470, with its boundary a tenth of a radius off.
+
+`v11m` and `v11m6` stay on disk as the smallest valid block structures, which
+is a different thing from a usable generator basis. If a compact topology is
+what a model should learn, merge for the learning target and refill the
+unmerged structure — they are different artifacts.
 
 **The pinch does not harm TFI.** Open since the first handoff, now measured:
 v11 refills with 0 inverted cells and an unchanged boundary while carrying it.

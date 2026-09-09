@@ -133,3 +133,45 @@ and no single h could serve it.
 family, where block and class NUMBERING does not. Measured on one geometry
 family and six samples; whether it survives a different runner type is
 untested.
+
+## TODO: a label resolver instead of hard-coded ids
+
+`tet_prep_v5` hard-codes `GEOM_INLET = 3`, `GEOM_HUB = 1`, `OGRID_GEOM =
+{2..6}` and so on. Those ids serve exactly two purposes, and it is worth being
+precise about them because everything else follows:
+
+1. **What to cut out.** `OGRID_GEOM` selects the volume regions of the blade
+   O-grid, which `reduced_boundary` drops and `reattach` puts back verbatim.
+2. **What each boundary surface IS.** `classify` maps the tagged 2D elements
+   to seven labels, and `feature_graph` then makes a feature edge wherever two
+   triangles carry DIFFERENT labels -- no angle criterion at all. The label
+   boundaries *are* the feature curves, which is why merging three labels in
+   v14 destroyed 224 constraints and the field with them.
+
+A numeric-range convention ("0-100 is cut out, 100+ is geometry") was
+considered and rejected. It fails silently when a case exceeds a range, it
+carries no meaning in the file itself, and it cannot express which periodic
+surface pairs with which.
+
+**Proposed instead: prefixed physical names**, which dtOO already writes and
+which are readable in ParaView:
+
+    keep:core          volume, to be meshed by AlgoHex
+    skip:ogrid_blade   volume, already block-structured, re-attached verbatim
+    wall:hub           real geometry, gets the boundary layer
+    flow:inlet         planar flow boundary
+    periodic:a         paired by the suffix
+
+The prefix is what the pipeline reads; the rest is free text. A surface with
+no known prefix is an ERROR rather than a silent misclassification.
+
+Resolution order: prefixed names, then a per-case JSON mapping, then the
+current T1_9 constants as a fallback, so nothing that runs today breaks. The
+per-case file is needed regardless for meshes that carry few names --
+canadaLight has 12 physical names for 391 2D groups -- and it is more honest
+than a range rule that pretends to know.
+
+Note that the naming schemes already differ between machines: tistos writes
+`aS_ru_hub_0`, `aS_ru_shroud_0`, `aS_ru_inlet_full_0`; canadaLight writes
+`DT_HUB`, `IN_INLET`, `OUT_OUTLET`, `GVRU_WALL`. Both are semantic, neither is
+the other.

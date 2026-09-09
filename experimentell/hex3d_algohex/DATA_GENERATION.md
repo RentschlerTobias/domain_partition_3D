@@ -84,3 +84,52 @@ log).
 Two AlgoHex runs must never run concurrently (~6 GB peak each), and this box
 throttles hard under hours of sustained full load — see the CPU note in
 `HANDOFF.md`.
+
+## The direction classes are physical, and they recur
+
+A direction class is the set of block axes that must carry the same cell
+count, because two blocks sharing a face have to agree on the two directions
+spanning it and that constraint propagates. They are not an artefact of the
+solver: decomposing each axis into the cylindrical basis (e_r, e_theta, e_z)
+shows the classes ARE the flow directions, which is what one would hope for a
+mesh whose frame field was aligned to the passage.
+
+On cand_002, the largest class:
+
+    22 axes, one from every block, 29 cells
+    radial component 1.00, circumferential 0.04, axial 0.05
+    axis lengths 1.202 .. 1.224  ->  spread 1.02x
+
+That is the hub-to-shroud direction, threading the entire mesh as a single
+degree of freedom. And the pattern repeats across every sample measured:
+
+| sample | classes | radial class | circumferential | meridional | mixed |
+|---|---|---|---|---|---|
+| cand_001 | 11 | 21 axes, 28 cells, 1.02x | 3 | 4 | 3 |
+| cand_002 | 12 | 22 axes, 29 cells, 1.02x | 4 | 5 | 2 |
+| cand_003 | 12 | 22 axes, 28 cells, 1.01x | 4 | 5 | 2 |
+| cand_004 | 12 | 22 axes, 29 cells, 1.02x | 4 | 5 | 2 |
+| cand_005 | 12 | 22 axes, 28 cells, 1.01x | 4 | 5 | 2 |
+| cand_006 | 12 | 22 axes, 28 cells, 1.02x | 4 | 4 | 3 |
+
+**Exactly one radial class in every sample**, always spanning every block,
+always 28-29 cells, always within 1.02x in axis length. The circumferential
+classes separate as cleanly (component 0.96-0.98). The meridional direction
+splits over several classes, which is expected: the passage curves, so the
+meridian rotates from axial to radial, and the 2-3 "mixed" classes are that
+turn.
+
+Two consequences.
+
+**`solve_block_divisions(h_map=...)` finally has a principled use.** The
+argument has existed unused; prescribing h per PHYSICAL direction -- finer
+radially for the wall layers, coarser circumferentially -- is now meaningful,
+and it works precisely because the axis lengths inside these classes are
+uniform to 1-2 %. Note the contrast with merging, where a class spread 16.7x
+and no single h could serve it.
+
+**For a learned model the class structure is a stable label, not an index.**
+"Radial class, 22 axes, 29 cells" means the same thing in every sample of the
+family, where block and class NUMBERING does not. Measured on one geometry
+family and six samples; whether it survives a different runner type is
+untested.

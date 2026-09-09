@@ -97,6 +97,9 @@ class _Tris:
         self.tree = cKDTree(P[tris].mean(1))
 
 
+_FRAC_CACHE = {}
+
+
 def boundary_layer_blocks(S, walls,
                           shells=("bl_interface_hub", "bl_interface_shroud"),
                           n_layers=1, first_height=None, verbose=True):
@@ -177,15 +180,31 @@ def boundary_layer_blocks(S, walls,
         bi += 1
         n = len(vs)
         # wall-normal distribution: t = 0 is the interface, t = 1 the wall,
-        # so the clustering goes at the END
+        # so the clustering goes at the END.
+        #
+        # PER VERTEX, not per block. Taking the block's median thickness gave
+        # each block its own tanh ratio, so two blocks sharing a base edge
+        # agreed at the interface and at the wall and disagreed on all 15
+        # layers between -- the boundary layer welded to the core but not to
+        # itself, 44 blocks with no shared face among them. A vertex's
+        # distribution must depend on that vertex alone, and then both owners
+        # compute the same one. Cached on thickness, which takes few distinct
+        # values, because each `edge_fractions` call runs a bisection.
         if n_layers > 1:
-            L = float(np.median(np.linalg.norm(Q - tgt, axis=1)))
-            h1 = first_height if first_height else L / n_layers
-            ratio = max(1.0, L / (n_layers * h1))
-            frac = tm.edge_fractions(n_layers, False, True, ratio)
+            th = np.linalg.norm(Q - tgt, axis=1)
+            layers = [np.empty_like(Q) for _ in range(n_layers + 1)]
+            for i, t in enumerate(th):
+                h1 = first_height if first_height else t / n_layers
+                key = round(float(t) / max(h1, 1e-12), 6)
+                fr = _FRAC_CACHE.get((n_layers, key))
+                if fr is None:
+                    fr = tm.edge_fractions(n_layers, False, True,
+                                           max(1.0, t / (n_layers * h1)))
+                    _FRAC_CACHE[(n_layers, key)] = fr
+                for li, f in enumerate(fr):
+                    layers[li][i] = Q[i] + f * (tgt[i] - Q[i])
         else:
-            frac = np.array([0.0, 1.0])
-        layers = [Q + f * (tgt - Q) for f in frac]
+            layers = [Q, tgt]
         for lay in layers:
             newP.append(lay)
         for li in range(len(layers) - 1):
@@ -313,9 +332,27 @@ def assemble(blocks_vtk, out_vtk, n_layers=1, first_height=8.9e-4,
         S, walls, n_layers=n_layers, first_height=first_height, verbose=verbose)
     interface_gap(S, Po, Ho, verbose)
 
-    # concatenate; the parts stay non-conforming by design
+    # concatenate, then weld on coordinates.
+    #
+    # The O-grid genuinely does not match the core -- two different
+    # discretisations of the same cut face, median 0.0012 apart -- and a 1e-9
+    # weld leaves it alone, which is the intended non-conformity. The BOUNDARY
+    # LAYER is a different story: it is extruded from the core's own wall
+    # vertices (`Q = P0[vs]` above), so its base layer is coincident with the
+    # core to the last bit, and neighbouring layer blocks are built from
+    # shared core vertices by the same radial formula. Without the weld they
+    # came out as 44 blocks with ZERO shared vertices -- measured -- so the
+    # layer was not merely non-conforming against the core but internally
+    # disconnected, which no solver and no block merge can work with.
     P = np.vstack([S.P, Po, Pb])
     H = np.vstack([S.hexes, Ho + len(S.P), Hb + len(S.P) + len(Po)])
+    import tfi
+    n_before = len(P)
+    P, remap = tfi.weld(P)
+    H = remap[H]
+    if verbose:
+        print(f"[reattach] welded {n_before - len(P)} coincident points "
+              f"({n_before} -> {len(P)})")
     B = np.concatenate([bid, Bo + n_core, Bb + n_core + int(Bo.max()) + 1])
     part = np.concatenate([np.zeros(len(S.hexes), int),
                            np.ones(len(Ho), int), 2 * np.ones(len(Hb), int)])

@@ -175,3 +175,55 @@ Note that the naming schemes already differ between machines: tistos writes
 `aS_ru_hub_0`, `aS_ru_shroud_0`, `aS_ru_inlet_full_0`; canadaLight writes
 `DT_HUB`, `IN_INLET`, `OUT_OUTLET`, `GVRU_WALL`. Both are semantic, neither is
 the other.
+
+## The target cell count `-n` barely costs AlgoHex, and dominates ours
+
+The pipeline extracts ~60 000 hexes, collapses them to ~16-22 blocks, and then
+TFI throws the interior away and refills at a prescribed h. The fine
+resolution is work for the bin. Measured on T1_9, same input, three values of
+`-n`:
+
+| structure | cells | blocks | cuboids | tiny | inverted | min sJ | Hausdorff | TFI classes | pinch |
+|---|---|---|---|---|---|---|---|---|---|
+| n=2000 | 1872 | **16** | **14** | 0 | 0 | 0.1499 | 0.0448 | **11** | 2 |
+| n=8000 | 7028 | 19 | 18 | 0 | 0 | 0.1503 | 0.0312 | 9 | **0** |
+| n=60000 (v11) | 54460 | **16** | **14** | 0 | 0 | 0.1524 | 0.0341 | **11** | 2 |
+
+n=2000 reproduces v11's block structure exactly from 30x fewer cells.
+
+**Where the time goes**, per AlgoHex's own stage timings:
+
+| stage | n=2000 | n=8000 | n=60000 |
+|---|---|---|---|
+| frame field | 0.4 | 0.4 | 0.3 min |
+| singularities | 1.9 | 1.7 | 1.6 |
+| integrability | 4.7 | 3.7 | 3.6 |
+| parametrization | 5.1 | 4.9 | 4.8 |
+| extraction (HexEx) | 0.0 | 0.0 | 0.1 |
+| **AlgoHex total** | 12.2 | 10.7 | 10.3 min |
+| **our clean_blocks** | **~1** | ~3 | **~45 min** |
+
+`-n` does not move AlgoHex: the parametrization computes a map, quantization
+scales it to the cell count afterwards, and extraction costs seconds. The
+saving is entirely on OUR side of the seam, because the sheet collapse
+iterates over cells. Per sample: 43 min -> about 17.
+
+**Two caveats.** The boundary error is worse at n=2000 (0.0448 against 0.0341)
+because 1872 cells resolve the surface coarsely -- irrelevant for the block
+structure, which TFI re-samples from the input geometry, but not for a mesh
+used directly. And the invariance is not strict: n=8000 gives a DIFFERENT
+structure, 19 blocks with 9 classes and no pinch. There are several valid
+collapse endpoints and the resolution decides which one is reached. So `-n` is
+a parameter with an effect on the target data, not a free efficiency knob;
+sweep a few values over a few geometries before committing to one.
+
+## Checkpoint reuse does not work
+
+`run_algohex.py` and `FRAMEFIELD_PLAN.md` both state that passing
+`--hexex-in-path` with `-i` skips field generation and integrability, "86 % of
+the runtime", making `-n` sweeps cheap. It was never tested and it fails
+immediately: AlgoHex writes the intermediate tet mesh as BINARY OVM (`OVMB`
+magic) via `--final-tetmesh-out-path`, and its own `-i` reader rejects that
+file with "The specified file might not be in OpenVolumeMesh format! No vertex
+section defined!". Both the original VTK and the saved OVM fail the same way.
+The `-n` runs above are therefore cold runs.

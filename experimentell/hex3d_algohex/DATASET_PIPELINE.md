@@ -14,8 +14,8 @@ point for the branch as a whole.
 
 ## Resume here
 
-**Current task:** T3 — the cluster route; phase A is finished
-**Last verified:** 2026-09-11. T0, T1, T2, T5, T6 and T9 `done`.
+**Current task:** T10 — the SLURM array driver, and it cannot be verified here
+**Last verified:** 2026-09-11. T0, T1, T2, T3, T4, T5, T6 and T9 `done`.
 
 * T0 — `fixtures/blocks_core.tar.zst` (5.5 MiB) holds what cannot be
   recomputed cheaply; 3.1 GB of provably dead `.hexex` / `final_tet` / log spew
@@ -33,12 +33,17 @@ point for the branch as a whole.
   residual column runs backwards before quoting any number from it.
 * T9 — `export_sample.py`, round-trip PASS on v11 and cand_001. A sample is
   **0.42-0.45 MB** of `.npz` including the labelled surface triangulation.
+* T4 — one call site, `--backend docker|enroot`, `--out-dir` fixes the shared
+  `.ovm` path, and the useless checkpoint files are opt-in.
+* T3 — `algohex.sqsh` (2.11 GB, zstd verified) and the two backends agree:
+  **2210 of 2210 cells matched**, each congruent under a cube rotation. Read
+  T3 before comparing meshes again — file comparison is NOT a valid gate here.
 
-**The artifact exists and is verified, so the meshtron side is unblocked.**
-What remains is throughput, and that is the cluster: T3 then T4 then T10/T11.
-T3's cost on this VPS is ~2.7 GB `docker save` plus a squashfs against
-10.3 GiB free, and one AlgoHex run at ~6 GB peak for 12 min on a 7.7 GiB box —
-check `vmstat 1 3` column 17 for steal first.
+**Everything that can be verified on this box is verified.** What is left is
+the cluster, and T10 needs you on the machine: there is no `sbatch`, no
+`sinfo` and no SSH to `uc3` from here, so its queue and module names cannot be
+checked. `dryrun_planb.slurm` carries an explicit warning about exactly that.
+Ship `output/hex3d_algohex/algohex.sqsh` and run `sinfo` first.
 
 T7, T8 and T12 improve the sample but block nothing; take them whenever the
 cluster is queueing. Note that T12 now has a cheap new lead: T9 reports
@@ -333,7 +338,8 @@ by T0 step 4.
 
 ## T3 — enroot path for AlgoHex, locally
 
-**Status:** `todo`
+**Status:** `done` 2026-09-11 — **2210 of 2210 cells match**, and the two
+runtimes are NOT byte-identical, which turns out to be the more useful finding
 
 **Why.** Everything except the SLURM wrapper can be verified on this machine,
 and verifying it here is far cheaper than debugging it in a queue.
@@ -365,7 +371,55 @@ Watch free space: 10.3 GiB, against ~2.7 GB for the `docker save` tar plus a
 squashfs of similar size. Delete the tar before `enroot create`.
 
 **Done when.** The enroot run and the Docker run of the same input produce hex
-meshes that agree cell for cell.
+meshes that agree cell for cell. **They do.**
+
+**Result, 2026-09-11.** `scripts/export_algohex_enroot.sh` produced
+`algohex.sqsh`, 2.11 GB, compression verified as **zstd** — the lzo trap from
+`cluster_env.sh` is the one that imports without complaint and is then
+unreadable on every compute node, so the script sets
+`ENROOT_SQUASH_OPTIONS` itself instead of trusting the environment. It also
+self-tests the image with `HexMeshing --help` before spending the time.
+
+Then the same input, `data/T1_9/T1_9_tet_v5.vtk` at `-n 2000`, through both
+backends of T4's seam:
+
+| | cells | verts | AlgoHex's own `time_total` |
+|---|---|---|---|
+| `--backend docker` | 2210 | 2856 | 928 s |
+| `--backend enroot` | 2210 | 2856 | 960 s |
+
+enroot is 3.4 % slower here, which is within the noise of a 2-vCPU box under a
+fair-use limit and not a reason to prefer either.
+
+**The comparison, and it needed three attempts to state correctly.**
+
+* Byte comparison: **differs**, first at line 51. The difference is `0` against
+  `1.2569e-17`.
+* Vertex coordinates: **4 of 2856 differ**, by at most **2.776e-16** — 6.4e-17
+  of the bounding-box diagonal.
+* Cells: matched one-to-one by vertex set, **2210 of 2210**, none unmatched.
+  Corner ORDER differs within 2184 of them, and every one of those is
+  deckungsgleich under a proper **cube rotation** (checked against all 24).
+
+So it is the same mesh. What differs is four coordinates at machine epsilon and
+the corner-traversal order, which is a writer artifact.
+
+**Do not use file comparison as a gate, and do not trust order-dependent
+metrics across runs.** Two of this task's own intermediate numbers were wrong
+for exactly that reason: a per-cell scaled-Jacobian diff of 1.097 and a total
+volume difference of 3.5e-4 were both artifacts of comparing cell *i* of one
+mesh against cell *i* of the other after the ordering had changed. Order-free
+statements — min scaled Jacobian identical to 12 digits (−0.173380172954), 7
+inverted cells in both, identical parametrisation energy to all 16 digits
+(52.816477628172926) — agreed the whole time.
+
+The likely cause of the ordering difference is thread count, not the runtime:
+the docker run was capped with `--cpus 1.8` and the enroot run with
+`/root/bin/capped --quota 90%`, and a different thread count changes reduction
+and write order. Same binary, same libraries, same image in both cases. The
+practical consequence for T11 is that **AlgoHex output is not bit-reproducible**,
+so reproducibility has to be asserted on topology and on geometry-to-tolerance,
+which is what `export_sample.py --check` already does.
 
 **Writes.** `experimentell/hex3d_algohex/scripts/export_algohex_enroot.sh` and
 an import guide beside it.

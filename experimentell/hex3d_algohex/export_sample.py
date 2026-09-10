@@ -214,7 +214,19 @@ def build(blocks_vtk, tet_vtk=None, params_json=None, status_json=None,
         "edges_over_5pct": fit["edges_over_5pct"],
     }
     if status_json and Path(status_json).exists():
-        quality["pipeline_status"] = json.loads(Path(status_json).read_text())
+        st = json.loads(Path(status_json).read_text())
+        quality["pipeline_status"] = st
+        # `status.json` can disagree with the file it describes: on cand_001 it
+        # says 22 blocks while cand_001_blocks.vtk carries 21 contiguous block
+        # ids, all of them lattices. The VTK is the artifact, so quality
+        # ["blocks"] is authoritative -- but both numbers are in here now, and
+        # a filter that reads the wrong one fails silently. This flag makes the
+        # disagreement visible instead.
+        if "blocks" in st and int(st["blocks"]) != len(lat):
+            quality["status_blocks_disagree"] = [int(st["blocks"]), len(lat)]
+            if verbose:
+                print(f"[export_sample] status.json says {st['blocks']} blocks,"
+                      f" the VTK has {len(lat)} -- flagged, VTK wins")
 
     params = {}
     if params_json and Path(params_json).exists():

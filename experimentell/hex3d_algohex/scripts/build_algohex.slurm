@@ -2,28 +2,44 @@
 # Phase 2 of 2: compile AlgoHex and export the image. COMPUTE node, no network
 # needed -- build_algohex_enroot.sh already downloaded everything.
 #
-#   sbatch --test-only experimentell/hex3d_algohex/scripts/build_algohex.slurm
-#   sbatch            experimentell/hex3d_algohex/scripts/build_algohex.slurm
+#   STAGE=ipopt   sbatch .../build_algohex.slurm
+#   STAGE=bonmin  sbatch .../build_algohex.slurm
+#   STAGE=algohex sbatch .../build_algohex.slurm
+#   STAGE=all     sbatch --time=04:00:00 -p cpu_il .../build_algohex.slurm
 #
-# Output: $WS/enroot-images/algohex.sqsh, which is exactly what
-# run_algohex.py --backend enroot consumes.
+# cluster_setup.sh submits the three stages chained with --dependency=afterok.
 #
 # ---------------------------------------------------------------------------
-# UNVERIFIED, CHECK BEFORE THE FIRST SUBMIT:
-#   --partition   cpu_il: 64 cores, 256 GiB, documented and recommended in
-#                 eigenfrequencies/docs/cluster-resource-sizing.md. NOT a dev
-#                 partition -- dev_cpu_il caps at 30 min and this build has
-#                 never run to completion anywhere.
-#   --time        4 h is deliberate slack. On 64 cores the coinbrew chain plus
-#                 ninja is plausibly 20-40 min, but MUMPS/Ipopt/Bonmin from
-#                 source is the fragile part of this whole pipeline. A job that
-#                 dies at the walltime wastes the whole build.
-#   --cpus        ninja -j$(nproc) and coinbrew --parallel-jobs both scale.
+# WHY IN STAGES, AND WHY RESUMABLE
+#
+# dev_cpu_il caps at 30 minutes. cpu_il has room but measures about a WEEK of
+# queue time, which makes a 4-hour single job the slowest possible route to a
+# built image. So the build is cut at its natural seams -- Ipopt, Bonmin,
+# AlgoHex -- and each piece is meant to fit a 30-minute dev slot.
+#
+# Every stage is idempotent in two ways, which is what makes the 30-minute cap
+# survivable even if an estimate is wrong:
+#
+#   1. It checks for its own artifact first and exits immediately if present.
+#      Re-running a finished stage costs seconds.
+#   2. If it is KILLED at the walltime, resubmit the same stage. coinbrew drives
+#      make and AlgoHex drives ninja; both keep their object files in the
+#      container's rootfs, so a re-run picks up where the kill happened rather
+#      than starting over.
+#
+# This is the same reason the original VPS build was made resumable: a
+# non-resumable single-shot build against a hard limit loses everything at the
+# limit.
+#
+# UNVERIFIED: whether each stage actually fits 30 min on 64 cores. Nobody has
+# run this chain to completion anywhere. If a stage keeps hitting the wall,
+# either resubmit it (it resumes) or run STAGE=all once on cpu_il and wait out
+# the queue.
 # ---------------------------------------------------------------------------
-#SBATCH --partition=cpu_il
 #SBATCH --job-name=algohex_build
 #SBATCH --output=algohex_build_%j.out
-#SBATCH --time=04:00:00
+#SBATCH --partition=dev_cpu_il
+#SBATCH --time=00:30:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=64
@@ -31,48 +47,81 @@
 
 set -u
 
+STAGE="${STAGE:-all}"
 CONTAINER="${CONTAINER:-algohex-build}"
 WS="${WS:-$(ws_find hex3d 2>/dev/null || echo "$HOME")}"
 OUT="${OUT:-$WS/enroot-images/algohex.sqsh}"
 
 export ENROOT_DATA_PATH="${ENROOT_DATA_PATH:-$WS/enroot-data}"
-export ENROOT_TEMP_PATH="${ENROOT_TEMP_PATH:-/tmp/$USER-enroot}"
+export ENROOT_TEMP_PATH="${ENROOT_TEMP_PATH:-/tmp/${USER:-$(id -un)}-enroot}"
 export ENROOT_SQUASH_OPTIONS="${ENROOT_SQUASH_OPTIONS:--comp zstd -noD}"
 mkdir -p "$ENROOT_TEMP_PATH" "$(dirname "$OUT")"
 
 J="${SLURM_CPUS_PER_TASK:-$(nproc)}"
-echo "[build-2] host $(hostname), job ${SLURM_JOB_ID:-none}, -j$J"
+T0=$(date +%s)
+echo "[build] stage=$STAGE host=$(hostname) job=${SLURM_JOB_ID:-none} -j$J"
+echo "[build] walltime for this slot: ${SLURM_JOB_END_TIME:+ends $(date -d @"$SLURM_JOB_END_TIME" 2>/dev/null)}"
 
 enroot list 2>/dev/null | grep -qxF "$CONTAINER" || {
-    echo "[build-2] FAIL: no container '$CONTAINER'."
-    echo "[build-2] Run build_algohex_enroot.sh on the login node first."
+    echo "[build] FAIL: no container '$CONTAINER'."
+    echo "[build] Run build_algohex_enroot.sh on the login node first."
     exit 1; }
 
-t0=$(date +%s)
-echo "[build-2] --- 1/3 coin-or: Ipopt then Bonmin ---"
-enroot start --root --rw --env NJ="$J" "$CONTAINER" bash -eux <<'INNER'
+inside() { enroot start --root --rw --env NJ="$J" "$CONTAINER" bash -eux; }
+elapsed() { echo "[build] ${1} after $(( $(date +%s) - T0 ))s"; }
+
+# --------------------------------------------------------------------- ipopt
+if [ "$STAGE" = ipopt ] || [ "$STAGE" = all ]; then
+    if enroot start --root "$CONTAINER" test -f /opt/coin-or/lib/libipopt.so \
+         2>/dev/null; then
+        echo "[build] ipopt: already installed, skipping"
+    else
+        echo "[build] --- ipopt (with MUMPS) ---"
+        inside <<'INNER'
 cd /usr/src/coin-or
-./coinbrew build Ipopt@3.14.19  --verbosity 2 --skip-update \
+./coinbrew build Ipopt@3.14.19 --verbosity 2 --skip-update \
     --prefix=/opt/coin-or --parallel-jobs "$NJ" --tests none
-./coinbrew build Bonmin@master  --verbosity 2 --skip-update \
+test -f /opt/coin-or/lib/libipopt.so
+INNER
+        rc=$?; elapsed "ipopt exit $rc"
+        [ $rc -eq 0 ] || { echo "[build] FAIL in Ipopt. Resubmit STAGE=ipopt; make resumes."; exit $rc; }
+    fi
+fi
+
+# -------------------------------------------------------------------- bonmin
+if [ "$STAGE" = bonmin ] || [ "$STAGE" = all ]; then
+    if enroot start --root "$CONTAINER" test -f /opt/coin-or/lib/libbonmin.so \
+         2>/dev/null; then
+        echo "[build] bonmin: already installed, skipping"
+    else
+        echo "[build] --- bonmin (the moving part: upstream takes master) ---"
+        inside <<'INNER'
+cd /usr/src/coin-or
+./coinbrew build Bonmin@master --verbosity 2 --skip-update \
     --prefix=/opt/coin-or --parallel-jobs "$NJ" --tests none
 # AlgoHex's cmake looks for coin/, the install puts coin-or/
 ln -sfn /opt/coin-or/include/coin-or /opt/coin-or/include/coin
+test -f /opt/coin-or/lib/libbonmin.so
 INNER
-rc=$?
-echo "[build-2] coin-or exit $rc after $(( $(date +%s) - t0 ))s"
-[ $rc -eq 0 ] || { echo "[build-2] FAIL in the coinbrew chain -- the fragile part."; exit $rc; }
+        rc=$?; elapsed "bonmin exit $rc"
+        [ $rc -eq 0 ] || { echo "[build] FAIL in Bonmin -- the fragile part. Resubmit STAGE=bonmin."; exit $rc; }
+    fi
+fi
 
-echo "[build-2] --- 2/3 AlgoHex: cmake Release, ninja -j$J ---"
-enroot start --root --rw --env NJ="$J" "$CONTAINER" bash -eux <<'INNER'
+# ------------------------------------------------------- algohex, then export
+if [ "$STAGE" = algohex ] || [ "$STAGE" = all ]; then
+    echo "[build] --- AlgoHex: cmake Release, ninja -j$J ---"
+    inside <<'INNER'
 export CoinUtils_DIR=/opt/coin-or IPOPT_HOME=/opt/coin-or \
        CBC_DIR=/opt/coin-or CLP_DIR=/opt/coin-or
 mkdir -p /app/build && cd /app/build
 # Release, not upstream's RelWithDebInfo: the one change from the local
 # Dockerfile diff worth keeping (external_patches/algohex-Dockerfile.patch).
+# cmake is cheap and idempotent, so it re-runs on every resubmission.
 cmake -G Ninja -D CMAKE_BUILD_TYPE=Release -D BONMIN_ROOT_DIR=/opt/coin-or ..
 # -j$NJ, not upstream's commented-out -j1. That -j1 is why the build was moved
 # into a volume on a 2-vCPU box in the first place; here it is the point.
+# Killed at the walltime? ninja keeps its objects -- resubmit and it continues.
 ninja -j"$NJ"
 
 # A wrapper, not a bare symlink. enroot does not carry the Dockerfile's ENV,
@@ -93,21 +142,23 @@ HexMeshing --help > /dev/null
 ldd /app/build/Build/bin/HexMeshing | grep "not found" && exit 1
 echo "self-test OK: HexMeshing runs, no missing libraries"
 INNER
-rc=$?
-[ $rc -eq 0 ] || { echo "[build-2] FAIL in the AlgoHex build."; exit $rc; }
+    rc=$?; elapsed "algohex exit $rc"
+    [ $rc -eq 0 ] || { echo "[build] FAIL in the AlgoHex build. Resubmit STAGE=algohex; ninja resumes."; exit $rc; }
 
-echo "[build-2] --- 3/3 export ---"
-enroot export -f -o "$OUT" "$CONTAINER" || exit 1
-ls -la "$OUT"
-unsquashfs -s "$OUT" 2>/dev/null | grep -i "^Compression" || true
+    echo "[build] --- export ---"
+    enroot export -f -o "$OUT" "$CONTAINER" || exit 1
+    ls -la "$OUT"
+    unsquashfs -s "$OUT" 2>/dev/null | grep -i "^Compression" || true
+    elapsed "export done"
 
-echo "[build-2] total $(( $(date +%s) - t0 ))s"
-cat <<EOF
-[build-2] done: $OUT
+    cat <<EOF
+[build] done: $OUT
 
-Provenance of this image: AlgoHex at the pinned commit, built from public
-source by these two scripts. Nothing came from a Docker volume or another
-machine.
+Provenance: AlgoHex at the pinned commit, built from public source by these two
+scripts. Nothing came from a Docker volume or another machine.
 
 Next: sbatch experimentell/hex3d_algohex/scripts/smoke_algohex.slurm
 EOF
+fi
+
+elapsed "stage=$STAGE complete"

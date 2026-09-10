@@ -16,17 +16,18 @@
 # candidate's mesh.msh, and those are 22 MB each and not in git.
 #
 # ---------------------------------------------------------------------------
-# cpu_il and 1 h, NOT dev_cpu_il and 30 min: 30 minutes is the dev queue's CAP
-# (eigenfrequencies/docs/cluster-resource-sizing.md) and the budget below adds
-# up to 20, which leaves no slack for a queue that measures AlgoHex differently
-# than a 2-vCPU VPS did. Budget: AlgoHex 16 min, clean_blocks 1-3 min, tfi and
-# export under 1 min each -- all upper bounds from the VPS at -n 2000.
+# dev_cpu_il and its 30-minute CAP, deliberately: cpu_il has room but measures
+# about a week of queue time, so a test that waits a week is not a test.
+# Budget adds to ~20 min -- AlgoHex 16, clean_blocks 1-3, tfi and export under
+# 1 each -- all upper bounds measured on a 2-vCPU VPS at -n 2000, so a 64-core
+# node should be well inside. If it hits the wall anyway, drop to -n 500:
+#   ALGOHEX_N=500 sbatch .../smoke_pipeline.slurm
 # --mem 8G: AlgoHex peaks near 6 GB. Two concurrent runs OOMed a 7.7 GiB box.
 # ---------------------------------------------------------------------------
 #SBATCH --job-name=hex3d_smoke_pipe
 #SBATCH --output=hex3d_smoke_pipe_%j.out
-#SBATCH --partition=cpu_il
-#SBATCH --time=01:00:00
+#SBATCH --partition=dev_cpu_il
+#SBATCH --time=00:30:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8

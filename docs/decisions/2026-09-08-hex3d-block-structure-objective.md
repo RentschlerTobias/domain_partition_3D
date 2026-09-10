@@ -293,3 +293,66 @@ The claim the whole branch rests on, measured with ONE implementation
 order of magnitude better at every quantile. The one metric that is worse is
 the aspect ratio, which is deliberate: 17 extruded boundary-layer cells with a
 first height of 8.9e-4.
+
+## D (correction, 2026-09-10). The merged refill fails on a weld, not on arithmetic
+
+The D-final section above concluded that merging destroys boundary fidelity
+because direction classes couple axes of very different length. The class
+spread is real -- 1.3x unmerged against 16.7x at 7 blocks -- but it has not
+been shown to cause those boundary numbers, and the direct measurement points
+elsewhere.
+
+Counted on the refilled meshes:
+
+| mesh | cells | boundary faces | boundary vertices |
+|---|---|---|---|
+| v11 refill h=0.05 | 49 550 | 9 864 | 9 864 |
+| v11m refill median | 47 256 | **12 482** | 11 888 |
+
+v11m has 2 618 more boundary faces than v11 with fewer cells. A coarser mesh
+has less boundary, not more, so those are interior faces whose two sides did
+not weld; their vertices sit inside the domain, which is what the 0.174
+"boundary error" was measuring. v11's worst 200 boundary vertices lie entirely
+on `ogrid_interface`, the one genuinely bad surface. v11m's spread over
+`ogrid_interface`, `periodic_B` and `bl_interface_shroud` -- three unrelated
+surfaces, which is what seams look like, not geometry.
+
+Resampling the merged structure's boundary faces at the counts the MILP
+actually solves gives the opposite of the earlier conclusion:
+
+| structure | linear p95 | linear max |
+|---|---|---|
+| v11, 16 blocks | 0.00625 | 0.03343 |
+| v11m, 12 blocks | **0.00493** | 0.03343 |
+
+`tfi.check_watertight` did not catch the seam because it tests for faces used
+by three or more cells; a seam that comes apart produces extra faces used by
+ONE, and there is no boundary-count balance. Fix that check first, then re-run
+the 12-block refill. Whether a merged structure can carry a CFD mesh is
+therefore OPEN, and the evidence now leans yes.
+
+## Higher-order block edges (2026-09-10)
+
+The question "should TFI interpolate on curved block edges rather than linear
+ones" was answered wrongly once. The measurement given -- cubic edges buy
+1.00-1.01x -- is correct for refilling an EXISTING fine mesh, where
+`_lerp_axis` already runs through every original vertex and tracks the surface
+anyway. It says nothing about the generative case, which is what was asked.
+
+With only block corners available, the comparison is against a straight chord:
+
+| divisions kept | chord p95 | coons p95 | gain |
+|---|---|---|---|
+| 100 % | 0.08172 | 0.01059 | 7.7x |
+| 50 % | 0.08009 | 0.01103 | 7.3x |
+| 25 % | 0.08056 | 0.01533 | 5.2x |
+| 12.5 % | 0.07895 | 0.04065 | 1.9x |
+| 6.2 % | 0.07263 | 0.07022 | 1.0x |
+
+Cubic edges with a Coons interior take the boundary error from 0.082 to 0.011,
+against 0.006 for the full AlgoHex mesh. A CFD mesh sits at the top of that
+table -- v11's core is about 25 cells per block edge -- so the gain applies
+where it matters. The vanishing gain at the bottom is not a CFD regime at all.
+
+Higher order lives in the construction; the cells written stay linear hexes,
+so the finite-volume solver is unaffected. `curved_refill.py`.

@@ -55,7 +55,15 @@ OUT="${OUT:-$WS/enroot-images/algohex.sqsh}"
 export ENROOT_DATA_PATH="${ENROOT_DATA_PATH:-$WS/enroot-data}"
 export ENROOT_TEMP_PATH="${ENROOT_TEMP_PATH:-/tmp/${USER:-$(id -un)}-enroot}"
 export ENROOT_SQUASH_OPTIONS="${ENROOT_SQUASH_OPTIONS:--comp zstd -noD}"
-mkdir -p "$ENROOT_TEMP_PATH" "$(dirname "$OUT")"
+# enroot's runtime state. Default is ${XDG_RUNTIME_DIR}/enroot, and that is a
+# trap in a batch job: --export=ALL carries XDG_RUNTIME_DIR=/run/user/$UID from
+# the login node, where logind created it, into a compute node where it does
+# not exist and /run/user is not writable. Measured 2026-09-11: two enroot
+# calls succeeded and the third died with "mkdir: cannot create directory
+# '/run/user/985462': Permission denied" -- the session that owned the
+# directory had ended in between. Pin it somewhere we own.
+export ENROOT_RUNTIME_PATH="${ENROOT_RUNTIME_PATH:-/tmp/${USER:-$(id -un)}-enroot-run}"
+mkdir -p "$ENROOT_TEMP_PATH" "$ENROOT_RUNTIME_PATH" "$(dirname "$OUT")"
 
 J="${SLURM_CPUS_PER_TASK:-$(nproc)}"
 T0=$(date +%s)

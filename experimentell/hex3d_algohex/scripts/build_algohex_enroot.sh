@@ -40,7 +40,16 @@ export ENROOT_TEMP_PATH="${ENROOT_TEMP_PATH:-/tmp/$USER-enroot}"
 # zstd, not lzo: an lzo image imports without complaint and is then unreadable
 # on every compute node.
 export ENROOT_SQUASH_OPTIONS="${ENROOT_SQUASH_OPTIONS:--comp zstd -noD}"
+# enroot's runtime state. Default is ${XDG_RUNTIME_DIR}/enroot, and that is a
+# trap in a batch job: --export=ALL carries XDG_RUNTIME_DIR=/run/user/$UID from
+# the login node, where logind created it, into a compute node where it does
+# not exist and /run/user is not writable. Measured 2026-09-11: two enroot
+# calls succeeded and the third died with "mkdir: cannot create directory
+# '/run/user/985462': Permission denied" -- the session that owned the
+# directory had ended in between. Pin it somewhere we own.
+export ENROOT_RUNTIME_PATH="${ENROOT_RUNTIME_PATH:-/tmp/${USER:-$(id -un)}-enroot-run}"
 mkdir -p "$ENROOT_DATA_PATH" "$ENROOT_CACHE_PATH" "$ENROOT_TEMP_PATH" \
+         "$ENROOT_RUNTIME_PATH" \
          "$WS/enroot-images"
 
 echo "[build-1] workspace   $WS"

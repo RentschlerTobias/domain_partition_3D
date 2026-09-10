@@ -14,11 +14,12 @@ point for the branch as a whole.
 
 ## Resume here
 
-**Current task:** T0, step 2 — then T1
-**Last verified:** 2026-09-11, T0 step 1 done. `data_generation` pushed
-(`a59417a..1087f26`, 5 commits), working tree clean, 0 ahead of origin. What
-remains in T0 is a decision about `output/deliverable/`, which is not
-reproducible in reasonable time and is not backed up.
+**Current task:** T1
+**Last verified:** 2026-09-11, T0 `done`. The irreplaceable structures are
+committed as `fixtures/blocks_core.tar.zst` (5.5 MiB), the Dockerfile diff as
+`external_patches/algohex-Dockerfile.patch`, and 3.1 GB of provably dead
+`.hexex` / `final_tet` / log spew is gone. Next is T1, the enroot smoke test —
+cheap, and T2/T3 depend on the answer.
 
 ---
 
@@ -57,7 +58,8 @@ cluster.
 
 ## T0 — Secure what exists
 
-**Status:** `doing` — step 1 done 2026-09-11, step 2 open
+**Status:** `done` 2026-09-11 — steps 1, 2 and 4 done, step 3 dropped
+(superseded, see T2)
 
 **Why.** Measured on 2026-09-11. Only one item here is irreplaceable, and it is
 not the one that looks alarming:
@@ -80,11 +82,12 @@ The full picture:
 
 | asset | where | backed up |
 |---|---|---|
-| pipeline code | `git@github.com:RentschlerTobias/domain_partition_3D.git` | yes, but **4 commits unpushed** on `data_generation` |
+| pipeline code | `git@github.com:RentschlerTobias/domain_partition_3D.git` | yes — ~~4 commits unpushed~~, pushed in step 1 |
 | AlgoHex source | clone of `cgg-bern/AlgoHex.git` @ `3519289` | yes, upstream |
-| Dockerfile modification | working tree only, `external/` is gitignored | no — but see above, it is nearly worthless |
-| compiled `HexMeshing` | Docker volume `algohex-build-cache`, 75 MB | no — rebuildable from public source |
-| `output/` — v11, the n-sweep, 6 gen samples | local only, gitignored | no, 4.9 GB |
+| Dockerfile modification | ~~working tree only~~ `external_patches/algohex-Dockerfile.patch` | yes, step 4 |
+| compiled `HexMeshing` | Docker volume `algohex-build-cache`, 75 MB, **and the image `algohex:portable`** | no — rebuildable from public source; T2 has the recipe |
+| v11, v11m, v16m, the n-sweep, the tet inputs | `fixtures/blocks_core.tar.zst`, 5.5 MiB | yes, step 2 |
+| the rest of `output/` — 6 gen samples, refills, `*_hex*.ovm` | local only, gitignored | no, 1.8 GB after the step-2 prune |
 | `data/random_tistos/` | local only, gitignored | no, 588 MB, regenerable via dtOO |
 
 **Do.**
@@ -93,21 +96,61 @@ The full picture:
    The four commits that existed only on this disk — among them `eff3fa9
    feat(hex3d): curved block edges are worth 5-8x` and `40e75e1`, the session
    handoff — are on origin, together with this plan.
-2. Decide what happens to `output/deliverable/` (625 MB). It holds v11, v11m,
-   v16m and the n=2000/n=8000 structures that T6 needs, and re-running those
-   costs hours. The rest of `output/` (4.9 GB total) is not worth the space.
-3. Optional, a hedge until T2 lands: snapshot the built binary with
-   `docker run --rm -v algohex-build-cache:/v -v "$PWD":/out alpine tar czf /out/algohex-build.tar.gz -C /v .`
-   (75 MB, keep it outside the repo). It only saves a rebuild, so skip it if
-   T2 runs soon on a fast machine.
-4. Optional: record the Dockerfile diff as
-   `external_patches/algohex-Dockerfile.patch` for the historical record, since
-   `external/` is gitignored. T2 reverts most of it regardless.
+2. ~~Decide what happens to `output/deliverable/` (625 MB).~~ **Decided and
+   executed 2026-09-11.** Two halves, because the 625 MB is not one asset.
+
+   **Committed, compressed.** The subset that is irreplaceable AND small goes
+   into git, which is the only off-box store this box has — no rclone, restic
+   or borg, no git-lfs, no configured SSH host. Measured: **22.4 MiB of ASCII
+   VTK → 5.5 MiB at `zstd -19`**, now
+   `experimentell/hex3d_algohex/fixtures/blocks_core.tar.zst`. It holds v11,
+   v11m, v16m, the n=2000/n=8000 structures, every `*.divisions.json`, and the
+   two tet inputs `T1_9_tet_v5.vtk` (v11's input, and T3's) and
+   `T1_9_tet_v11.vtk`. Paths inside the tar are repo-relative, so
+   `tar -I zstd -xf …` from the repo root restores them where the code looks.
+   This also fixes a live fragility: `tests/test_divisions.py:19` and
+   `tests/test_refill.py:25` both hardcode
+   `output/hex3d_algohex/deliverable/T1_9_blocks_v11.vtk`, which is gitignored
+   — the suite was one `rm -rf output/` from being unrunnable.
+
+   **Deleted, because it is provably dead.** Not "large", *dead* — nothing in
+   the repo can read it:
+
+   | group | apparent | why |
+   |---|---|---|
+   | `*.hexex`, 28 files | 1.6 GB | checkpoint reuse was measured to FAIL — `DATA_GENERATION.md`, "Checkpoint reuse does not work". AlgoHex writes the intermediate tet mesh as binary OVM and its own `-i` reader rejects it. No Python reads `.hexex`; `run_algohex.py:44` only writes it. |
+   | `*final_tet*.ovm`, 28 of 29 | 449 MB | same broken reader. `T1_9_final_tet_v11.ovm` KEPT — `ANALYSIS_PLAN.md` step 04 uses it as the singular-graph input. |
+   | 34 top-level `*.log` | 1.1 GB | per-face AlgoHex debug spew, 6.6 M lines in the worst one. Truncated in place to head 200 + tail 2000, 8.1 MB total. The run summaries were never in them: they are the 33 untouched `*_hex_metrics*.json`, 132 KB, which is where the `RUNS.md` timings come from. |
+
+   **Kept on disk, not committed:** the 243 MB of `*_hex*.ovm`. That is
+   AlgoHex's own output, 10-12 min of compute each, and it is a better recovery
+   boundary than decision J's `blocks.vtk` for the ~35 structures here — from a
+   `_hex.ovm`, a changed `clean_blocks.py` can be re-run without AlgoHex. J is
+   still right at 10 000-sample scale, where 13 MB per sample is 130 GB.
+
+   **Accepted loss:** everything else. Bounded at ~12 min of AlgoHex per
+   structure plus the sheet collapse, 1 / 3 / 45 min at n=2000 / 8000 / 60000
+   — cluster work in any case.
+
+   One measurement to record because it will mislead the next session: `/` is
+   **btrfs with `compress=zstd:1`**, so deleting 3.1 GB of apparent size
+   returned only **9.4 → 10.3 GiB** of free space. Highly compressible text was
+   never costing what `du` claimed. Do not size future cleanups off `du`.
+3. ~~Optional hedge: snapshot the built binary from the volume.~~ **Dropped.**
+   T2 found that the self-contained image `algohex:portable` already exists and
+   verified it, which supersedes a tarball of the volume.
+4. ~~Optional: record the Dockerfile diff.~~ **Done**, as
+   `external_patches/algohex-Dockerfile.patch`, verified by
+   `git -C external/algohex-src apply --check --reverse`. It carries two
+   independent changes and the header says which one to keep: `Release` yes,
+   the commented-out `ninja` no.
 
 **Done when.** `git log origin/data_generation..HEAD` is empty, and a decision
-about `output/deliverable/` is written here.
+about `output/deliverable/` is written here. **Both hold.**
 
-**Writes.** The push; optionally `external_patches/algohex-Dockerfile.patch`.
+**Writes.** `experimentell/hex3d_algohex/fixtures/{blocks_core.tar.zst,README.md}`,
+`external_patches/algohex-Dockerfile.patch`, a pointer in
+`experimentell/hex3d_algohex/README.md`, and the deletions above.
 
 ---
 

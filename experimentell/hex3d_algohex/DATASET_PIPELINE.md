@@ -14,9 +14,11 @@ point for the branch as a whole.
 
 ## Resume here
 
-**Current task:** T0
-**Last verified:** nothing yet — the plan was written on 2026-09-11 and no task
-has run.
+**Current task:** T0, step 2 — then T1
+**Last verified:** 2026-09-11, T0 step 1 done. `data_generation` pushed
+(`a59417a..1087f26`, 5 commits), working tree clean, 0 ahead of origin. What
+remains in T0 is a decision about `output/deliverable/`, which is not
+reproducible in reasonable time and is not backed up.
 
 ---
 
@@ -55,7 +57,7 @@ cluster.
 
 ## T0 — Secure what exists
 
-**Status:** `todo`
+**Status:** `doing` — step 1 done 2026-09-11, step 2 open
 
 **Why.** Measured on 2026-09-11. Only one item here is irreplaceable, and it is
 not the one that looks alarming:
@@ -87,9 +89,10 @@ The full picture:
 
 **Do.**
 
-1. `git push origin data_generation`. This is the one that matters — four
-   commits exist only on this disk, among them `eff3fa9 feat(hex3d): curved
-   block edges are worth 5-8x` and `40e75e1`, the session handoff.
+1. ~~`git push origin data_generation`.~~ **Done 2026-09-11**, `a59417a..1087f26`.
+   The four commits that existed only on this disk — among them `eff3fa9
+   feat(hex3d): curved block edges are worth 5-8x` and `40e75e1`, the session
+   handoff — are on origin, together with this plan.
 2. Decide what happens to `output/deliverable/` (625 MB). It holds v11, v11m,
    v16m and the n=2000/n=8000 structures that T6 needs, and re-running those
    costs hours. The rest of `output/` (4.9 GB total) is not worth the space.

@@ -31,14 +31,21 @@ WS_NAME="${WS_NAME:-hex3d}"
 WS_DAYS="${WS_DAYS:-60}"
 REPO_URL="${REPO_URL:-git@github.com:RentschlerTobias/domain_partition_3D.git}"
 PYTHON_MODULE="${PYTHON_MODULE:-devel/python/3.13.3-gnu-14.2}"
-# Documented, not guessed: eigenfrequencies/docs/cluster-resource-sizing.md
-# measured all three and recommends cpu_il --
-#   cpu_il      64 cores, 256 GiB, more nodes, shorter queue   <- recommended
-#   cpu         96 cores, 384 GiB, fewer nodes, longer queue
-#   dev_cpu_il  64 cores, 256 GiB, 30-minute slots
-BUILD_PARTITION="${BUILD_PARTITION:-cpu_il}"
+# eigenfrequencies/docs/cluster-resource-sizing.md measured the three
+# partitions -- cpu_il 64 cores/256 GiB, cpu 96/384, dev_cpu_il 64/256 with
+# 30-minute slots -- and recommends cpu_il on throughput.
+#
+# EVERYTHING HERE RUNS ON dev_cpu_il ANYWAY, and that overrides the doc:
+# cpu_il measures about a WEEK of queue time in practice, which makes it the
+# slowest route to a first result no matter how many cores it has. So the build
+# is cut into three resumable stages that each aim at a 30-minute slot, and
+# the tests are small by construction.
+#
+# Escape hatch if a stage will not fit: BUILD_PARTITION=cpu_il with
+# STAGE=all and a 4 h walltime, then wait out the queue.
 DEV_PARTITION="${DEV_PARTITION:-dev_cpu_il}"
-PIPE_PARTITION="${PIPE_PARTITION:-cpu_il}"    # 30 min is dev's CAP, too tight
+BUILD_PARTITION="${BUILD_PARTITION:-$DEV_PARTITION}"
+PIPE_PARTITION="${PIPE_PARTITION:-$DEV_PARTITION}"
 
 say()  { printf '\n\033[1m[setup] %s\033[0m\n' "$*"; }
 info() { printf '        %s\n' "$*"; }
@@ -156,12 +163,20 @@ sub() {  # sub <script> <extra sbatch args...> -> job id on stdout
     sbatch --parsable "$@" "$script"
 }
 
+# Three resumable stages instead of one 4-hour job, so the whole build fits
+# dev_cpu_il's 30-minute slots. Chained afterok; each stage exits in seconds if
+# its artifact already exists, so a re-run of this script is cheap.
 J1=""
 if enroot list 2>/dev/null | grep -qxF algohex; then
-    info "image already built; skipping the build job"
+    info "image already built; skipping the build jobs"
 else
-    J1=$(sub "$S/build_algohex.slurm" --partition="$BUILD_PARTITION")
-    info "build      job ${J1:-(dry run)}   (4 h walltime, 64 cores)"
+    for st in ipopt bonmin algohex; do
+        JN=$(STAGE="$st" sub "$S/build_algohex.slurm" \
+                --partition="$BUILD_PARTITION" --export=ALL,STAGE="$st" \
+                --job-name="algohex_$st" ${J1:+--dependency=afterok:$J1})
+        info "build:$(printf '%-8s' "$st") job ${JN:-(dry run)}   (30 min slot, resumable)"
+        J1="$JN"
+    done
 fi
 
 # A dependency on an empty id would be malformed, and in a dry run there are no

@@ -48,7 +48,9 @@ Ship `output/hex3d_algohex/algohex.sqsh` and run `sinfo` first.
 T7, T8 and T12 improve the sample but block nothing; take them whenever the
 cluster is queueing. Note that T12 now has a cheap new lead: T9 reports
 `interior_faces` and the one-sided shell count on block topology, which is the
-same signature T12's failed weld produces.
+same signature T12's failed weld produces. **T13 is new and deliberately
+deferred** until T11 runs — the embedding-optimisation idea, with the
+measurement that justifies it.
 
 ---
 
@@ -873,6 +875,75 @@ where few large blocks are supposed to pay off.
 and its CFD metrics stand beside v11's in a table here.
 
 **Writes.** `experimentell/hex3d_algohex/tfi.py`.
+
+---
+
+## T13 — Optimise the embedding of the block faces
+
+**Status:** `deferred` — **do not start before T11 runs on the cluster.** The
+user's call, and the right one: this improves samples, it does not produce
+them, and its value is only assessable once there are enough samples to see
+how often the defects below actually occur.
+
+**Why.** Every geometric defect measured in T5 and T9 is an **embedding**
+defect, not a topology defect. Our block corners and edges sit wherever
+AlgoHex's integer-grid map put them, and no stage ever improves that placement
+— there is no such stage in the pipeline at all. Measured 2026-09-11:
+
+| | cand_001 | v11 |
+|---|---|---|
+| block edges | 137 | 107 |
+| **on the quad shell** | **128 (93 %)** | **100 (93 %)** |
+| interior | 9 | 7 |
+| edges over 5 % fit residual | 4 — **all on the shell** | 0 |
+| worst: arc/chord 4.506, chord 0.2067 | 32.67 % residual, on the shell | — |
+| degenerate edge, chord 7.58e-05 | — | **on the shell** |
+
+**That table is the argument.** The obvious objection to a surface method —
+"it cannot touch our interior block faces" — is answered by the data: 93 % of
+block edges are on the shell, and **100 % of the measured defects are.** The
+interior is 7 % of edges and has produced no defect worth fixing.
+
+**The method.** Heuschling, Lim & Kobbelt 2026, *Embedding Optimization of
+Layouts via Distortion Minimization* (EG 2026 / CGF 45(2), RWTH Aachen) — see
+`../../docs/LITERATURE.md` §E. It takes a target surface, a layout
+connectivity and an initial embedding, and improves the embedding
+**geometrically while preserving connectivity strictly**: repositions layout
+nodes, re-embeds arcs as piecewise geodesic curves, inserts extra nodes along
+arcs where flexibility is needed. Multi-resolution, so it can be optimised on
+a coarse surface and prolongated.
+
+The mapping onto our data is direct. Their target surface is our input
+triangulation (`<name>_tet.vtk`, which the exporter already stores as
+`surface_points` / `surface_tris` / `surface_tri_label`). Their layout
+connectivity is our quad shell (`quad_faces`) with its nodes and arcs. Their
+initial embedding is what AlgoHex gave us — the polylines in `edge_polyline`.
+
+**What it would and would not fix.**
+
+* Would: the degenerate shell edge (two layout nodes 7.6e-5 apart, node
+  repositioning is exactly that operation), and the winding edges, where a
+  geodesic re-embedding shortens an arc that currently wraps 4.5x its chord.
+  Both are the direct cause of our worst curve-fit residuals.
+* Would not: the block COUNT. Connectivity is preserved by construction, so
+  this is no help for T12 or for the fewness question — that stays the
+  Gao/Xu/Duan family in `LITERATURE.md` §C.
+
+**Open before starting.**
+
+1. Their code was announced but is not published yet
+   (`github.com/7-AlexH/layout-embedding-optimization`). Check first; a
+   reimplementation is a different size of task.
+2. Whether re-embedding the shell keeps the complex **weldable**. Moving a
+   shell node moves the interior block faces that meet it, and the
+   INDEX-parameterised resampling in `refill_block` is what currently makes
+   blocks weld. This is the real risk and it is the same class of problem as
+   T12's failed weld.
+3. Whether it belongs before or after the curve fit. `edge_polyline` is stored,
+   so re-fitting after re-embedding is free — which argues for after, and for
+   treating this as a load-time-adjacent stage rather than a re-run.
+
+**Writes.** Nothing yet.
 
 ---
 

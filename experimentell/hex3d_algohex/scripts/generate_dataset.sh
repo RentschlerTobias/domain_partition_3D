@@ -77,10 +77,19 @@ for cand in "$@"; do
   # above it. Both artifacts are kept: the core is what AlgoHex actually
   # produces and what a model would have to predict, the full domain is what a
   # solver can run.
-  $PY $E/reattach.py "$d/${name}_blocks.vtk" --layers "${LAYERS:-17}" \
-      --msh "$msh" --input-vtk "$d/${name}_tet.vtk" \
-      --out "$d/${name}_full.vtk" > "$d/reattach.log" 2>&1 \
-    || echo "[$name] reattach FAILED (core artifacts are still valid)"
+  # SKIP_REATTACH=1 on the cluster: reattach.py is the ONLY stage that needs
+  # torch (via dp3d.tmesh), and it produces the full.* CFD variant that
+  # decision J deletes anyway. Skipping it keeps torch out of the cluster
+  # environment entirely -- measured: every other stage runs with torch,
+  # torch-geometric, numba and matplotlib all blocked.
+  if [ "${SKIP_REATTACH:-0}" = "1" ]; then
+    echo "[$name] reattach skipped (SKIP_REATTACH=1)"
+  else
+    $PY $E/reattach.py "$d/${name}_blocks.vtk" --layers "${LAYERS:-17}" \
+        --msh "$msh" --input-vtk "$d/${name}_tet.vtk" \
+        --out "$d/${name}_full.vtk" > "$d/reattach.log" 2>&1 \
+      || echo "[$name] reattach FAILED (core artifacts are still valid)"
+  fi
 
   $PY $E/tfi.py "$d/${name}_blocks.vtk" --input-vtk "$d/${name}_tet.vtk" \
       --target-h "$H" --require-lattices --apply-divisions \
@@ -117,5 +126,16 @@ print(f"[{name}] {out['blocks']} blocks, {out['tiny']} tiny, "
       f"{out['inverted']} inverted, min sJ {out['min_sj']}, "
       f"{'VALID' if out['valid'] else 'INVALID'}, refill {out['refill']}, {dt}s")
 PYEOF
+
+  # T9: the neutral sample file, which is the actual dataset artifact. Runs
+  # last because it reads status.json. --check round-trips it against the
+  # block VTK, so a broken sample fails here rather than in training.
+  $PY $E/export_sample.py "$d/${name}_blocks.vtk" \
+      --tet "$d/${name}_tet.vtk" \
+      --params "$cand/params.json" --status "$d/status.json" \
+      --target-h "$H" --n "${ALGOHEX_N:-60000}" \
+      --out "$d/${name}_sample.npz" --check > "$d/export_sample.log" 2>&1 \
+    && echo "[$name] sample: $(du -h "$d/${name}_sample.npz" | cut -f1)" \
+    || echo "[$name] export_sample FAILED, see $d/export_sample.log"
 done
 echo "=== $(date -Is) done ==="

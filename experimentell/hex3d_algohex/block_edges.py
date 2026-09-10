@@ -365,6 +365,10 @@ def summary(recs):
     pl = np.array([r["planarity"] for r in recs], float)
     infl = np.array([r["inflections"] for r in recs], int)
     ch = np.array([r["chord"] for r in recs], float)
+    # arc / chord, the predictor of fit failure in 3D -- see print_summary
+    ac = np.array([(r["arc"] / r["chord"]) if r["chord"] > 0 else np.nan
+                   for r in recs], float)
+    ac = ac[np.isfinite(ac)]
     modes = defaultdict(int)
     for r in recs:
         modes[r["fit_mode"]] += 1
@@ -374,6 +378,10 @@ def summary(recs):
         "fit_mode_chord": modes["chord"],
         "chord_err_rel_median": _pct(ce, 50),
         "chord_err_rel_p95": _pct(ce, 95),
+        "arc_over_chord_median": _pct(ac, 50),
+        "arc_over_chord_p95": _pct(ac, 95),
+        "arc_over_chord_max": float(ac.max()) if len(ac) else float("nan"),
+        "edges_over_5pct": int((e > 0.05).sum()),
         "n_edges": len(recs),
         "pts_per_edge_min": int(npts.min()) if len(npts) else 0,
         "pts_per_edge_median": float(np.median(npts)) if len(npts) else 0.0,
@@ -420,6 +428,18 @@ def print_summary(name, s):
     print(f"  chord                min {s['chord_min']:.4f}, "
           f"median {s['chord_median']:.4f}"
           f"   ({s['degenerate_edges']} degenerate)")
+    # An edge whose arc is several times its chord is wound around something,
+    # and one cubic cannot represent it at any residual -- a hard geometric
+    # limit, not a fit failure. Measured on cand_001: the four edges above 5 %
+    # residual are exactly the four with the highest arc/chord (4.51, 3.06,
+    # 1.66, 1.55) and the lowest planarity, while the median edge sits at
+    # 1.001. Chord LENGTH does not predict it -- the worst is a well-sampled
+    # 26-point edge at a third of the median chord. That is the difference
+    # from 2D, where the worst case was a degenerate mini-edge.
+    print(f"  arc / chord          median {s['arc_over_chord_median']:.3f}, "
+          f"p95 {s['arc_over_chord_p95']:.3f}, "
+          f"max {s['arc_over_chord_max']:.3f}"
+          f"   ({s['edges_over_5pct']} edges over 5 % residual)")
     print(f"  planarity / chord    median {s['planarity_median'] * 100:.3f} %, "
           f"p95 {s['planarity_p95'] * 100:.3f} %, "
           f"max {s['planarity_max'] * 100:.2f} %")
@@ -440,8 +460,6 @@ def write_curves_vtk(path, recs, n=24):
     """
     pts, cells, val = [], [], []
     for r in recs:
-        P0 = np.array(r["chain"][:1])       # placeholder, replaced below
-        del P0
         B1, B2 = (np.array(c, float) for c in r["ctrl"])
         p0 = np.array(r["_p0"], float)
         p1 = np.array(r["_p1"], float)

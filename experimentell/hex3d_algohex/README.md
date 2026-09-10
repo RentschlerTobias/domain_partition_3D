@@ -447,6 +447,10 @@ ParaView renders only the outer hull of an unstructured grid — use `Clip` or
 
 ## Documents
 
+- [`../../docs/LITERATURE.md`](../../docs/LITERATURE.md) — **every source this
+  repository leans on**, grouped by role and marked with whether it *runs*, was
+  *reimplemented*, merely *informed* a decision, was *rejected* (with the
+  reason), or is on the *shortlist*
 - `PLAN.md` — original stage plan and background
 - `PROGRESS.md` — full chronological log, including failed attempts and why
 - `POSTPROCESSING_PLAN.md` — block-structure cleanup (done, stages 5–5c)

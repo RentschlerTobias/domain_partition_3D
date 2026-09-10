@@ -14,8 +14,8 @@ point for the branch as a whole.
 
 ## Resume here
 
-**Current task:** T9 — then T3/T4 for the cluster route
-**Last verified:** 2026-09-11. T0, T1, T2, T5 and T6 `done`.
+**Current task:** T3 — the cluster route; phase A is finished
+**Last verified:** 2026-09-11. T0, T1, T2, T5, T6 and T9 `done`.
 
 * T0 — `fixtures/blocks_core.tar.zst` (5.5 MiB) holds what cannot be
   recomputed cheaply; 3.1 GB of provably dead `.hexex` / `final_tet` / log spew
@@ -31,13 +31,19 @@ point for the branch as a whole.
 * T6 — **`-n` is settled: 2000 and 8000 as the dataset pair.** The fit does
   not collapse at four points; it costs 1.4x. Read T6's warning that the
   residual column runs backwards before quoting any number from it.
+* T9 — `export_sample.py`, round-trip PASS on v11 and cand_001. A sample is
+  **0.42-0.45 MB** of `.npz` including the labelled surface triangulation.
 
-**T9 is next**, and T5 supplies the two fields that were blocking it,
-`edge_ctrl` and `edge_polyline`. It is local, cheap, and its round-trip gate is
-what makes the artifact real for the meshtron side. After that, T3/T4 for the
-cluster route: ~2.7 GB `docker save` plus a squashfs against 10.3 GiB free, and
-one AlgoHex run at ~6 GB peak for 12 min on a 7.7 GiB box — check `vmstat 1 3`
-column 17 for steal first.
+**The artifact exists and is verified, so the meshtron side is unblocked.**
+What remains is throughput, and that is the cluster: T3 then T4 then T10/T11.
+T3's cost on this VPS is ~2.7 GB `docker save` plus a squashfs against
+10.3 GiB free, and one AlgoHex run at ~6 GB peak for 12 min on a 7.7 GiB box —
+check `vmstat 1 3` column 17 for steal first.
+
+T7, T8 and T12 improve the sample but block nothing; take them whenever the
+cluster is queueing. Note that T12 now has a cheap new lead: T9 reports
+`interior_faces` and the one-sided shell count on block topology, which is the
+same signature T12's failed weld produces.
 
 ---
 
@@ -607,7 +613,8 @@ unsubdivided structure. Re-run `mesh_quality.mixed_metrics` on the result.
 
 ## T9 — The sample exporter
 
-**Status:** `todo`
+**Status:** `done` 2026-09-11 — round-trip PASS on v11 and cand_001,
+**0.42 / 0.45 MB** per sample including the labelled surface
 
 **Why.** The seam: this repository writes neutral geometry, meshtron owns the
 ML format. Everything that will be tuned during training — coordinate frame,
@@ -646,6 +653,61 @@ fields; do not reject.
 **Done when.** Round-trip: reconstruct the block complex from the exported file
 alone and compare against `<name>_blocks.vtk`. Topology exact, geometry to
 floating-point tolerance. The 2D equivalent reported 10 014/10 014 exact.
+
+**Result, 2026-09-11.** `export_sample.py … --check` PASSes on both:
+
+| | v11 | cand_001 |
+|---|---|---|
+| corner vertices / blocks | 50 / 16 | 62 / 21 |
+| quad shell / interior faces | 50 / 23 | 64 / 31 |
+| directed edges | 214 = 2x107 | 274 = 2x137 |
+| fit modes cubic/quad/chord | 89 / 10 / 8 | 117 / 14 / 6 |
+| surface | 18 548 tris, 7 labels | 19 048 tris, 7 labels |
+| **file size** | **0.42 MB** | **0.45 MB** |
+
+The gate checks four things, and the last two are the ones that would have
+caught a silent error: blocks as sets of corner COORDINATES (comparing ids
+would only test the remap against itself), the undirected edge-endpoint set,
+every stored control pair still reproducing its own stored polyline to the
+residual the fit reported, and each directed pair being the reverse of its
+twin rather than an independent fit.
+
+Format is `.npz`, not the 2D route's `.pt`: decision C keeps this repository
+free of torch, and npz needs numpy alone on both banks. The ragged
+`edge_polyline` rides as one flat array plus an offset vector; `params`,
+`quality` and `provenance` as JSON strings in the same archive, so a sample
+stays one file. 0.45 MB is under decision J's ~1 MB estimate even with the
+whole labelled surface triangulation in it.
+
+**Two deviations from decision C's field list, both deliberate.**
+
+1. **The surface goes in as a triangulation, not as `surface_points [N,3]` +
+   `surface_label [N]`.** One label per point cannot be written honestly: a
+   vertex on a ring between two surfaces belongs to both, and picking a winner
+   would bake a tie-break into the EXPENSIVE side of the seam — the one thing
+   decision C exists to prevent. Stored as `surface_points`, `surface_tris`,
+   `surface_tri_label`, from which any point cloud at any density with any
+   tie-break follows in seconds at load time, which is where item E was
+   deferred to anyway.
+2. **`dir_class_count` is optional and only written with `--target-h`.** The
+   counts are a function of a cell size nobody has committed to; the class
+   *ids* are structural and always written.
+
+**A 3D-only finding, and it is now a stored quality field.** cand_001's worst
+edge misses by **32.7 %** — and it is not the 2D story of a degenerate
+mini-edge. It is a well-sampled 26-point edge at a third of the median chord,
+whose **arc is 4.5x its chord**: an edge wound around the passage, which one
+cubic cannot represent at any residual. That is a geometric limit, not a fit
+failure. On cand_001 the four edges above 5 % residual are exactly the four
+with the highest arc/chord (4.51, 3.06, 1.66, 1.55) and the lowest planarity,
+against a median of 1.003. Chord length does not predict it; arc/chord does.
+v11 has none: max 1.210, zero edges over 5 %.
+
+So `quality` now carries `arc_over_chord_p95`, `arc_over_chord_max` and
+`edges_over_5pct` — per decision G these are stored, not gated, and they are
+exactly what the load-time filter T11 has to build needs. If those edges ever
+matter, `edge_polyline` is stored and splitting them into two segments is a
+load-time change, not a re-run.
 
 **Writes.** `experimentell/hex3d_algohex/export_sample.py`.
 

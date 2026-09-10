@@ -31,8 +31,14 @@ WS_NAME="${WS_NAME:-hex3d}"
 WS_DAYS="${WS_DAYS:-60}"
 REPO_URL="${REPO_URL:-git@github.com:RentschlerTobias/domain_partition_3D.git}"
 PYTHON_MODULE="${PYTHON_MODULE:-devel/python/3.13.3-gnu-14.2}"
-BUILD_PARTITION="${BUILD_PARTITION:-cpu}"      # UNVERIFIED, see preflight
-DEV_PARTITION="${DEV_PARTITION:-dev_cpu_il}"   # UNVERIFIED, see preflight
+# Documented, not guessed: eigenfrequencies/docs/cluster-resource-sizing.md
+# measured all three and recommends cpu_il --
+#   cpu_il      64 cores, 256 GiB, more nodes, shorter queue   <- recommended
+#   cpu         96 cores, 384 GiB, fewer nodes, longer queue
+#   dev_cpu_il  64 cores, 256 GiB, 30-minute slots
+BUILD_PARTITION="${BUILD_PARTITION:-cpu_il}"
+DEV_PARTITION="${DEV_PARTITION:-dev_cpu_il}"
+PIPE_PARTITION="${PIPE_PARTITION:-cpu_il}"    # 30 min is dev's CAP, too tight
 
 say()  { printf '\n\033[1m[setup] %s\033[0m\n' "$*"; }
 info() { printf '        %s\n' "$*"; }
@@ -164,7 +170,7 @@ J2=$(sub "$S/smoke_algohex.slurm" --partition="$DEV_PARTITION" \
         ${J1:+--dependency=afterok:$J1})
 info "smoke      job ${J2:-(dry run)}   (5 min: image readable on a compute node)"
 
-J3=$(sub "$S/smoke_pipeline.slurm" --partition="$DEV_PARTITION" \
+J3=$(sub "$S/smoke_pipeline.slurm" --partition="$PIPE_PARTITION" \
         ${J2:+--dependency=afterok:$J2})
 info "pipeline   job ${J3:-(dry run)}   (30 min: one sample, round-trip gate)"
 

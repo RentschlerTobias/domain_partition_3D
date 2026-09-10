@@ -16,16 +16,17 @@
 # candidate's mesh.msh, and those are 22 MB each and not in git.
 #
 # ---------------------------------------------------------------------------
-# UNVERIFIED: partition and walltime. sinfo is denied on this cluster; try
-#   scontrol show partition | grep -E "PartitionName|MaxTime"
-# 30 min budget from measurements on a 2-vCPU VPS at -n 2000, so an upper
-# bound here: AlgoHex 16 min, clean_blocks 1-3 min, tfi and export under 1 min.
+# cpu_il and 1 h, NOT dev_cpu_il and 30 min: 30 minutes is the dev queue's CAP
+# (eigenfrequencies/docs/cluster-resource-sizing.md) and the budget below adds
+# up to 20, which leaves no slack for a queue that measures AlgoHex differently
+# than a 2-vCPU VPS did. Budget: AlgoHex 16 min, clean_blocks 1-3 min, tfi and
+# export under 1 min each -- all upper bounds from the VPS at -n 2000.
 # --mem 8G: AlgoHex peaks near 6 GB. Two concurrent runs OOMed a 7.7 GiB box.
 # ---------------------------------------------------------------------------
 #SBATCH --job-name=hex3d_smoke_pipe
 #SBATCH --output=hex3d_smoke_pipe_%j.out
-#SBATCH --partition=dev_cpu_il
-#SBATCH --time=00:30:00
+#SBATCH --partition=cpu_il
+#SBATCH --time=01:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8

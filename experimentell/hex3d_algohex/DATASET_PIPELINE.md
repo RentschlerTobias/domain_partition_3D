@@ -14,12 +14,13 @@ point for the branch as a whole.
 
 ## Resume here
 
-**Current task:** T1
-**Last verified:** 2026-09-11, T0 `done`. The irreplaceable structures are
-committed as `fixtures/blocks_core.tar.zst` (5.5 MiB), the Dockerfile diff as
-`external_patches/algohex-Dockerfile.patch`, and 3.1 GB of provably dead
-`.hexex` / `final_tet` / log spew is gone. Next is T1, the enroot smoke test —
-cheap, and T2/T3 depend on the answer.
+**Current task:** T2
+**Last verified:** 2026-09-11, T0 and T1 `done`. T1 passed on the first
+attempt: `enroot import` from `dockerd://`, `create`, and `start` with a
+**writable** bind mount, uid 0 inside, host file read and host file written.
+The `enroot-unshare` question is settled as a non-issue. Next is T2 — and read
+its status note before doing any work, because the premise it was written on
+turned out to be wrong.
 
 ---
 
@@ -156,7 +157,7 @@ about `output/deliverable/` is written here. **Both hold.**
 
 ## T1 — Verify enroot on this machine
 
-**Status:** `todo`
+**Status:** `done` 2026-09-11 — it works, including a writable bind mount
 
 **Why.** The whole cluster route depends on enroot, and the previous session's
 scripts were written in an environment where it was absent —
@@ -176,17 +177,46 @@ max_user_namespaces             31642
 unshare -U -r / unshare -m      both succeed
 ```
 
-One open detail: `enroot-unshare` was not found on `PATH` while
-`enroot-nsenter`, `-mount`, `-switchroot`, `-aufs2ovlfs` and `-mksquashovlfs`
-were. That may be a naming change in 4.x or a packaging defect — this task
-settles it.
+~~One open detail: `enroot-unshare` was not found on `PATH`.~~ **Settled: it
+is a non-issue.** The binary exists nowhere under `/usr`, `/bin`, `/sbin`,
+`/opt` or `/lib`, while `enroot-nsenter`, `-mount`, `-switchroot`,
+`-aufs2ovlfs`, `-mksquashovlfs` and `-makeself` are all in `/usr/local/bin` —
+and `enroot start` works regardless, so 4.2.0 does not use it. It was a naming
+change, not a packaging defect. Do not spend time on it again.
 
 **Do.** `enroot import docker://alpine`, `enroot create`, then `enroot start`
 with a bind mount and `cat` a file from the host side.
 
-**Done when.** The container prints the host file. If it fails, record the
-exact error here: that decides whether T2 and T3 can be verified locally at all
-or have to move to the cluster.
+**Result, 2026-09-11.** Three things, all of them clean:
+
+```
+$ export ENROOT_DATA_PATH=/root/enroot/data \
+         ENROOT_CACHE_PATH=/root/enroot/cache ENROOT_TEMP_PATH=/root/enroot/tmp
+$ enroot import -o /root/enroot/images/alpine.sqsh dockerd://alpine:latest
+   -> 8.0 MB squashfs, 520 inodes
+$ enroot create /root/enroot/images/alpine.sqsh     # container name: alpine
+$ enroot start --mount /tmp:/hostmnt alpine cat /hostmnt/host_probe.txt
+hello-from-host
+$ enroot start --root --rw --mount /tmp:/hostmnt alpine \
+      sh -c 'echo written-inside-container > /hostmnt/enroot_probe_out.txt; id -u'
+0                                   # and the file appeared on the host
+```
+
+The second run is the one T3 and T4 actually need: uid 0 inside, and a
+**writable** bind mount that AlgoHex can drop its `.ovm` into.
+
+Two details worth carrying to T3. Import from `dockerd://`, not `docker://`:
+the image is already in the local daemon and `/root/enroot/import.log` records
+"IPv4 forwarding is disabled. Networking will not work." And set the three
+`ENROOT_*` paths explicitly — the default data path is
+`/root/.local/share/enroot`, which is empty, so a bare `enroot list` does not
+see the `/root/enroot/data` containers the earlier dtOO work created.
+
+Cleaned up afterwards (`enroot remove alpine`, `.sqsh` deleted); `enroot list`
+is back to just `dtOOtest`.
+
+**Done when.** The container prints the host file. **It did.** T2 and T3 can be
+verified locally; only SLURM and the Lustre rates cannot.
 
 **Writes.** Nothing in the repo; the result is recorded in this task.
 

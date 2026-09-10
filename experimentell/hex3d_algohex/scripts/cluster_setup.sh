@@ -13,14 +13,17 @@
 #   3. repo        clone, and restore the committed fixtures
 #   4. python      module load + venv + numpy/scipy/meshio/gmsh  (NOT torch)
 #   5. sources     build_algohex_enroot.sh -- downloads, needs this login node
-#   6. submit      build -> smoke -> pipeline, chained with --dependency=afterok
+#   6. submit      ONE job per run: the build, then the pipeline once the
+#                  image exists. Re-run until it says "image exists".
 #
 # Nothing is copied from another machine. AlgoHex is built from its pinned
 # public commit, the base image comes from Docker Hub, the one test input comes
 # out of the fixtures archive in git.
 #
-# After step 6 you can log out. Three jobs run in sequence; the last one writes
-# a sample and round-trips it.
+# dev_cpu_il allows only ~4 QUEUED jobs per user and that budget is shared with
+# whatever else you run, so this submits one job at a time rather than a
+# dependency chain. Re-running the script is the loop; it writes
+# a sample and round-trips it at the end.
 
 set -uo pipefail
 
@@ -104,7 +107,10 @@ run mkdir -p "$ENROOT_TEMP_PATH"
 # -------------------------------------------------------------------- 3 repo
 say "3/6 repo and fixtures"
 REPO="$WS/domain_partition_3D"
-if [ -d "$REPO/.git" ]; then
+# `git rev-parse --git-dir`, not `-d "$REPO/.git"`: in a worktree or a
+# submodule .git is a FILE containing a gitdir pointer, so the directory test
+# reports "not cloned" and the script tries to clone over a real checkout.
+if git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
     info "already cloned: $REPO"
 else
     # --branch: the repo's default is master, and NONE of these scripts exist
@@ -186,50 +192,72 @@ sub() {  # sub <script> <extra sbatch args...> -> job id on stdout, "" on failur
     err=$(mktemp)
     out=$(sbatch --parsable "$@" "$script" 2>"$err")
     if [ -z "$out" ]; then
-        # A failed submit used to come back as an empty id and get printed as
-        # "(dry run)", after which the script still said "submitted, you can
-        # log out". It cost a silently missing job. Now it is loud.
         { echo "        SUBMIT FAILED: $(basename "$script")"
           sed 's/^/          /' "$err"
           echo "          retry: sbatch $* $script"; } >&2
-        FAILED="$FAILED $(basename "$script")"
+        rm -f "$err"
+        # Returns non-zero instead of setting FAILED here. `JN=$(sub ...)` runs
+        # this in a SUBSHELL, so an assignment made in here is invisible to the
+        # caller -- which is why the script still printed "submitted, you can
+        # log out" after four failed submits. The exit status does survive.
+        return 1
     fi
     rm -f "$err"
     printf '%s' "$out"
 }
 
-# dev_cpu_il enforces QOSMaxSubmitJobPerUserLimit, measured at 4 queued jobs
-# per user on 2026-09-11. Five submissions therefore lose the last one, so the
-# chain is four: three build stages plus one combined test. smoke_algohex's
-# `HexMeshing --help` check now runs at the START of smoke_pipeline instead of
-# as its own job; the standalone script stays for debugging.
+# ONE job per run, not a chain.
+#
+# QOSMaxSubmitJobPerUserLimit on dev_cpu_il is about 4 QUEUED jobs per user,
+# and that budget is shared with whatever else you are running -- measured
+# 2026-09-11 with 2 foreign jobs already queued, which left room for exactly
+# one of the four. A dependency chain needs all of its links queued at once, so
+# it is the wrong shape for this cap regardless of how many links it has.
+#
+# So: submit STAGE=all in a 30-minute slot and let it do as much as it can.
+# Every stage checks its own artifact and skips in seconds, and a stage killed
+# at the walltime resumes because make and ninja keep their objects. Each run
+# of this script therefore makes progress with a single slot, and re-running it
+# is the loop:
+#
+#   bash cluster_setup.sh     # until it says "image exists"
 #
 # Skip on the ARTIFACT, not on `enroot list`: the build container is called
-# algohex-build, so a finished build leaves no container named algohex, and
-# checking the container would resubmit all three stages forever.
+# algohex-build, so a finished build leaves no container named algohex.
 J1=""
 if [ -f "$WS/enroot-images/algohex.sqsh" ]; then
-    info "image exists: $WS/enroot-images/algohex.sqsh -- skipping the build"
+    info "image exists: $WS/enroot-images/algohex.sqsh -- build done"
 else
-    for st in ipopt bonmin algohex; do
-        JN=$(STAGE="$st" sub "$S/build_algohex.slurm" \
-                --partition="$BUILD_PARTITION" --export=ALL,STAGE="$st" \
-                --job-name="algohex_$st" ${J1:+--dependency=afterok:$J1})
-        info "build:$(printf '%-8s' "$st") job ${JN:-$NONE}   (30 min slot, resumable)"
-        [ -n "$JN" ] && J1="$JN"
-    done
+    if J1=$(STAGE=all sub "$S/build_algohex.slurm" \
+                --partition="$BUILD_PARTITION" --export=ALL,STAGE=all \
+                --job-name=algohex_build); then
+        info "build      job ${J1:-$NONE}   (30 min slot; re-run this script"
+        info "                              until the image exists)"
+    else
+        FAILED="$FAILED build_algohex.slurm"
+        J1=""
+    fi
+    # The pipeline job needs the image, so there is nothing to queue yet.
+    say "build submitted. Re-run this script when it finishes:"
+    info "  squeue --me                 # watch"
+    info "  bash $0                     # next stage, or the pipeline job"
+    [ -n "$FAILED" ] && exit 1
+    exit 0
 fi
 
 if [ "${SUBMIT_SMOKE:-0}" = 1 ]; then
-    J2=$(sub "$S/smoke_algohex.slurm" --partition="$DEV_PARTITION" \
-            ${J1:+--dependency=afterok:$J1})
-    info "smoke      job ${J2:-$NONE}   (5 min, optional: SUBMIT_SMOKE=1)"
-    [ -n "${J2:-}" ] && J1="$J2"
+    if J2=$(sub "$S/smoke_algohex.slurm" --partition="$DEV_PARTITION"); then
+        info "smoke      job ${J2:-$NONE}   (5 min, optional: SUBMIT_SMOKE=1)"
+    else
+        FAILED="$FAILED smoke_algohex.slurm"
+    fi
 fi
 
-J3=$(sub "$S/smoke_pipeline.slurm" --partition="$PIPE_PARTITION" \
-        ${J1:+--dependency=afterok:$J1})
-info "pipeline   job ${J3:-$NONE}   (30 min: one sample, round-trip gate)"
+if J3=$(sub "$S/smoke_pipeline.slurm" --partition="$PIPE_PARTITION"); then
+    info "pipeline   job ${J3:-$NONE}   (30 min: one sample, round-trip gate)"
+else
+    FAILED="$FAILED smoke_pipeline.slurm"
+fi
 
 if [ "$DRY" = 1 ]; then
     say "dry run done. Nothing was submitted, nothing was downloaded."

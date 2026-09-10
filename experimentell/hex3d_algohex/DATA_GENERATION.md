@@ -6,8 +6,32 @@ tuned for. Everything up to this point was measured on T1_9 alone.
 
 `data/random_tistos/` holds 21 parametrically generated runners (`investigated/
 cand_NNN/mesh.msh`, ~22 MB each, with the design parameters in `params.json`)
-plus 8 loose meshes. Not versioned — 588 MB of regenerable input, see
-`.gitignore`.
+plus 8 loose meshes. The meshes are not versioned — 588 MB — but the
+**design parameters are**, 27 KB for all 21, because they are the actual input
+and every exported sample carries them in its `params` field.
+
+## Where the 21 candidates come from
+
+All five links exist, so a third party can regenerate the geometry without
+copying 429 MB from anyone's disk:
+
+| | |
+|---|---|
+| generator | **dtOO**, `github.com/ihs-ustutt/dtOO`, case `demo/tistos` |
+| the parameters | `demo/tistos/build.py` and `machineSave.xml` — **all 30** keys of a `params.json` appear in both, verified 2026-09-11 |
+| the values | `data/random_tistos/investigated/cand_*/params.json`, in this repo |
+| runtime | `atismer/dtoo-opensuse:stable`, public on Docker Hub |
+| mesh-only wrapper | `scripts/dtoo_mesh_only.py` — runs the one `boundedVolume` of type `map3dTo3dGmsh` that produced `T1_9_ru_gridGmsh.msh`, skipping geometry/decompose/solve |
+
+The mesher is the same one that made T1_9, which is why `tet_prep_v5.classify`
+reads the same GEOMETRIC entity ids across both — hub 1, shroud 2, inlet 3,
+outlet 4, periodic 5 and 6.
+
+What is NOT in any repo here: the sweep driver, i.e. the loop that varied those
+30 parameters, wrote `cand_NNN/params.json` and called dtOO 21 times. That is
+a small script over a documented mechanism, not a missing capability — but if
+the 21 have to be reproduced exactly, the `params.json` values are the record
+to feed back in, one case at a time.
 
 ## What had to change: one thing
 

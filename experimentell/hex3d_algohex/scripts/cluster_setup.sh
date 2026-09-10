@@ -30,6 +30,8 @@ DRY=0
 WS_NAME="${WS_NAME:-hex3d}"
 WS_DAYS="${WS_DAYS:-60}"
 REPO_URL="${REPO_URL:-git@github.com:RentschlerTobias/domain_partition_3D.git}"
+# The default branch is master and none of this exists there.
+REPO_BRANCH="${REPO_BRANCH:-data_generation}"
 PYTHON_MODULE="${PYTHON_MODULE:-devel/python/3.13.3-gnu-14.2}"
 # eigenfrequencies/docs/cluster-resource-sizing.md measured the three
 # partitions -- cpu_il 64 cores/256 GiB, cpu 96/384, dev_cpu_il 64/256 with
@@ -105,13 +107,29 @@ REPO="$WS/domain_partition_3D"
 if [ -d "$REPO/.git" ]; then
     info "already cloned: $REPO"
 else
-    run git clone "$REPO_URL" "$REPO" \
+    # --branch: the repo's default is master, and NONE of these scripts exist
+    # there. A plain clone lands on master and every path below is missing.
+    run git clone --branch "$REPO_BRANCH" "$REPO_URL" "$REPO" \
         || die "clone failed. SSH key on this node? Or set REPO_URL to the https form."
 fi
 E="experimentell/hex3d_algohex"
 if [ "$DRY" = 0 ]; then
     cd "$REPO" || die "cannot cd $REPO"
-    git rev-parse --abbrev-ref HEAD | sed 's/^/        branch: /'
+    # Checked, not just printed. Two ways to be on the wrong commit: a clone
+    # that defaulted to master, or a detached HEAD from
+    # `git checkout origin/<branch>` -- which prints "HEAD" here and makes a
+    # later `git pull` fail.
+    BR="$(git rev-parse --abbrev-ref HEAD)"
+    info "branch: $BR"
+    if [ "$BR" = "HEAD" ]; then
+        info "detached HEAD -- attaching to $REPO_BRANCH"
+        git switch "$REPO_BRANCH" || die "cannot switch to $REPO_BRANCH"
+    elif [ "$BR" != "$REPO_BRANCH" ]; then
+        info "on '$BR', switching to '$REPO_BRANCH'"
+        git switch "$REPO_BRANCH" || die "cannot switch to $REPO_BRANCH"
+    fi
+    [ -f "$E/scripts/build_algohex.slurm" ] \
+        || die "$E/scripts/build_algohex.slurm missing -- wrong branch?"
     # 22.4 MiB of block structures and the one tet input, 5.5 MiB compressed
     [ -f data/T1_9/T1_9_tet_v5.vtk ] || tar -I zstd -xf "$E/fixtures/blocks_core.tar.zst"
     info "fixtures: $(ls data/T1_9/T1_9_tet_v5.vtk 2>/dev/null || echo MISSING)"

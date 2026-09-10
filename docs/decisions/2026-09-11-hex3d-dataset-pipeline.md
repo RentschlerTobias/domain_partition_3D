@@ -19,7 +19,7 @@ Goal: a data-generation pipeline whose samples train a 3D block-structure transf
 ├── x D2  Stored as two absolute cubic control points
 ├── x C   Thin seam: neutral geometry file, meshtron owns the ML format
 ├── x B   Sample volume settled empirically after the first cluster run
-├── x H   Self-contained image, enroot on bwUniCluster 3.0
+├── x H   Self-contained image, enroot on bwUniCluster 3.0   (its "no image exists" premise was WRONG, corrected 2026-09-11)
 ├── x H2  Measure the fit first, then use n as an augmentation axis
 ├── x G   Store quality fields, filter at load time
 ├── x J   Keep the sample file plus blocks.vtk and tet.vtk
@@ -280,30 +280,60 @@ Option 5 was rejected outright: AlgoHex takes about 10 minutes per sample and
 must not run concurrently (~6 GB peak), so leaving it on a throttled 2-vCPU
 VPS would leave 64 cluster cores waiting on two.
 
-**The prerequisite, which is the real work.** There is no self-contained
-AlgoHex image today. `external/algohex-src/Dockerfile` ends after the `cmake`
-configure step — its final two lines, `RUN cd /app/build && ninja -j1` and the
-symlink into `/usr/local/bin`, are commented out. The compile was run by hand
-into the Docker volume `algohex-build-cache`, presumably because a
-non-resumable single-layer `ninja -j1` on a 2-vCPU box would have taken hours.
-Consequently `docker save algohex-configured` produces an image WITHOUT the
-`HexMeshing` binary, since volume contents are not part of an image. This
-holds for any runtime, enroot or Apptainer alike.
+**~~The prerequisite, which is the real work.~~ Corrected 2026-09-11: the
+prerequisite was already met.** The paragraph below stood as written until T2
+ran its own gate, and it was wrong. `algohex:portable` had been on the VPS
+since ~2026-09-05 with `HexMeshing` baked in, and
+`experimentell/hex3d_algohex/README.md` already described it as "the one to
+export to a cluster". `docker run --rm algohex:portable HexMeshing --help`
+exits 0 with no volume mounted and `ldd` finds 0 missing libraries.
 
-Two things follow. The first deliverable of the whole plan is a self-contained
-image: re-enable those two lines and build on a fast machine, where `ninja
--j64` is minutes rather than hours — the cluster makes the fragile coinbrew
-chain (MUMPS, IPOPT, Bonmin from source) easier, not harder. And this is not
-only a portability task: today the entire data-generation capability of the
-project lives in one unversioned Docker volume on one VPS.
+The error was one of method, and it is worth naming because this branch is
+prone to it: the claim was derived by reading `external/algohex-src/Dockerfile`
+and reasoning from it, without running `docker images`. A file said the build
+was disabled, so the conclusion "no image exists" felt proven. Reading the
+source of an artifact is not the same as inspecting the artifact.
+
+What was genuinely missing, and is now fixed, is one level up: the recipe for
+that image existed nowhere. It had been typed by hand into a gitignored tree,
+so the image was exactly as unversioned as the volume it was built from. It is
+now `external_patches/Dockerfile.portable`, and the working-tree Dockerfile
+diff is `external_patches/algohex-Dockerfile.patch`.
+
+What remains true: `docker save algohex-configured` produces an image WITHOUT
+the `HexMeshing` binary, since volume contents are not part of an image — that
+is why `algohex:portable` exists. And `algohex:portable` is a *from-volume*
+shortcut, reproducible only while `algohex-build-cache` survives, so a
+from-source build (`ninja -j$(nproc)` on a machine with cores) is still worth
+doing. It is an improvement, not a blocker: the cluster route is open now.
+
+The original text follows, for the record. "There is no self-contained AlgoHex
+image today. `external/algohex-src/Dockerfile` ends after the `cmake` configure
+step — its final two lines, `RUN cd /app/build && ninja -j1` and the symlink
+into `/usr/local/bin`, are commented out. The compile was run by hand into the
+Docker volume `algohex-build-cache`, presumably because a non-resumable
+single-layer `ninja -j1` on a 2-vCPU box would have taken hours. Consequently
+`docker save algohex-configured` produces an image WITHOUT the `HexMeshing`
+binary, since volume contents are not part of an image. This holds for any
+runtime, enroot or Apptainer alike. Two things follow. The first deliverable of
+the whole plan is a self-contained image: re-enable those two lines and build on
+a fast machine, where `ninja -j64` is minutes rather than hours — the cluster
+makes the fragile coinbrew chain (MUMPS, IPOPT, Bonmin from source) easier, not
+harder. And this is not only a portability task: today the entire
+data-generation capability of the project lives in one unversioned Docker volume
+on one VPS."
 
 **What can and cannot be verified locally.** enroot 4.2.0 is installed on this
 box (`/usr/local/bin/enroot`), with `squashfuse` and `mksquashfs`, and all its
 prerequisites are met: KVM virtual machine rather than a container, uid 0,
 `/dev/fuse` present, `unprivileged_userns_clone = 1`,
 `max_user_namespaces = 31642`, and both `unshare -U -r` and `unshare -m`
-succeed. So `enroot import` and `enroot start` can be exercised here. What
-cannot: SLURM (no `sbatch`/`srun`, hence no pyxis, which is a SLURM plugin),
+succeed. So `enroot import` and `enroot start` can be exercised here —
+**confirmed by running them, T1, 2026-09-11**: import from `dockerd://`,
+create, and start both read-only and `--root --rw` with a bind mount, reading a
+host file and writing one back at uid 0. The absent `enroot-unshare` turned out
+to be irrelevant to 4.2.0. What cannot be verified here: SLURM (no
+`sbatch`/`srun`, hence no pyxis, which is a SLURM plugin),
 and the Lustre transfer rates that dominate cluster job time — measured at
 5-10 MB/s in `eigenfrequencies/docs/cluster-dtoo-enroot-befund-v2.md`, so
 `enroot create` from an 8 GB image costs 14-27 minutes per job there.

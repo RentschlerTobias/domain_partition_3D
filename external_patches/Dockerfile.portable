@@ -1,0 +1,60 @@
+# Recipe for the self-contained image `algohex:portable`.
+#
+# WHY THIS FILE EXISTS
+# The image already existed on the VPS (built ~2026-09-05) and satisfies T2's
+# gate -- `docker run --rm algohex:portable HexMeshing --help` works with no
+# volume mounted, and `ldd` reports 0 missing libraries. But its recipe existed
+# nowhere: it was built by hand, and `external/` is gitignored. So the image was
+# exactly as unversioned as the Docker volume it was made from. This file was
+# reconstructed from `docker history --no-trunc algohex:portable` and
+# `docker image inspect`, and verified against the running image.
+#
+# WHAT IT IS: THE FROM-VOLUME SHORTCUT, NOT A BUILD FROM SOURCE
+# `algohex-configured` is upstream's Dockerfile stopped after the `cmake`
+# configure step, because on this 2-vCPU box a non-resumable single-layer
+# `ninja` takes hours (see external_patches/algohex-Dockerfile.patch). The
+# compile was therefore run by hand into the named volume
+# `algohex-build-cache`, and this Dockerfile bakes that volume's `Build/` tree
+# -- 23.2 MB of the volume's 74.4 MB, the rest being CMake object files -- into
+# an image.
+#
+# The honest from-source path is still unverified: uncomment upstream's two
+# final lines (the patch file says which) and build with `ninja -j$(nproc)` on
+# a machine with cores. Do that on the cluster or the 6-machine cluster, where
+# it is minutes; the fragile coinbrew chain (MUMPS, IPOPT, Bonmin from source)
+# gets easier with cores, not harder. Until then, this shortcut is what makes
+# AlgoHex transportable, and it is reproducible only as long as
+# `algohex-build-cache` exists.
+#
+# BUILD
+#   ctx=$(mktemp -d)
+#   docker run --rm -v algohex-build-cache:/v -v "$ctx":/out alpine \
+#       sh -c 'cp -a /v/Build /out/Build'
+#   cp external_patches/Dockerfile.portable "$ctx/Dockerfile"
+#   docker build -t algohex:portable "$ctx"
+#   rm -rf "$ctx"
+#
+# VERIFY (both must pass with NO volume mounted)
+#   docker run --rm algohex:portable HexMeshing --help
+#   docker run --rm algohex:portable sh -c \
+#       'ldd "$(command -v HexMeshing)" | grep -c "not found"'   # -> 0
+#
+# EXPORT
+#   docker save algohex:portable -o algohex.tar        # then enroot import, T3
+
+FROM algohex-configured
+
+# 23.2 MB: bin/{HexMeshing,LocalMeshabilityCheck} and lib/{libAlgoHex,libCoMISo,
+# libHexEx,libHexHex,libMC3D,...}.so
+COPY Build /opt/algohex/Build
+
+# Without this the binary starts and then cannot find its own .so files; the
+# coin-or half is inherited from algohex-configured's build.
+ENV LD_LIBRARY_PATH=/opt/algohex/Build/lib:/opt/coin-or/lib
+
+# The self-test is the point of the layer: a build that produces an image whose
+# binary cannot run is exactly the failure mode T2 was created to fix, so it
+# fails at build time rather than on a cluster node.
+RUN ln -sf /opt/algohex/Build/bin/* /usr/local/bin/ \
+ && HexMeshing -h > /dev/null \
+ && echo "self-test OK: HexMeshing runs from the image"

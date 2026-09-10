@@ -14,13 +14,24 @@ point for the branch as a whole.
 
 ## Resume here
 
-**Current task:** T2
-**Last verified:** 2026-09-11, T0 and T1 `done`. T1 passed on the first
-attempt: `enroot import` from `dockerd://`, `create`, and `start` with a
-**writable** bind mount, uid 0 inside, host file read and host file written.
-The `enroot-unshare` question is settled as a non-issue. Next is T2 — and read
-its status note before doing any work, because the premise it was written on
-turned out to be wrong.
+**Current task:** T3 — and it is unblocked, which was not expected
+**Last verified:** 2026-09-11. T0, T1 and T2 all `done`.
+
+* T0 — `fixtures/blocks_core.tar.zst` (5.5 MiB) holds what cannot be
+  recomputed cheaply; 3.1 GB of provably dead `.hexex` / `final_tet` / log spew
+  deleted; the Dockerfile diff is in `external_patches/`.
+* T1 — enroot works here, including a **writable** bind mount at uid 0. The
+  `enroot-unshare` worry was a non-issue.
+* T2 — **done without a rebuild.** `algohex:portable` already existed and
+  passes T2's own gate; the coinbrew rebuild on 64 cores was never needed. Its
+  recipe is now `external_patches/Dockerfile.portable`. Read T2's status note
+  before touching this area.
+
+**T3 is the next task and everything it needs is now verified**: a
+self-contained image, and enroot proven on this box. Its cost on this VPS:
+~2.7 GB `docker save` plus a squashfs, so keep an eye on free space (10.3 GiB),
+and one AlgoHex run at ~6 GB peak for 12 min on a 7.7 GiB box — check
+`vmstat 1 3` column 17 for steal first.
 
 ---
 
@@ -224,12 +235,52 @@ verified locally; only SLURM and the Lustre rates cannot.
 
 ## T2 — Self-contained AlgoHex image
 
-**Status:** `todo`
+**Status:** `done` 2026-09-11 — **the premise below was wrong.** A
+self-contained image already existed and passes T2's own gate. What was
+actually missing was its recipe, and that is now committed.
 
-**Why.** `docker save algohex-configured` yields an image WITHOUT
-`HexMeshing`, because the binary lives in the volume `algohex-build-cache` and
-volume contents are not part of an image. Nothing can reach any cluster until
-this is fixed.
+**Correction, and how the mistake was made.** This task and decision H both
+assert that no transportable AlgoHex exists. Both were reasoned from
+`external/algohex-src/Dockerfile` alone, without checking `docker images`.
+`algohex:portable` has been on this box since ~2026-09-05, and
+`README.md` — in the same directory — already called it "the one to export to a
+cluster". Measured 2026-09-11:
+
+```
+$ docker run --rm algohex:portable HexMeshing --help      # NO volume mounted
+AlgoHex
+HexMeshing [OPTIONS] ...                                  exit 0
+$ docker run --rm algohex:portable sh -c \
+      'ldd "$(command -v HexMeshing)" | grep -c "not found"'
+0
+$ docker run --rm algohex:portable ls /opt/algohex/Build/bin
+HexMeshing  LocalMeshabilityCheck
+$ docker run --rm algohex:portable ls /app/build/Build/bin
+(nothing -- the volume's path does not exist in the image)
+```
+
+`docker history` shows how it was made: `FROM algohex-configured`, a 24.2 MB
+`COPY` of the volume's `Build/` tree into `/opt/algohex/Build`,
+`LD_LIBRARY_PATH=/opt/algohex/Build/lib:/opt/coin-or/lib`, then `ln -sf` plus a
+build-time `HexMeshing -h` self-test.
+
+**So the real gap was never the binary — it was that this recipe existed
+nowhere**, having been typed by hand into a gitignored tree. The image was as
+unversioned as the volume it came from. It is now
+`external_patches/Dockerfile.portable`, with the volume-extraction step, the
+build, the verify and the export documented in its header.
+
+**What is still open, and it is not blocking.** The image is a *from-volume*
+shortcut: reproducible only while `algohex-build-cache` exists. The from-source
+path — uncomment upstream's two final lines, `ninja -j$(nproc)` — remains
+unverified and still belongs on a machine with cores. That is now an
+improvement, not a prerequisite: T3 can proceed today.
+
+**Original why, kept for the record.** `docker save algohex-configured` yields
+an image WITHOUT `HexMeshing`, because the binary lives in the volume
+`algohex-build-cache` and volume contents are not part of an image. True of
+`algohex-configured`, and the reason `algohex:portable` was built in the first
+place.
 
 **The change is a revert, not an addition.** Upstream's Dockerfile already
 builds AlgoHex; the local working-tree diff switched it off:
@@ -248,15 +299,23 @@ The reason was almost certainly this box: a non-resumable single-layer `ninja`
 on 2 vCPUs takes hours, so the build was run by hand into a persistent volume
 instead.
 
-**Do.** Keep `Release`. Uncomment the two lines and build with
-`ninja -j$(nproc)`, not `-j1`. Prefer a 64-core machine or the cluster — there
-this is minutes, and the fragile coinbrew chain (MUMPS, IPOPT, Bonmin from
-source) gets easier with cores, not harder.
+**Do** — reduced to the leftover, for whoever gets a fast machine. Keep
+`Release`. Uncomment the two lines and build with `ninja -j$(nproc)`, not
+`-j1`. Prefer a 64-core machine or the cluster — there this is minutes, and the
+fragile coinbrew chain (MUMPS, IPOPT, Bonmin from source) gets easier with
+cores, not harder. Then diff its `HexMeshing` against the one in
+`algohex:portable`.
 
-**Done when.** `docker run --rm <image> HexMeshing --help` succeeds with **no
-volume mounted**. This command fails today; its passing is the proof.
+**Done when.** ~~`docker run --rm <image> HexMeshing --help` succeeds with no
+volume mounted. This command fails today.~~ **It does not fail; it passes for
+`algohex:portable`, shown above.** The lesson for the next task written in this
+document: a "Done when" phrased as a command should be RUN before the task is
+written, not only after. This one would have cost a full coinbrew rebuild on 64
+cores to satisfy something already satisfied.
 
-**Writes.** `external/algohex-src/Dockerfile` and the patch from T0.
+**Writes.** `external_patches/Dockerfile.portable`. Not
+`external/algohex-src/Dockerfile` — that stays as it is, with its diff recorded
+by T0 step 4.
 
 ---
 
@@ -273,13 +332,25 @@ job time — `eigenfrequencies/docs/cluster-dtoo-enroot-befund-v2.md` measures
 5-10 MB/s there, so `enroot create` from an 8 GB image costs 14-27 minutes per
 job.
 
-**Do.** Export the T2 image using
-`duty/eigenfrequencies/cluster/export_dtoo_enroot.sh` as the template, then
+**Do.** Export **`algohex:portable`** (T2 verified it; 2.72 GB) using
+`../../../eigenfrequencies/cluster/export_dtoo_enroot.sh` as the template, then
 `enroot import`, then run one AlgoHex job at `-n 2000` through `enroot start`
 on `data/T1_9/T1_9_tet_v5.vtk`. The import recipe and its pitfalls are in
-`cluster/enroot_dtoo_import.md` — note in particular the naming trap recorded
-there: the container name is derived from the `.sqsh` basename, and a mismatch
-fails silently and late.
+`../../../eigenfrequencies/cluster/enroot_dtoo_import.md` — note in particular
+the naming trap recorded there: the container name is derived from the `.sqsh`
+basename, and a mismatch fails silently and late.
+
+Carry over from T1, all measured here: import with `enroot import -o … 
+dockerd://algohex:portable` rather than `docker://` (this box has IPv4
+forwarding off), set `ENROOT_DATA_PATH`, `ENROOT_CACHE_PATH` and
+`ENROOT_TEMP_PATH` to the `/root/enroot/*` tree that the dtOO work already
+uses, and pass `--root --rw --mount` so AlgoHex can write its `.ovm` back to
+the host. Inside the image the binary is on `PATH` as plain `HexMeshing` — no
+`/app/build/Build/bin/` prefix and no volume, which is the difference from
+`run_algohex.py`'s current invocation and the reason T4 exists.
+
+Watch free space: 10.3 GiB, against ~2.7 GB for the `docker save` tar plus a
+squashfs of similar size. Delete the tar before `enroot create`.
 
 **Done when.** The enroot run and the Docker run of the same input produce hex
 meshes that agree cell for cell.

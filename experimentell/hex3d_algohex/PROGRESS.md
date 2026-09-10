@@ -9,7 +9,7 @@ attempts and why they failed.**
 
 | Stage | Status | Notes |
 |---|---|---|
-| 0. Build AlgoHex (Docker) | **done** | resumable volume build; `algohex:portable` image also exists |
+| 0. Build AlgoHex (Docker) | **done** | resumable volume build; `algohex:portable` is self-contained and **verified** 2026-09-11 (`HexMeshing --help`, no volume, 0 missing libs) — recipe in `external_patches/Dockerfile.portable` |
 | 1. Tet mesh + feature tags | **done** | best variant `tet_prep_v5.py` -> `data/T1_9/T1_9_tet_v5.vtk` |
 | 2. Run HexMeshing | **done** | v5 (full domain) and v9 (reduced) both usable; v9 has 2 inverted cells vs v5's 96 |
 | 3. Validation gates | **done** | scaled Jacobian, manifoldness, coverage, boundary conformity |

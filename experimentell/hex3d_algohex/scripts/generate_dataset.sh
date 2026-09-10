@@ -16,11 +16,22 @@
 #
 # Per candidate, writes into output/hex3d_algohex/gen/<name>/:
 #   <name>_tet.vtk        AlgoHex input, exact surface labels
+#   gen_hex_<name>.ovm    AlgoHex output  <- since T4 in here, not in the
+#                         shared output/hex3d_algohex/
 #   <name>_blocks.vtk     block structure  <- the training target
 #   <name>_blocks.msh     same, with block edges as 1D elements
 #   <name>_blocks_h05.vtk refilled at h=0.05, only if the structure passes
 #   <name>_full.vtk       core + blade O-grid + both wall layers, CFD-ready
 #   status.json           every stage's outcome and timing
+#
+# Environment:
+#   BACKEND        docker (default) | enroot          -- T4's seam
+#   ALGOHEX_IMAGE  docker tag or path to a .sqsh
+#   ALGOHEX_CPUS   docker only; enroot refuses it, see run_algohex.py
+#   ALGOHEX_N      -n for HexMeshing, default 60000. T6 settled the DATASET
+#                  pair at 2000 and 8000 -- one run each, two samples
+#   TARGET_H       refill cell size, default 0.05
+#   LAYERS         boundary-layer count for reattach, default 17
 set -u
 cd /root/repos/duty/quadmesh/domain_partition_3D
 PY=/root/repos/duty/quadmesh/.venv/bin/python
@@ -42,12 +53,17 @@ for cand in "$@"; do
       > "$d/tet_prep.log" 2>&1 \
     || { echo "[$name] tet_prep FAILED"; echo '{"stage":"tet_prep","ok":false}' > "$d/status.json"; continue; }
 
+  # --out-dir "$d": the .ovm used to land in the shared output/hex3d_algohex/
+  # as gen_hex_<name>.ovm, which does not scale to thousands of samples
+  # (decision J). BACKEND selects docker or enroot behind one call site (T4).
   $PY $E/run_algohex.py --tag "$name" --prefix gen --in-vtk "$d/${name}_tet.vtk" \
+      --out-dir "$d" --backend "${BACKEND:-docker}" \
+      ${ALGOHEX_IMAGE:+--image "$ALGOHEX_IMAGE"} \
       ${ALGOHEX_CPUS:+--cpus $ALGOHEX_CPUS} \
-      -- -n 60000 > "$d/algohex.log" 2>&1 \
+      -- -n "${ALGOHEX_N:-60000}" > "$d/algohex.log" 2>&1 \
     || { echo "[$name] AlgoHex FAILED"; echo '{"stage":"algohex","ok":false}' > "$d/status.json"; continue; }
 
-  $PY $E/clean_blocks.py output/hex3d_algohex/gen_hex_${name}.ovm \
+  $PY $E/clean_blocks.py "$d/gen_hex_${name}.ovm" \
       --input-vtk "$d/${name}_tet.vtk" \
       --collapse-rounds 5 --untangle --untangle-rounds 6 \
       --out "$d/${name}_blocks.vtk" > "$d/clean_blocks.log" 2>&1 \

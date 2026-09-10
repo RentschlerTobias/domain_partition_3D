@@ -374,7 +374,8 @@ an import guide beside it.
 
 ## T4 — Container backend seam in `run_algohex.py`
 
-**Status:** `todo`
+**Status:** `done` 2026-09-11 — one call site, two backends, and two bugs from
+T0/T2 closed with it
 
 **Why.** Docker on the user's own 6-machine cluster, enroot on bwUniCluster,
 one call site for both.
@@ -391,9 +392,48 @@ one call site for both.
   used consistently.
 
 **Done when.** The T3 job runs under both backends from one command, selected
-by the flag, with identical output.
+by the flag, with identical output. **That is T3's gate and it is what
+verifies this task** — the code is in place, the equality is measured there.
 
-**Writes.** `experimentell/hex3d_algohex/run_algohex.py`.
+**Result, 2026-09-11.** `container_cmd(backend, …)` builds the whole command
+line for either runtime; everything above it is shared. `--backend docker`
+gives
+
+```
+docker run --rm --network=host [--cpus N] -v <repo>:/work algohex:portable HexMeshing …
+```
+
+and `--backend enroot` gives `enroot start --root --rw --mount <repo>:/work
+<image>.sqsh HexMeshing …`, both verified to build correctly, the enroot form
+from the invocation T1 measured.
+
+Four things changed beyond the seam itself:
+
+* **The `BUILD_VOLUME` mount is gone**, and with it the reason this script
+  could not leave the VPS. The binary is `HexMeshing` on `PATH` now, not
+  `/app/build/Build/bin/HexMeshing`, and the default image is
+  `algohex:portable`, not `algohex-configured`.
+* **`--out-dir`**, so `gen_hex_<name>.ovm` lands in the sample directory.
+  `generate_dataset.sh` passes it and reads the `.ovm` from there.
+* **`--cpus` with `--backend enroot` is refused, not ignored.** enroot is not
+  a resource manager; on the cluster that is `--cpus-per-task`, on a bare box
+  `/root/bin/capped`. A silently unlimited AlgoHex is how this box got
+  throttled, so the failure is loud.
+* **The checkpoint files are opt-in** (`--checkpoints`, default off). They were
+  written unconditionally to make `-n` sweeps cheap by replaying them, which
+  T0 established does not work and was already measured not to work — AlgoHex
+  writes the tet mesh as binary OVM its own reader rejects. At ~56 MB per run
+  that is 560 GB across 10 000 samples for nothing. Still available for the
+  singular-graph figure.
+
+`enroot start` runs straight from the `.sqsh`, so there is no `enroot create`
+and no rootfs unpack — which is what makes it affordable on Lustre, where
+`enroot create` from an 8 GB image costs 14-27 min per job. It also means the
+naming trap from `enroot_dtoo_import.md` does not apply: no container name is
+derived when the image path is given.
+
+**Writes.** `experimentell/hex3d_algohex/run_algohex.py`,
+`experimentell/hex3d_algohex/scripts/generate_dataset.sh`.
 
 ---
 

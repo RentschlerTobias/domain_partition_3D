@@ -1,0 +1,37 @@
+# Working-tree modification to external/algohex-src/Dockerfile.
+#
+# external/ is gitignored, so this diff exists nowhere else. Base is
+# cgg-bern/AlgoHex.git at 3519289 ("Merge pull request #31 from tobiluc/HexHex").
+#
+# Apply:  git -C external/algohex-src apply ../../external_patches/algohex-Dockerfile.patch
+#
+# Two independent changes, and only the first is worth keeping:
+#   1. Release instead of RelWithDebInfo -- keep it.
+#   2. ninja and the symlink commented out -- a workaround for this
+#      2-vCPU box, where a non-resumable single-layer build takes hours.
+#      The compile was run by hand into the Docker volume
+#      algohex-build-cache instead, and external_patches/Dockerfile.portable
+#      records how that volume was baked into algohex:portable.
+#      On a fast machine, revert this half and build with -j$(nproc).
+#
+diff --git i/Dockerfile w/Dockerfile
+index bb09e9e..c5932b7 100644
+--- i/Dockerfile
++++ w/Dockerfile
+@@ -58,13 +58,12 @@ ENV CLP_DIR=/opt/coin-or
+ 
+ RUN mkdir /app/build && cd /app/build && \
+     cmake -G Ninja \
+-    -D CMAKE_BUILD_TYPE=RelWithDebInfo \
++    -D CMAKE_BUILD_TYPE=Release \
+     -D BONMIN_ROOT_DIR=/opt/coin-or \
+     ..
+ #-D CMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+ 
+-RUN cd /app/build && ninja
+-
+-RUN ln -s /app/build/Build/bin/* /usr/local/bin
++#RUN cd /app/build && ninja -j1
++#RUN ln -s /app/build/Build/bin/* /usr/local/bin
+ #RUN apt-get clean && rm -rf /var/lib/apt/lists/
+ 

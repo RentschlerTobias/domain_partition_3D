@@ -176,6 +176,22 @@ required — the default bridge network has no DNS here.
 
 ---
 
+## Restoring the inputs a fresh clone needs
+
+`output/` and `data/T1_9/T1_9_tet*.vtk` are gitignored, so a fresh clone cannot
+run the tests: both hardcode
+`output/hex3d_algohex/deliverable/T1_9_blocks_v11.vtk`. The block structures
+that cost real compute are committed compressed instead —
+
+```bash
+tar -I zstd -xf experimentell/hex3d_algohex/fixtures/blocks_core.tar.zst
+```
+
+from the repo root. What is in it and what deliberately is not:
+[`fixtures/README.md`](fixtures/README.md).
+
+---
+
 ## A naming note that matters
 
 The surfaces `bl_interface_hub`, `bl_interface_shroud` and `ogrid_interface`

@@ -19,6 +19,14 @@ puts every file back where the code looks for it:
 tar -I zstd -xf experimentell/hex3d_algohex/fixtures/blocks_core.tar.zst
 ```
 
+Then the tests run — with the project interpreter, not the host `python`, which
+has no `meshio`:
+
+```bash
+PY=/root/repos/duty/quadmesh/.venv/bin/python
+$PY -m pytest experimentell/hex3d_algohex/tests/ -q
+```
+
 ## Rebuild
 
 ```bash

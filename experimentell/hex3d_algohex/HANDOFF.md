@@ -288,8 +288,14 @@ point-to-triangle measure.
    of a shared face, so clustering a direction class would tear the seam.
    Today the grading comes from `reattach.py`, which is where the first cell
    height is set, and the core's outer faces are interfaces, not walls.
-5. **Dataset generation** — explicitly last, by the user's instruction. See
-   `ANALYSIS_PLAN.md` and the TODO at the end of `PROGRESS.md`.
+5. **Dataset generation** — no longer last, and now planned in detail.
+   `DATASET_PIPELINE.md` is the executable task list (T0-T12) with a "Resume
+   here" block, written so a session with no context can pick it up;
+   `docs/decisions/2026-09-11-hex3d-dataset-pipeline.md` holds the ten
+   decisions behind it and `SESSION_2026-09-11.md` the session record. Start
+   at **T0**, which is one `git push`: four commits on `data_generation` exist
+   only on this disk, and they are the only thing in the project that is not
+   reproducible.
 
 **Compute note.** This box is a 2-vCPU VPS with a fair-use CPU limit on
 SUSTAINED load. Twelve hours of two parallel `clean_blocks` runs got it
@@ -361,6 +367,8 @@ appear in the waiting command.
 
 | file | content |
 |---|---|
+| `DATASET_PIPELINE.md` | **the current work**: task list T0-T12 with resume state |
+| `SESSION_2026-09-11.md` | the dataset-pipeline grilling session |
 | `README.md` | overview, run/input mapping, "What was learned" 1-11 |
 | `RUNS.md` | every AlgoHex run v1-v11 with input, runtime, outcome |
 | `MESH_QUALITY.md` | the CFD criteria, measured on our own mesh |

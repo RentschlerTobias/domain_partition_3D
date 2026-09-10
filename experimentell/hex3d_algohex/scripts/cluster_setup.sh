@@ -172,44 +172,81 @@ S="$REPO/$E/scripts"
 # human-readable goes to stderr -- otherwise --test-only's output ends up
 # inside the next job's --dependency argument, which is what the first dry run
 # of this script did.
-sub() {  # sub <script> <extra sbatch args...> -> job id on stdout
+FAILED=""
+# In a dry run there is no id and that is not a failure; NONE distinguishes
+# the two so the summary line cannot lie either way.
+NONE=$([ "$DRY" = 1 ] && echo "(dry run)" || echo "FAILED")
+sub() {  # sub <script> <extra sbatch args...> -> job id on stdout, "" on failure
     local script="$1"; shift
     if [ "$DRY" = 1 ]; then
         { sbatch --test-only "$@" "$script" 2>&1 | sed 's/^/        /'; } >&2
         return 0
     fi
-    sbatch --parsable "$@" "$script"
+    local out err
+    err=$(mktemp)
+    out=$(sbatch --parsable "$@" "$script" 2>"$err")
+    if [ -z "$out" ]; then
+        # A failed submit used to come back as an empty id and get printed as
+        # "(dry run)", after which the script still said "submitted, you can
+        # log out". It cost a silently missing job. Now it is loud.
+        { echo "        SUBMIT FAILED: $(basename "$script")"
+          sed 's/^/          /' "$err"
+          echo "          retry: sbatch $* $script"; } >&2
+        FAILED="$FAILED $(basename "$script")"
+    fi
+    rm -f "$err"
+    printf '%s' "$out"
 }
 
-# Three resumable stages instead of one 4-hour job, so the whole build fits
-# dev_cpu_il's 30-minute slots. Chained afterok; each stage exits in seconds if
-# its artifact already exists, so a re-run of this script is cheap.
+# dev_cpu_il enforces QOSMaxSubmitJobPerUserLimit, measured at 4 queued jobs
+# per user on 2026-09-11. Five submissions therefore lose the last one, so the
+# chain is four: three build stages plus one combined test. smoke_algohex's
+# `HexMeshing --help` check now runs at the START of smoke_pipeline instead of
+# as its own job; the standalone script stays for debugging.
+#
+# Skip on the ARTIFACT, not on `enroot list`: the build container is called
+# algohex-build, so a finished build leaves no container named algohex, and
+# checking the container would resubmit all three stages forever.
 J1=""
-if enroot list 2>/dev/null | grep -qxF algohex; then
-    info "image already built; skipping the build jobs"
+if [ -f "$WS/enroot-images/algohex.sqsh" ]; then
+    info "image exists: $WS/enroot-images/algohex.sqsh -- skipping the build"
 else
     for st in ipopt bonmin algohex; do
         JN=$(STAGE="$st" sub "$S/build_algohex.slurm" \
                 --partition="$BUILD_PARTITION" --export=ALL,STAGE="$st" \
                 --job-name="algohex_$st" ${J1:+--dependency=afterok:$J1})
-        info "build:$(printf '%-8s' "$st") job ${JN:-(dry run)}   (30 min slot, resumable)"
-        J1="$JN"
+        info "build:$(printf '%-8s' "$st") job ${JN:-$NONE}   (30 min slot, resumable)"
+        [ -n "$JN" ] && J1="$JN"
     done
 fi
 
-# A dependency on an empty id would be malformed, and in a dry run there are no
-# ids at all.
-J2=$(sub "$S/smoke_algohex.slurm" --partition="$DEV_PARTITION" \
-        ${J1:+--dependency=afterok:$J1})
-info "smoke      job ${J2:-(dry run)}   (5 min: image readable on a compute node)"
+if [ "${SUBMIT_SMOKE:-0}" = 1 ]; then
+    J2=$(sub "$S/smoke_algohex.slurm" --partition="$DEV_PARTITION" \
+            ${J1:+--dependency=afterok:$J1})
+    info "smoke      job ${J2:-$NONE}   (5 min, optional: SUBMIT_SMOKE=1)"
+    [ -n "${J2:-}" ] && J1="$J2"
+fi
 
 J3=$(sub "$S/smoke_pipeline.slurm" --partition="$PIPE_PARTITION" \
-        ${J2:+--dependency=afterok:$J2})
-info "pipeline   job ${J3:-(dry run)}   (30 min: one sample, round-trip gate)"
+        ${J1:+--dependency=afterok:$J1})
+info "pipeline   job ${J3:-$NONE}   (30 min: one sample, round-trip gate)"
 
 if [ "$DRY" = 1 ]; then
     say "dry run done. Nothing was submitted, nothing was downloaded."
     exit 0
+fi
+
+if [ -n "$FAILED" ]; then
+    say "INCOMPLETE:$FAILED did not submit"
+    cat <<EOF
+        Most likely QOSMaxSubmitJobPerUserLimit -- dev_cpu_il allows 4 queued
+        jobs per user. Check with:  squeue --me
+
+        Re-run this script once the queue has drained. It skips whatever is
+        already done, so it will submit only what is missing:
+          bash $0
+EOF
+    exit 1
 fi
 
 cat <<EOF

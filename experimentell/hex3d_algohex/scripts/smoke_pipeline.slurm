@@ -73,6 +73,19 @@ if ! enroot list 2>/dev/null | grep -qxF "$IMG"; then
     enroot create --name "$IMG" "$WS/enroot-images/algohex.sqsh" || exit 1
 fi
 
+# What smoke_algohex.slurm does as its own job, folded in here as five seconds
+# of checks. dev_cpu_il allows only 4 queued jobs per user
+# (QOSMaxSubmitJobPerUserLimit), and three of those are build stages, so a
+# separate smoke job costs the slot this job needs.
+echo "[smoke-pipe] --- 0/4 image usable on this compute node ---"
+enroot start --root --rw --mount "$PWD:/work" "$IMG" \
+    sh -c 'HexMeshing --help >/dev/null \
+        && n=$(ldd "$(command -v HexMeshing)" 2>/dev/null | grep -c "not found") \
+        && echo "HexMeshing runs, $n missing libraries" && [ "$n" = 0 ]' \
+  || { echo "[smoke-pipe] FAIL: the image does not work here."
+       echo "[smoke-pipe] Run smoke_algohex.slurm alone for the detailed checks."
+       exit 1; }
+
 t0=$(date +%s)
 echo "[smoke-pipe] --- 1/4 AlgoHex, enroot backend ---"
 python $E/run_algohex.py --backend enroot --image "$IMG" \

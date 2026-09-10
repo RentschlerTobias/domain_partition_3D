@@ -14,8 +14,8 @@ point for the branch as a whole.
 
 ## Resume here
 
-**Current task:** T3 — and it is unblocked, which was not expected
-**Last verified:** 2026-09-11. T0, T1 and T2 all `done`.
+**Current task:** T9 — then T3/T4 for the cluster route
+**Last verified:** 2026-09-11. T0, T1, T2, T5 and T6 `done`.
 
 * T0 — `fixtures/blocks_core.tar.zst` (5.5 MiB) holds what cannot be
   recomputed cheaply; 3.1 GB of provably dead `.hexex` / `final_tet` / log spew
@@ -26,12 +26,18 @@ point for the branch as a whole.
   passes T2's own gate; the coinbrew rebuild on 64 cores was never needed. Its
   recipe is now `external_patches/Dockerfile.portable`. Read T2's status note
   before touching this area.
+* T5 — `block_edges.py`. v11: **0.226 % median** residual over 107 edges, 3x
+  better than the 2D reference, and 16x better than a straight chord.
+* T6 — **`-n` is settled: 2000 and 8000 as the dataset pair.** The fit does
+  not collapse at four points; it costs 1.4x. Read T6's warning that the
+  residual column runs backwards before quoting any number from it.
 
-**T3 is the next task and everything it needs is now verified**: a
-self-contained image, and enroot proven on this box. Its cost on this VPS:
-~2.7 GB `docker save` plus a squashfs, so keep an eye on free space (10.3 GiB),
-and one AlgoHex run at ~6 GB peak for 12 min on a 7.7 GiB box — check
-`vmstat 1 3` column 17 for steal first.
+**T9 is next**, and T5 supplies the two fields that were blocking it,
+`edge_ctrl` and `edge_polyline`. It is local, cheap, and its round-trip gate is
+what makes the artifact real for the meshtron side. After that, T3/T4 for the
+cluster route: ~2.7 GB `docker save` plus a squashfs against 10.3 GiB free, and
+one AlgoHex run at ~6 GB peak for 12 min on a 7.7 GiB box — check `vmstat 1 3`
+column 17 for steal first.
 
 ---
 
@@ -387,7 +393,8 @@ by the flag, with identical output.
 
 ## T5 — Block-edge extraction and cubic fit
 
-**Status:** `todo`
+**Status:** `done` 2026-09-11 — v11: **0.226 % median** residual, 3x better
+than the 2D reference, and the cubic beats a straight chord by 16x
 
 **Why.** A block edge in `<name>_blocks.vtk` is already a polyline of fine-mesh
 vertices — roughly 25 points at n=60000 — and it tracks the geometry to 0.006.
@@ -415,13 +422,67 @@ mesh in the first place.
 330 164 edges (`meshtron/docs/ho_quad_transformer/06_edge_geometry_study.md`).
 Write the numbers into this task.
 
+**Result, 2026-09-11.** v11, 16 blocks, 107 distinct block edges (192 lattice
+axis lines before dedup):
+
+| | median | p95 | max |
+|---|---|---|---|
+| **residual / chord** | **0.226 %** | 2.33 % | 3.24 % |
+| a straight chord instead | 3.74 % | 17.10 % | — |
+| planarity / chord | 0.14 % | 2.24 % | 4.00 % |
+
+Three things follow, and the third is a correction to this task's own premise:
+
+1. **The cubic is worth it, by 16x at the median** (0.226 % against 3.74 %).
+   That is the same order as the 5-8x already measured for the generative case
+   and it settles the representation: two control points per edge, not a chord.
+2. **3D is easier than 2D here, not harder** — 0.226 % against the 2D
+   reference's 0.74 %. The edges are also nearly planar (0.14 % median), so a
+   single cubic, which is planar iff its control points are coplanar, is not
+   fighting the data.
+3. **Inflections: 4, on 4 of 107 edges, one each.** A cubic Bezier has exactly
+   one inflection of capacity, so one segment per edge suffices. But the 2D
+   study's *method* does not transfer, and that took three attempts to
+   establish — see `curvature_sign_changes` in the module, which is kept
+   precisely so nobody re-derives it. Curvature differentiates twice, which
+   amplifies the fine mesh's own 1 %-of-chord vertex jitter by ~1/h²; measured
+   against ground truth, the noise (max 5.995 on the 85 edges that provably do
+   not S-curve) EXCEEDS the signal (max 2.740 on the 4 that do), so no
+   threshold separates them. The reported test integrates instead: how often
+   the polyline crosses its own chord by more than 1 % of it.
+
+**One thing the fit had to add, and it is not a 3D problem.** Two free control
+vectors need two interior points. The 2D code, lifted verbatim, returns both
+control points at the ORIGIN when given only the two endpoints — `A` is the
+zero matrix — and the residual cannot see it, because the only points being
+measured are the endpoints, which lie on any such curve. A perfect score for a
+curve through the origin. It never bit in 2D because streamlines carry many
+samples; a block edge at n=2000 carries about four points, so it is the normal
+case here. `fit_cubic_bezier` therefore picks its model by available data and
+reports which: `cubic` (>= 2 interior points), `quadratic` (exactly 1,
+degree-elevated, exactly determined), `chord` (none, honestly labelled). On
+v11: 89 / 10 / 8.
+
+**Cross-checked against the existing implementation.** `clean_blocks.
+block_edge_curves` already derives the same skeleton from the face partition
+and writes it as `<name>_edges.vtk`. It finds 108 curves against the lattice
+route's 107, and **101 match exactly** on point count and chord length. All 7
+differences trace to a single **collapsed block edge** — mesh vertices 17 and
+384, 7.6e-5 apart against a median chord of 0.7195, a factor of 10⁴. The
+lattice route keeps it as an edge because the lattice says the corners are
+distinct; the topological route absorbs it into its neighbour, because in the
+edge graph alone that vertex is a pass-through. The lattice answer is the one
+T9 wants, and the degeneracy itself belongs in the exported `quality` fields,
+not silently in a fitted cubic.
+
 **Writes.** `experimentell/hex3d_algohex/block_edges.py`.
 
 ---
 
 ## T6 — The measurement that fixes `-n`
 
-**Status:** `todo`
+**Status:** `done` 2026-09-11 — the fit does NOT collapse at low n. **Decision:
+n = 2000 and 8000 as the dataset pair; n=60000 only as a reference sample.**
 
 **Why.** `-n` is not an efficiency knob; it changes the target data. Measured
 on T1_9:
@@ -445,8 +506,49 @@ becomes the floor and a sample costs 55 minutes.
 `output/hex3d_algohex/deliverable/T1_9_blocks_n2000.vtk`, `_n8000.vtk`, and the
 v11 structure at n=60000.
 
-**Done when.** Residual and inflection numbers exist for all three, and the
-`-n` set for the dataset is recorded here as a decision with its numbers.
+**Result, 2026-09-11.**
+
+| | edges | pts/edge | cubic / quad / straight | residual median | p95 | max | inflect |
+|---|---|---|---|---|---|---|---|
+| n=2000 | 107 | 6 | 89 / 0 / **18** | 0.048 % | 1.48 % | 3.02 % | 2 |
+| n=8000 | 128 | 9 | 98 / 0 / **30** | 0.117 % | 1.62 % | 7.45 % | 1 |
+| n=60000 (v11) | 107 | 17 | 89 / 10 / 8 | 0.226 % | 2.33 % | 3.24 % | 4 |
+
+**Read that table with care — the residual column is upside down.** It gets
+BETTER as n gets smaller, which cannot be true of the geometry: fewer polyline
+points mean fewer degrees of freedom left to disagree with, and a 2-point edge
+falls back to a straight chord whose residual against its own 2 points is
+exactly zero. Both effects flatter low n. That is why 18 and 30 straight
+fallbacks matter more than the residual: at n=2000 **17 %** of edges, at n=8000
+**23 %**, carry no curvature information at all, against 7 % at n=60000.
+
+**The control that answers the question the task actually asks.** Fit v11's
+edges from a SUBSAMPLE of their own polylines, then measure against all of the
+points — same geometry, fewer samples, so the degrees-of-freedom artifact
+cannot hide in it:
+
+| fitted from | 4 pts | 6 pts | 9 pts | 13 pts | all 17 |
+|---|---|---|---|---|---|
+| residual median | 0.325 % | 0.261 % | 0.250 % | 0.270 % | 0.226 % |
+| p95 | 3.45 % | 2.57 % | 2.31 % | 2.29 % | 2.33 % |
+
+**Four points cost 1.4x in median residual and nothing beyond that.** 0.325 %
+is still less than half the 2D reference of 0.74 %. The fit does not collapse,
+so the risk this task was created to test does not materialise and n=60000 is
+not the floor.
+
+**Decision: the dataset runs n=2000 and n=8000, both emitted as their own
+sample.** 27 minutes for two structures against 55 for one, and they are
+genuinely different decompositions — 16 blocks / 107 edges against 19 / 128 —
+so they are augmentation, not duplication (decision H2). n=60000 stays as a
+reference and showcase structure, where the 2x cost buys the cleanest edges.
+
+Two caveats to carry into T11. The short-edge problem is real even if the
+residual hides it: a low-n structure has more block edges that are only one
+cell long, and those are straight by necessity, not by measurement. And
+`edge_polyline` is stored per decision D2 precisely so this decision can be
+revisited without re-running AlgoHex — if the transformer turns out to need
+richer edges, re-fitting is free and re-meshing is not.
 
 ---
 

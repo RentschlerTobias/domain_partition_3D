@@ -70,9 +70,13 @@ dp3d/                   pipeline package
   xiao.py               Xiao 2020 baseline
   plotting.py           analysis + showcase plots
 data/T1_9/              T1_9 test case (source MSH/STL, raw surfaces)
+docs/
+  LITERATURE.md         every source we lean on, by role, with status
+  decisions/            decision logs: what was chosen, and what was rejected
 experimentell/
   gmsh_pipeline/        alternative Gmsh Algorithm-11 quad pipeline
   3d_extrapolation/     hub master export, hub->shroud transfer, hexa blocks
+  hex3d_algohex/        3D route: AlgoHex -> block complex -> dataset
 ```
 
 ## Known issues / TODO

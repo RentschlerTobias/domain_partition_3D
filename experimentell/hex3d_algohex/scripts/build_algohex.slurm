@@ -10,17 +10,17 @@
 #
 # ---------------------------------------------------------------------------
 # UNVERIFIED, CHECK BEFORE THE FIRST SUBMIT:
-#   --partition   NOT a dev partition. The dev queue caps at 30 min and this
-#                 build has never run to completion anywhere, so the estimate
-#                 below is inherited, not measured. Use a normal cpu queue.
-#                 sinfo is denied on this cluster; try:
-#                   scontrol show partition | grep -E "PartitionName|MaxTime"
+#   --partition   cpu_il: 64 cores, 256 GiB, documented and recommended in
+#                 eigenfrequencies/docs/cluster-resource-sizing.md. NOT a dev
+#                 partition -- dev_cpu_il caps at 30 min and this build has
+#                 never run to completion anywhere.
 #   --time        4 h is deliberate slack. On 64 cores the coinbrew chain plus
 #                 ninja is plausibly 20-40 min, but MUMPS/Ipopt/Bonmin from
 #                 source is the fragile part of this whole pipeline. A job that
 #                 dies at the walltime wastes the whole build.
 #   --cpus        ninja -j$(nproc) and coinbrew --parallel-jobs both scale.
 # ---------------------------------------------------------------------------
+#SBATCH --partition=cpu_il
 #SBATCH --job-name=algohex_build
 #SBATCH --output=algohex_build_%j.out
 #SBATCH --time=04:00:00

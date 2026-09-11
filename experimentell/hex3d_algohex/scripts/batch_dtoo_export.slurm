@@ -36,10 +36,24 @@ set -u
 
 WS="${WS:-$(ws_find hex3d 2>/dev/null)}"
 REPO="${REPO:-$WS/domain_partition_3D}"
-# The eigenfrequencies checkout lives in HOME (cluster_env.sh of that repo:
-# kittel:/eigen/eigenfrequencies), NOT in a workspace; the workspace only
-# holds the image. Override with EIGENFREQUENCIES_ROOT if it moves.
-EF_ROOT="${EIGENFREQUENCIES_ROOT:-/home/st/${USER}/eigen/eigenfrequencies}"
+# The eigenfrequencies checkout: their own scripts disagree on the location
+# (cluster_env.sh defaults to $HOME/eigenfrequencies, the import docs show
+# $HOME/eigen/eigenfrequencies), so probe instead of guessing. Override with
+# EIGENFREQUENCIES_ROOT once the real path is known.
+EF_CANDS="${EIGENFREQUENCIES_ROOT:-}"
+EF_CANDS="${EF_CANDS:+$EF_CANDS }/home/st/st_us-042020/${USER}/eigen/eigenfrequencies"
+EF_CANDS="$EF_CANDS $HOME/eigen/eigenfrequencies $HOME/eigenfrequencies"
+EF_ROOT=""
+for c in $EF_CANDS; do
+    [ -d "$c/src" ] && { EF_ROOT="$c"; break; }
+done
+if [ -z "$EF_ROOT" ]; then
+    echo "[dtoo] no eigenfrequencies checkout found. Probed:"
+    for c in $EF_CANDS; do echo "[dtoo]   $c/src"; done
+    echo "[dtoo] locate it on a login node, e.g.:  ls -d /home/st/*/${USER}/eigen/eigenfrequencies \$HOME/eigen*"
+    echo "[dtoo] then resubmit with:              EIGENFREQUENCIES_ROOT=<that path> sbatch $0"
+    exit 1
+ fi
 # The dtOO image lives in the EIGENFREQUENCIES workspace (ws eigenfreq), where
 # the existing smoke-test chain already imported and uses it -- one image, one
 # location, started by both pipelines. Do NOT copy it into this workspace.

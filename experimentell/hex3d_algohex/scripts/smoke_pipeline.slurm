@@ -86,10 +86,15 @@ fi
 # (QOSMaxSubmitJobPerUserLimit), and three of those are build stages, so a
 # separate smoke job costs the slot this job needs.
 echo "[smoke-pipe] --- 0/4 image usable on this compute node ---"
-enroot start --root --rw --mount "$PWD:/work" "$IMG" \
-    sh -c 'HexMeshing --help >/dev/null \
-        && n=$(ldd /app/build/Build/bin/HexMeshing 2>/dev/null | grep -c "not found") \
-        && echo "HexMeshing runs, $n missing libraries" && [ "$n" = 0 ]' \
+# `| wc -l`, not `grep -c`: grep exits 1 when it finds NOTHING, and nothing
+# found is the success case here. In an && chain that aborts the check on a
+# healthy image, which is exactly what job 6858990 did. wc always exits 0.
+enroot start --root --rw --mount "$PWD:/work" "$IMG" sh -c '
+    HexMeshing --help >/dev/null || { echo "HexMeshing --help failed"; exit 1; }
+    miss=$(ldd /app/build/Build/bin/HexMeshing 2>/dev/null | grep "not found" | wc -l)
+    echo "HexMeshing runs, $miss missing libraries"
+    ls /work/data/T1_9 >/dev/null || { echo "the repo mount is not visible"; exit 1; }
+    [ "$miss" -eq 0 ]' \
   || { echo "[smoke-pipe] FAIL: the image does not work here."
        echo "[smoke-pipe] Run smoke_algohex.slurm alone for the detailed checks."
        exit 1; }

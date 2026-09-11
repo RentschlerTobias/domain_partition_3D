@@ -36,7 +36,11 @@ set -u
 WS="${WS:-$(ws_find hex3d 2>/dev/null)}"
 REPO="${REPO:-$WS/domain_partition_3D}"
 EF_ROOT="${EIGENFREQUENCIES_ROOT:-$WS/eigenfrequencies}"
-SQSH="${SQSH:-$WS/enroot-images/dtOO.sqsh}"
+# The dtOO image lives in the EIGENFREQUENCIES workspace (ws eigenfreq), where
+# the existing smoke-test chain already imported and uses it -- one image, one
+# location, started by both pipelines. Do NOT copy it into this workspace.
+EIG_WS="${EIG_WS:-$(ws_find eigenfreq 2>/dev/null)}"
+SQSH="${SQSH:-$EIG_WS/enroot-images/dtOO.sqsh}"
 COUNT="${COUNT:-64}"
 DATASET="data/dataset/sobol"
 
@@ -46,7 +50,7 @@ export ENROOT_RUNTIME_PATH="${ENROOT_RUNTIME_PATH:-/tmp/${USER:-$(id -un)}-enroo
 mkdir -p "$ENROOT_TEMP_PATH" "$ENROOT_RUNTIME_PATH"
 
 [ -d "$REPO/$DATASET" ] || { echo "[dtoo] no dataset root: $REPO/$DATASET -- run the --preview draw first"; exit 1; }
-[ -f "$SQSH" ] || { echo "[dtoo] no dtOO image: $SQSH -- import it per enroot_dtoo_import.md from eigenfrequencies"; exit 1; }
+[ -f "$SQSH" ] || { echo "[dtoo] no dtOO image: $SQSH (ws eigenfreq must hold this workspace's imported image per enroot_dtoo_import.md)"; exit 1; }
 [ -d "$EF_ROOT/src" ] || { echo "[dtoo] no eigenfrequencies checkout: $EF_ROOT"; exit 1; }
 
 cpus=$(nproc)

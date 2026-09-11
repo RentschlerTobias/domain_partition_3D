@@ -88,7 +88,7 @@ fi
 echo "[smoke-pipe] --- 0/4 image usable on this compute node ---"
 enroot start --root --rw --mount "$PWD:/work" "$IMG" \
     sh -c 'HexMeshing --help >/dev/null \
-        && n=$(ldd "$(command -v HexMeshing)" 2>/dev/null | grep -c "not found") \
+        && n=$(ldd /app/build/Build/bin/HexMeshing 2>/dev/null | grep -c "not found") \
         && echo "HexMeshing runs, $n missing libraries" && [ "$n" = 0 ]' \
   || { echo "[smoke-pipe] FAIL: the image does not work here."
        echo "[smoke-pipe] Run smoke_algohex.slurm alone for the detailed checks."

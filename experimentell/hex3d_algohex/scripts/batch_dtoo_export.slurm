@@ -150,36 +150,33 @@ fi
 # filesystem TYPE, not an option: enroot skips the bind mount silently and
 # the container starts without /repo -- exactly what job 6869712 showed.
 # Two fields = default rbind,x-create=auto, destination auto-created.
+
+# Preflight: the bare start form the bisect probes proved (bisect5 S2, 3 s).
+# If this stalls, the job aborts after 90 s instead of burning the slot.
+if ! timeout 90 srun -n1 -N1 enroot start --root --rc "$RC_SCRIPT" "$CONTAINER" bash -c 'exec echo "[dtoo] preflight ok"' < /dev/null; then
+    echo "[dtoo] preflight failed or stalled -- aborting before the export"
+    exit 1
+fi
+
+# Rootfs lock probe: a stuck flock would stall every start silently.
+LOCK="$ENROOT_DATA_PATH/$CONTAINER/.lock"
+if [ -e "$LOCK" ]; then
+    timeout 5 flock -n "$LOCK" -c 'echo "[dtoo] rootfs lock free"'
+    echo "[dtoo] lock probe rc=$? (0 free, 1 busy, 124 stuck)"
+fi
+
+# One-line payload: every container call that worked in this repo and in the
+# sibling repo is a single-line bash -c string; the indented multiline form
+# coincides with every silent batch stall (6870688/6871479/6871714/6871828),
+# while all one-line probe payloads ran in seconds. The dtOO image re-reads
+# its argv (OpenFOAM eval trap), so the string must stay on one line.
 t0=$(date +%s)
 echo "[dtoo] container step starting at $(date -Is)"
-# --rc: OpenFOAM's eval-of-argv double-execution trap, see the header.
-# No srun: run the container directly in the job. The bisect probes wrapped the
-# same invocation in srun steps and worked, but every full batch payload stayed
-# silent with no file evidence while its step existed (6870688/6871479/6871714);
-# an srun step buffers stdout behind the stepd relay and loses it when the step
-# is killed, and a step launch can stall without a message. The sibling repo's
-# production jobs call enroot directly from the job script as well.
-# timeout: a stalled call must end inside the slot so the harvest below prints.
-# Stage markers: appended to a file under /repo, so progress is visible even if
-# a buffer anywhere in the chain swallows stdout.
-timeout 1500 enroot start --root \
+timeout 1500 srun -n1 -N1 enroot start --root \
     --rc "$RC_SCRIPT" \
     --mount "$REPO:/repo" \
     --mount "$EF_ROOT:/ef" \
-    "$CONTAINER" bash -c '
-    source /usr/lib/openfoam/openfoam2606/etc/bashrc
-    source /dtOO-install/bin/env.sh
-    export EIGENFREQUENCIES_ROOT=/ef
-    export PYTHONUNBUFFERED=1
-    ST="/repo/experimentell/hex3d_algohex/logs/stage_${SLURM_JOB_ID:-manual}.txt"
-    echo "stage=sourced $(date -Is)" >> "$ST"
-    cd /repo
-    echo "stage=cd-repo-ok $(date -Is)" >> "$ST"
-    echo "stage=exec-export-all $(date -Is)" >> "$ST"
-    echo "[dtoo] container env ready, exporting"
-    # exec disarms the eval-of-argv double-execution (6869712/6870239).
-    exec bash /repo/experimentell/hex3d_algohex/scripts/export_all_machines.sh '"$DATASET"'
-' < /dev/null
+    "$CONTAINER" bash -c 'source /usr/lib/openfoam/openfoam2606/etc/bashrc; source /dtOO-install/bin/env.sh; export EIGENFREQUENCIES_ROOT=/ef PYTHONUNBUFFERED=1; ST="/repo/experimentell/hex3d_algohex/logs/stage_${SLURM_JOB_ID:-manual}.txt"; echo "stage=sourced $(date -Is)" >> "$ST"; echo "[dtoo] container env ready, exporting"; echo "stage=exec-export-all $(date -Is)" >> "$ST"; exec bash /repo/experimentell/hex3d_algohex/scripts/export_all_machines.sh '"$DATASET"'' < /dev/null
 SRC=$?
 DT=$(( $(date +%s) - t0 ))
 echo "[dtoo] container step rc=$SRC after ${DT}s"

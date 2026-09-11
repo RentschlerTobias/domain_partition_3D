@@ -85,6 +85,26 @@ The sibling project measured the other direction on a bigger image: unpacking
 pure IO wait (job 6822816). Ours is 2.1 GB, so scale that down — but pay it
 once.
 
+**And passing the `.sqsh` path is strictly worse than "slower": it is a
+different, broken mount.** `--root <sqsh>` serves the squashfs through
+squashfuse, a user-space FUSE process that decompresses on every read. Their
+measurement, from `submit_hydroflow_opt.sh`: dtOO's `CreateStates` takes **8
+seconds** against an unpacked image and **had not finished after 20 minutes**
+under squashfuse, with squashfuse sitting at 37 % CPU the whole time. Copying
+the `.sqsh` to node-local disk removed the Lustre latency but not the FUSE
+layer. This is what our own job **6865391** was: 30 minutes, 24:24 CPU, zero
+output, TIMEOUT. It was not hung, it was crawling — and from the outside the
+two are indistinguishable.
+
+So for the dtOO image here the rule is absolute: `enroot create` once into one
+shared store (`$(ws_find eigenfreq)/enroot-data`, beside the image both
+pipelines start), then `enroot start` the **container name** `dtOO`. The
+race-safe install (private `$name.$SLURM_JOB_ID`, then `mv -T` into place;
+loser deletes and uses the winner's) is in `batch_dtoo_export.slurm` and copied
+from their `submit_hydroflow_opt.sh`, including the mismatch check: a rootfs
+that exists but whose name `enroot list` does not show is a broken install,
+not a slow one. The name must match the image basename — `dtOO.sqsh` → `dtOO`.
+
 `enroot create` derives the container name from the `.sqsh` basename, so
 `algohex.sqsh` → `algohex`. That naming trap only applies to this form.
 
@@ -234,6 +254,41 @@ Not cluster problems, but they cost jobs:
   `--branch`, and check the branch rather than printing it — `git checkout
   origin/<branch>` leaves a detached HEAD where `rev-parse --abbrev-ref HEAD`
   says `HEAD` and a later `git pull` fails.
+
+## 12. OpenFOAM's `eval` runs your command twice — pass `--rc`
+
+The dtOO image ships a command script that sources OpenFOAM's
+`etc/bashrc`, and OpenFOAM's `etc/config.sh/functions` runs `eval` on the
+argv enroot handed over. Two measured consequences (sibling repo, 2026-09-04,
+their commit `fae9a3d`):
+
+* **Quoting is destroyed.** `bash -c 'source env.sh; checkMesh ...'` is re-read
+  as two outer statements: `checkMesh` ran before its environment existed and
+  failed with `libfiniteVolume.so: cannot open shared object file`, while the
+  second, correct execution succeeded — and the **first** one decides the exit
+  code.
+* **Everything runs twice.** Sourcing OpenFOAM's bashrc from a shell that had
+  already `cd`-ed somewhere turned the repeat into an endless loop that
+  produced no output at all.
+
+The fix is one flag: `--rc <path>/cluster/enroot_rc.sh`, whose whole body is
+`exec "$@"`. The path must resolve **inside** the container, so it lives in
+the mounted eigenfrequencies checkout (we mount it at `/ef` and pass
+`--rc /ef/cluster/enroot_rc.sh`). The container environment is unaffected:
+`LD_LIBRARY_PATH` is byte-identical with and without the script, OpenFOAM's
+own libraries included.
+
+## 13. Logs are committed to git, not left in scratch
+
+The sibling repo keeps `cluster/logs/<jobid>/` with the SLURM `.out` and one
+log per stage, commits new ones with `git add cluster/logs && git commit`, and
+symlinks `latest`. This repo now does the same through
+`experimentell/hex3d_algohex/logs/`: `batch_dtoo_export.slurm` tees its whole
+output — guards included — to `batch_dtoo_export_<jobid>.log` and prints the
+git command at the end. Rationale, in their words: a failed run must leave its
+evidence somewhere greppable, not only in a `.out` file that the next
+submission pushes out of `ls`. The checksum of that habit is that every guard
+failure above was diagnosed from a log that survived the job.
 
 ## Measured costs, for planning
 

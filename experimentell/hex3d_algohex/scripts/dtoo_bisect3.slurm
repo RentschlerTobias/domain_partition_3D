@@ -27,8 +27,14 @@
 #           block here reproduces the 6869858 silence exactly
 #   P5   single-machine export through DtooAdapter.export_mesh, the same
 #        call generate_machines.py makes, but for one machine only
+#   P6   the exact batch payload: generate_machines.py --export in the form
+#        job 6869858 ran and never left a trace of
 #
 # Every step: "timeout T srun ... < /dev/null", rc + timestamp echoed.
+#
+# v2 fix: the mount array must carry the --mount flags themselves -- v1
+# sent bare specs to enroot ("--rc ... /pfs/...:/repo ..."), enroot read
+# them as stray arguments and died with "[ERROR] Invalid argument: ...".
 
 set -u
 
@@ -99,15 +105,15 @@ echo "[bisect3] --- P2 rc=$R2 --- $(date +%T)"
 
 # ------------------------------------------------------------ python chain
 if [ "$R1" -eq 0 ]; then
-    MS=("$REPO:/repo" "$EF:/ef"); R_IN=/repo; E_IN=/ef
+    MS=(--mount "$REPO:/repo" --mount "$EF:/ef"); R_IN=/repo; E_IN=/ef
 elif [ "$R1B" -eq 0 ]; then
-    MS=("$REPO:$REPO" "$EF:$EF"); R_IN="$REPO"; E_IN="$EF"
+    MS=(--mount "$REPO:$REPO" --mount "$EF:$EF"); R_IN="$REPO"; E_IN="$EF"
 else
-    MS=("$REPO:/repo" "$EF:/ef"); R_IN=/repo; E_IN=/ef
+    MS=(--mount "$REPO:/repo" --mount "$EF:/ef"); R_IN=/repo; E_IN=/ef
     echo "[bisect3] no mount form worked -- python steps will be skipped"
 fi
 
-R3=n/a; R4A=n/a; R4B=n/a; R4C=n/a; R4D=n/a; R5=n/a
+R3=n/a; R4A=n/a; R4B=n/a; R4C=n/a; R4D=n/a; R5=n/a; R6=n/a
 if [ "$R1" -eq 0 ] || [ "$R1B" -eq 0 ]; then
     run_step 90 "P3 sources" --rc "$RC" "${MS[@]}" "$CONTAINER" \
         bash -c 'source /usr/lib/openfoam/openfoam2606/etc/bashrc; source /dtOO-install/bin/env.sh; date +%T; exec echo P3-OK'
@@ -130,10 +136,14 @@ if [ "$R1" -eq 0 ] || [ "$R1B" -eq 0 ]; then
         "python3.13 -u -c 'import json, os, sys, time; sys.path.insert(0, \"$E_IN/src\"); from eigenfrequencies.adapters.dtoo.adapter import DtooAdapter; a = DtooAdapter(\"$E_IN/adapters/machines/tistos.yaml\"); v = json.load(open(\"$R_IN/data/dataset/sobol/machine_0001/params.json\")); out = \"$R_IN/data/dataset/sobol/machine_0001/mesh.msh\"; t = time.time(); a.export_mesh(v, output_msh=out + \".part\"); os.replace(out + \".part\", out); print(\"P5-EXPORT-OK\", round(time.time() - t, 1))'"
     R5=$?
     ls -l "$REPO/data/dataset/sobol/machine_0001/" | sed 's/^/[bisect3] /'
+
+    py_step 240 "P6 batch payload (generate_machines --export)" \
+        "cd $R_IN; python3.13 -u experimentell/hex3d_algohex/scripts/generate_machines.py --export --count 64"
+    R6=$?
 fi
 
 echo
-echo "[bisect3] summary: P1=$R1 P1b=$R1B P2=$R2 P3=$R3 P4a=$R4A P4b=$R4B P4c=$R4C P4d=$R4D P5=$R5"
+echo "[bisect3] summary: P1=$R1 P1b=$R1B P2=$R2 P3=$R3 P4a=$R4A P4b=$R4B P4c=$R4C P4d=$R4D P5=$R5 P6=$R6"
 echo "[bisect3] log $LOG"
 echo "[bisect3] commit it: git add experimentell/hex3d_algohex/logs && git commit -m 'cluster: dtoo bisect3 log'"
 wait

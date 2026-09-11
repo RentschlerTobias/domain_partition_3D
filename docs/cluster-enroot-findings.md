@@ -272,9 +272,12 @@ their commit `fae9a3d`):
   produced no output at all.
 
 The fix is one flag: `--rc <path>/cluster/enroot_rc.sh`, whose whole body is
-`exec "$@"`. The path must resolve **inside** the container, so it lives in
-the mounted eigenfrequencies checkout (we mount it at `/ef` and pass
-`--rc /ef/cluster/enroot_rc.sh`). The container environment is unaffected:
+`exec "$@"`. Its path is a **host** path: enroot bind-mounts the file into the
+container itself. Our first attempt passed the container-side mapping
+`--rc /ef/cluster/enroot_rc.sh` and job 6867987 died on
+`[ERROR] No such file or directory: /ef/cluster/enroot_rc.sh` — the scripts now
+derive the host path from `$EF_ROOT` and guard it. The container environment is
+unaffected:
 `LD_LIBRARY_PATH` is byte-identical with and without the script, OpenFOAM's
 own libraries included.
 
@@ -289,6 +292,31 @@ git command at the end. Rationale, in their words: a failed run must leave its
 evidence somewhere greppable, not only in a `.out` file that the next
 submission pushes out of `ls`. The checksum of that habit is that every guard
 failure above was diagnosed from a log that survived the job.
+
+## 14. `--mount src:dst:TYPE` — a trailing `:rw` silently drops the mount
+
+enroot's `--mount` takes **fstab fields, colon-separated**:
+`src:dst:TYPE:OPTIONS...`. We wrote `--mount "$REPO:/repo:rw"` believing
+`:rw` was an option. It is not: the third field is the filesystem *type*, so
+enroot tried to mount with `type=rw` — which is not a bind mount — and the
+mount did not happen. `enroot start` still exits 0, the payload still runs,
+and `/repo` is simply absent inside the container.
+
+Measured on job 6869712 (bisect2, 2026-09-11), step 7 export smoke:
+
+```
+/usr/lib/openfoam/openfoam2606/etc/config.sh/functions: line 73: cd: /repo: No such file or directory
+python3.13: can't open file '/root/experimentell/hex3d_algohex/scripts/generate_machines.py': [Errno 2] No such file or directory
+bash: line 1: cd: /repo: No such file or directory
+```
+
+Two fields are enough: `--mount "$REPO:/repo"` gets enroot's fstab default
+`rbind,x-create=auto` — a recursive bind with the destination created
+automatically. That is also what the sibling repo's working production
+invocation uses (`-m <repo>:<repo>`, no suffix), and the official examples
+mount two fields only. The bisect steps before step 7 (mounts-only,
+sources-without-mounts) all exited 0, which first made the mount phase look
+innocent — the mount was only testable once the payload actually used `/repo`.
 
 ## Measured costs, for planning
 

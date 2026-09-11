@@ -92,6 +92,9 @@ srun -n1 -N1 enroot start --root \
     source /usr/lib/openfoam/openfoam2606/etc/bashrc
     source /dtOO-install/bin/env.sh
     export EIGENFREQUENCIES_ROOT=/ef
+    # unbuffered: otherwise 30 min of export shows an empty .out file, which
+    # is what job 6865391 did -- debugging a TIMEOUT from zero evidence.
+    export PYTHONUNBUFFERED=1
     cd /repo
     python3.13 experimentell/hex3d_algohex/scripts/generate_machines.py --export --count '"$COUNT"'
 '

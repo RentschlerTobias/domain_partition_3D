@@ -36,12 +36,13 @@ set -u
 
 WS="${WS:-$(ws_find hex3d 2>/dev/null)}"
 REPO="${REPO:-$WS/domain_partition_3D}"
-# The eigenfrequencies checkout: their own scripts disagree on the location
-# (cluster_env.sh defaults to $HOME/eigenfrequencies, the import docs show
-# $HOME/eigen/eigenfrequencies), so probe instead of guessing. Override with
-# EIGENFREQUENCIES_ROOT once the real path is known.
+# The eigenfrequencies checkout lives under the eigenfreq workspace (home
+# holds only symlinks into it); resolving it via ws_find keeps the ws_ naming
+# consistent with everything else on the cluster. Home paths stay as fallback
+# candidates. Override with EIGENFREQUENCIES_ROOT once pinned.
+EIG_WS="${EIG_WS:-$(ws_find eigenfreq 2>/dev/null)}"
 EF_CANDS="${EIGENFREQUENCIES_ROOT:-}"
-EF_CANDS="${EF_CANDS:+$EF_CANDS }/home/st/st_us-042020/${USER}/eigen/eigenfrequencies"
+EF_CANDS="${EF_CANDS:+$EF_CANDS }${EIG_WS:+$EIG_WS/eigenfrequencies}"
 EF_CANDS="$EF_CANDS $HOME/eigen/eigenfrequencies $HOME/eigenfrequencies"
 EF_ROOT=""
 for c in $EF_CANDS; do
@@ -57,7 +58,7 @@ if [ -z "$EF_ROOT" ]; then
 # The dtOO image lives in the EIGENFREQUENCIES workspace (ws eigenfreq), where
 # the existing smoke-test chain already imported and uses it -- one image, one
 # location, started by both pipelines. Do NOT copy it into this workspace.
-EIG_WS="${EIG_WS:-$(ws_find eigenfreq 2>/dev/null)}"
+# (EIG_WS is resolved above, together with the checkout candidates.)
 SQSH="${SQSH:-$EIG_WS/enroot-images/dtOO.sqsh}"
 COUNT="${COUNT:-64}"
 DATASET="data/dataset/sobol"

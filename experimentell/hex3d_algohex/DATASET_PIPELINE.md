@@ -896,7 +896,79 @@ derivatives are deleted. `KEEP_OVM=1` for a showcase set.
 
 ---
 
-## T11 — Full run over the 21 candidates
+## T14 — Geometry supply: dtOO via enroot, driven by eigenfrequencies' adapter
+
+**Status:** `todo` — blocked on T10's throughput number, not on anything
+technical. The pieces all exist and are located.
+
+**Why.** 21 candidate geometries is not a dataset, and the 429 MB of
+`mesh.msh` are gitignored, so a fresh clone has none. Decision B left the
+sample count open deliberately: it follows from throughput, which T10 measures.
+
+**Everything needed is already built, in the sibling repo.** Located
+2026-09-11:
+
+| piece | where | state |
+|---|---|---|
+| the 30 design parameters **with bounds** | `eigenfrequencies/adapters/machines/tistos.yaml` | **all 30 of our `params.json` keys**, checked key by key |
+| parameter vector → `.msh` | `DtooAdapter.export_mesh({label: value})` | one call, tested |
+| bounds for a sampler | `DtooAdapter.design_bounds()` → `{label: (min, max)}` | ditto |
+| dtOO on the cluster | `dtOO.sqsh` + `cluster/enroot_dtoo_import.md` + `submit_dtoo_enroot_smoke.sh` | enroot, same pattern as fenicsx |
+| the tistos case itself | `github.com/ihs-ustutt/dtOO`, `demo/tistos` | see `DATA_GENERATION.md` |
+
+So the chain is:
+
+```
+design_bounds()  ->  sampler  ->  export_mesh()  ->  .msh  ->  tet_prep_v5  ->  batch_samples
+     exists         MISSING        exists          exists      exists          exists (T10)
+```
+
+**dtOO runs IN the container, not beside it.** `run_dtoo_export` imports
+`dtOOPythonSWIG` directly — its own docstring says "dtOO container only" — so
+the whole Python process must run inside enroot, exactly as
+`_run_fenicsx` does it. `env_notes.md` describes a native `~/pe` install; that
+is the older state, and the enroot route is the one with an import guide, an
+export script and a smoke test beside it.
+
+Two traps are already recorded in `submit_dtoo_enroot_smoke.sh` and must be
+carried over verbatim:
+
+```bash
+enroot start --root "$DTOO_SQSH" bash -c '
+    source /usr/lib/openfoam/openfoam2606/etc/bashrc
+    source /dtOO-install/bin/env.sh
+    python3.13 ...'
+```
+
+* **Both** env files, before python3.13, or `libPstream.so` and
+  `libTKFeat.so.7.9` are not found.
+* **No `set -u` inside.** OpenFOAM's bashrc reads unset variables
+  (`WM_PROJECT_SITE`), so `set -u` aborts before dtOO is even imported and the
+  image gets blamed for a bug in the wrapper.
+
+**Do.** A sampler script, perhaps 50 lines, that runs inside the dtOO
+container: read `design_bounds()`, draw N parameter sets, call `export_mesh()`
+for each, write `params.json` beside each `.msh` in our candidate layout.
+
+**Two decisions it contains.**
+
+1. **Sampling.** For an optimisation, DE draws a population along a gradient.
+   For a DATASET the goal is coverage of a 30-dimensional box, where uniform
+   random clumps — use Latin Hypercube or Sobol (`scipy.stats.qmc`, already in
+   the venv).
+2. **Yield.** Not every draw is buildable; `DTOO_FAIL_PENALTY` exists for
+   exactly that. A hint from our own data: `data/random_tistos/` holds 8 loose
+   meshes plus 21 under `investigated/`, which looks like filtering. The yield
+   rate is unknown and multiplies straight onto the target count, so measure it
+   on the first batch rather than assuming it.
+
+**Done when.** N buildable geometries exist with their `params.json`, the yield
+rate is recorded here as a number, and `batch_samples.slurm` runs over them
+with `CANDS`.
+
+---
+
+## T11 — Full run, and the throughput that settles the dataset size
 
 **Status:** `todo`
 

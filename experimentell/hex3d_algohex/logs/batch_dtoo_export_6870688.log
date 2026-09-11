@@ -1,0 +1,6 @@
+[dtoo] host uc2n601.localdomain, job 6870688, 1 cores
+[dtoo] repo /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D
+[dtoo] image /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-images/dtOO.sqsh
+[dtoo] container dtOO already unpacked, skipping
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+[2026-09-11T21:52:49.025] error: *** STEP 6870688.0 ON uc2n601 CANCELLED AT 2026-09-11T21:52:49 DUE TO TIME LIMIT ***

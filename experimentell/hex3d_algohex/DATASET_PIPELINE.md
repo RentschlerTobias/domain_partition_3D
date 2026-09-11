@@ -819,7 +819,8 @@ load-time change, not a re-run.
 
 ## T10 — SLURM batch driver
 
-**Status:** `todo`
+**Status:** `doing` — written as ONE job with `xargs -P`, not an array. The
+shape follows from two measurements, not from taste. Untested on the cluster.
 
 **Why.** 64 cores, not this 2-vCPU box. AlgoHex peaks around 6 GB and must not
 run concurrently beyond what memory allows — two concurrent runs are what
@@ -833,14 +834,65 @@ Retention per decision J: keep the sample file plus `<name>_blocks.vtk` and
 `_quality` and `full.*` — 79 of 90 MB — except for a showcase set of 5-10
 samples. Bound concurrency by memory, not by core count.
 
-**Done when.** `sbatch --test-only` passes. Note that
-`duty/quadmesh/scripts/dryrun_planb.slurm` carries an explicit warning that
-queue and module names in this project were written without cluster access and
-were never verified — check partitions with `sinfo` first. Then a 3-task array
-on `dev_cpu_il` (30-minute walltime), with per-sample runtime, peak memory and
-retained bytes matching the estimates (13-27 min, ~6 GB, ~8 MB).
+**Done when.** `sbatch --test-only` passes, then a first real batch reports a
+throughput number. `sinfo` is denied on this cluster — use
+`scontrol show partition`, and see
+[`../../docs/cluster-enroot-findings.md`](../../docs/cluster-enroot-findings.md)
+for that and ten other traps.
 
-**Writes.** `experimentell/hex3d_algohex/scripts/generate_dataset.slurm`.
+**Not an array, and that is a measured decision.** Two numbers from
+2026-09-11 rule the array out:
+
+* `dev_cpu_il` allows about **4 QUEUED jobs per user**
+  (`QOSMaxSubmitJobPerUserLimit`), shared with everything else running. An
+  array of 30 tasks does not fit a budget of 4.
+* AlgoHex ran at **18 % efficiency on 8 cores** — roughly 1.5 cores actually
+  in use — and **1.87 GB** at `-n 2000` (job 6860177). One sample per node
+  would leave 62 of 64 cores idle.
+
+So: one job, one queue slot, `xargs -P` inside it.
+`scripts/batch_samples.slurm` computes concurrency from the slot it was given
+and reports which constraint binds:
+
+```
+concurrency 32   (memory allows 51, cores allow 32)
+```
+
+with `--mem=128G` and `--cpus-per-task=64`. Memory is the constraint that
+matters at large `-n` — two concurrent AlgoHex runs at ~6 GB each killed v7
+and v8 on a 7.7 GiB box — so `MEM_PER_SAMPLE_MB` must be raised for `-n 60000`
+or the node OOMs.
+
+**Resumability instead of walltime guessing.** 30 minutes is the cap and one
+wave at `-n 2000` takes 12-13, so one wave fits and two do not.
+`scripts/sample_one.sh` exits 0 in milliseconds if `sample.npz` already
+exists, so a job killed mid-wave loses only what was still running: resubmit
+and the survivors are skipped. The batch summary lists exactly which
+directories are missing a sample and which log to read.
+
+**The first test needs no new geometry.** With `CANDS` empty the manifest is
+the `-n` sweep over the committed fixture `T1_9_tet_v5.vtk`, and per T6 those
+are genuinely different structures rather than duplicates — real samples, not
+a rehearsal:
+
+```bash
+sbatch --test-only experimentell/hex3d_algohex/scripts/batch_samples.slurm
+sbatch            experimentell/hex3d_algohex/scripts/batch_samples.slurm
+```
+
+Then the real thing, once geometry is available:
+
+```bash
+NS="2000 8000" CANDS="data/random_tistos/investigated/cand_0*" \
+    sbatch experimentell/hex3d_algohex/scripts/batch_samples.slurm
+```
+
+**Retention** per decision J is in `sample_one.sh`: the sample plus
+`blocks.vtk` survive, the `.ovm` and the `_nfaces`/`_quality`/`.msh`
+derivatives are deleted. `KEEP_OVM=1` for a showcase set.
+
+**Writes.** `experimentell/hex3d_algohex/scripts/batch_samples.slurm` and
+`scripts/sample_one.sh`.
 
 ---
 

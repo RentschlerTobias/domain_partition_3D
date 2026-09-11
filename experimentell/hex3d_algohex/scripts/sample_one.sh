@@ -31,6 +31,17 @@ BACKEND="${BACKEND:-enroot}"
 # at n=60000 is 130 GB across 10 000 samples. Worth keeping for a showcase set.
 KEEP_OVM="${KEEP_OVM:-0}"
 
+# One thread per worker. Measured: a single sample with 8 cores allocated used
+# 1.45 cores on average, but three samples on a 64-core node used 6.4 each --
+# numpy/scipy expand to whatever the node offers. Unpinned, 32 concurrent
+# workers would ask for 205 cores of 64 and spend the difference on context
+# switching. The parallelism that matters here is across samples, not inside
+# one: AlgoHex itself is largely serial.
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
+export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
+export MKL_NUM_THREADS="${MKL_NUM_THREADS:-1}"
+export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}"
+
 [ -f "$TET" ] || { echo "[$D] no such tet mesh: $TET"; exit 6; }
 mkdir -p "$D" || exit 6
 

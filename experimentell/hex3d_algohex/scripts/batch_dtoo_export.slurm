@@ -2,7 +2,7 @@
 # T14 pass 2 of 2: export mesh.msh per machine, inside the dtOO container.
 #
 #   sbatch --test-only experimentell/hex3d_algohex/scripts/batch_dtoo_export.slurm
-#   COUNT=64 sbatch      experimentell/hex3d_algohex/scripts/batch_dtoo_export.slurm
+#   sbatch              experimentell/hex3d_algohex/scripts/batch_dtoo_export.slurm
 #
 # The draw already happened locally (generate_machines.py --preview): every
 # machine_00NN/ has its params.json in the repo, and sampler.json carries the
@@ -95,7 +95,6 @@ if [ -z "$EF_ROOT" ]; then
 # location, started by both pipelines. Do NOT copy it into this workspace.
 # (EIG_WS is resolved above, together with the checkout candidates.)
 SQSH="${SQSH:-$EIG_WS/enroot-images/dtOO.sqsh}"
-COUNT="${COUNT:-64}"
 DATASET="data/dataset/sobol"
 
 module load devel/python/3.13.3-gnu-14.2 2>/dev/null || true
@@ -160,8 +159,12 @@ srun -n1 -N1 enroot start --root \
     # unbuffered: otherwise 30 min of export shows an empty .out file, which
     # is what job 6865391 did -- debugging a TIMEOUT from zero evidence.
     export PYTHONUNBUFFERED=1
+    # The marker makes the silent start visible (job 6869858 sat 18 min with
+    # no line here); exec disarms the eval-of-argv double-execution (jobs
+    # 6869712/6870239: a payload without exec ran twice).
     cd /repo
-    python3.13 experimentell/hex3d_algohex/scripts/generate_machines.py --export --count '"$COUNT"'
+    echo "[dtoo] container env ready, exporting"
+    exec bash /repo/experimentell/hex3d_algohex/scripts/export_all_machines.sh '"$DATASET"'
 '
 DT=$(( $(date +%s) - t0 ))
 

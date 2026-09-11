@@ -36,13 +36,15 @@
 # from eigenfrequencies cluster/submit_hydroflow_opt.sh -- their measurement,
 # their fix; our log of it is docs/cluster-enroot-findings.md.
 #
-# --rc /ef/cluster/enroot_rc.sh: without it the dtOO image's own command
-# script sources OpenFOAM, whose etc/config.sh/functions runs `eval` on the
-# argv. That destroys the quoting of `bash -c '...'` and runs the command
-# TWICE (their commit fae9a3d); the first, broken execution then decides the
-# exit code. The rc script is one line, `exec "$@"`. Its path must resolve
-# INSIDE the container, which is why it lives in the mounted eigenfrequencies
-# checkout. read eigenfrequencies/cluster/enroot_rc.sh before changing this.
+# --rc "$EF_ROOT/cluster/enroot_rc.sh": without it the dtOO image's own
+# command script sources OpenFOAM, whose etc/config.sh/functions runs `eval`
+# on the argv. That destroys the quoting of `bash -c '...'` and runs the
+# command TWICE (their commit fae9a3d); the first, broken execution then
+# decides the exit code. The rc script is one line, `exec "$@"`. Its path is
+# a HOST path: enroot bind-mounts the file into the container itself, so it
+# must exist where this process can see it ($EF_ROOT), not under the
+# container's /ef mapping -- job 6867987 died on exactly that confusion.
+# read eigenfrequencies/cluster/enroot_rc.sh before changing this.
 #SBATCH --job-name=hex3d_dtoo_export
 #SBATCH --output=hex3d_dtoo_export_%j.out
 #SBATCH --partition=dev_cpu_il
@@ -104,6 +106,11 @@ mkdir -p "$ENROOT_TEMP_PATH" "$ENROOT_RUNTIME_PATH"
 [ -d "$REPO/$DATASET" ] || { echo "[dtoo] no dataset root: $REPO/$DATASET -- run the --preview draw first"; exit 1; }
 [ -f "$SQSH" ] || { echo "[dtoo] no dtOO image: $SQSH (ws eigenfreq must hold this workspace's imported image per enroot_dtoo_import.md)"; exit 1; }
 [ -d "$EF_ROOT/src" ] || { echo "[dtoo] no eigenfrequencies checkout: $EF_ROOT"; exit 1; }
+# --rc takes a HOST path (enroot bind-mounts the file); checked here so a
+# missing script fails as a guard, not as enroot's bare "[ERROR] No such
+# file or directory" after the container is already up (job 6867987).
+RC_SCRIPT="$EF_ROOT/cluster/enroot_rc.sh"
+[ -f "$RC_SCRIPT" ] || { echo "[dtoo] no --rc command script: $RC_SCRIPT"; exit 1; }
 
 cpus=$(nproc)
 echo "[dtoo] host $(hostname), job ${SLURM_JOB_ID:-none}, $cpus cores"
@@ -139,7 +146,7 @@ fi
 t0=$(date +%s)
 # --rc: OpenFOAM's eval-of-argv double-execution trap, see the header.
 srun -n1 -N1 enroot start --root \
-    --rc /ef/cluster/enroot_rc.sh \
+    --rc "$RC_SCRIPT" \
     --mount "$REPO:/repo:rw" \
     --mount "$EF_ROOT:/ef:rw" \
     "$CONTAINER" bash -c '

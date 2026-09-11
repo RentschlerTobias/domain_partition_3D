@@ -21,6 +21,10 @@ export ENROOT_RUNTIME_PATH="${ENROOT_RUNTIME_PATH:-/tmp/$USER-enroot-run}"
 mkdir -p "$ENROOT_TEMP_PATH" "$ENROOT_RUNTIME_PATH"
 [ -f "$SQSH" ] || { echo "no image: $SQSH"; exit 1; }
 [ -d "$EF_ROOT/src" ] || { echo "no checkout: $EF_ROOT"; exit 1; }
+# --rc takes a HOST path (enroot bind-mounts the file); /ef/... is the
+# container-side mapping and does NOT exist here (job 6867987).
+RC_SCRIPT="$EF_ROOT/cluster/enroot_rc.sh"
+[ -f "$RC_SCRIPT" ] || { echo "no --rc command script: $RC_SCRIPT"; exit 1; }
 
 # Same container discipline as batch_dtoo_export.slurm: shared persistent
 # store, start by name, --rc against OpenFOAM's eval trap. Read the header of
@@ -37,7 +41,7 @@ if ! enroot list 2>/dev/null | grep -qxF "$CONTAINER"; then
     }
 fi
 
-ENROOT_CMD="enroot start --root --rc /ef/cluster/enroot_rc.sh \
+ENROOT_CMD="enroot start --root --rc $RC_SCRIPT \
     --mount \"$REPO:/repo:rw\" --mount \"$EF_ROOT:/ef:rw\" \
     \"$CONTAINER\" bash -c \"
 source /usr/lib/openfoam/openfoam2606/etc/bashrc

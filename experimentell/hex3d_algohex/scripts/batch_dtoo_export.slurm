@@ -153,12 +153,16 @@ fi
 t0=$(date +%s)
 echo "[dtoo] container step starting at $(date -Is)"
 # --rc: OpenFOAM's eval-of-argv double-execution trap, see the header.
-# timeout: a stalled step (jobs 6871118/6871479: zero CPU, no output, no file
-# activity) must end inside the slot so the harvest below still prints -- a
-# bare srun would sleep until the 30 min TIME LIMIT and swallow its output.
-# < /dev/null: every bisect probe redirected stdin and none stalled; without
-# it one start took 26 s where the same start took 3 s (bisect3 P2).
-timeout 1500 srun -n1 -N1 enroot start --root \
+# No srun: run the container directly in the job. The bisect probes wrapped the
+# same invocation in srun steps and worked, but every full batch payload stayed
+# silent with no file evidence while its step existed (6870688/6871479/6871714);
+# an srun step buffers stdout behind the stepd relay and loses it when the step
+# is killed, and a step launch can stall without a message. The sibling repo's
+# production jobs call enroot directly from the job script as well.
+# timeout: a stalled call must end inside the slot so the harvest below prints.
+# Stage markers: appended to a file under /repo, so progress is visible even if
+# a buffer anywhere in the chain swallows stdout.
+timeout 1500 enroot start --root \
     --rc "$RC_SCRIPT" \
     --mount "$REPO:/repo" \
     --mount "$EF_ROOT:/ef" \
@@ -166,14 +170,14 @@ timeout 1500 srun -n1 -N1 enroot start --root \
     source /usr/lib/openfoam/openfoam2606/etc/bashrc
     source /dtOO-install/bin/env.sh
     export EIGENFREQUENCIES_ROOT=/ef
-    # unbuffered: otherwise 30 min of export shows an empty .out file, which
-    # is what job 6865391 did -- debugging a TIMEOUT from zero evidence.
     export PYTHONUNBUFFERED=1
-    # The marker makes the silent start visible (job 6869858 sat 18 min with
-    # no line here); exec disarms the eval-of-argv double-execution (jobs
-    # 6869712/6870239: a payload without exec ran twice).
+    ST="/repo/experimentell/hex3d_algohex/logs/stage_${SLURM_JOB_ID:-manual}.txt"
+    echo "stage=sourced $(date -Is)" >> "$ST"
     cd /repo
+    echo "stage=cd-repo-ok $(date -Is)" >> "$ST"
+    echo "stage=exec-export-all $(date -Is)" >> "$ST"
     echo "[dtoo] container env ready, exporting"
+    # exec disarms the eval-of-argv double-execution (6869712/6870239).
     exec bash /repo/experimentell/hex3d_algohex/scripts/export_all_machines.sh '"$DATASET"'
 ' < /dev/null
 SRC=$?
@@ -182,6 +186,7 @@ echo "[dtoo] container step rc=$SRC after ${DT}s"
 if [ "$SRC" -eq 124 ]; then
     echo "[dtoo] step hit the 1500 s bound -- stall, not a value error"
 fi
+echo "[dtoo] stage file      $REPO/experimentell/hex3d_algohex/logs/stage_${SLURM_JOB_ID:-manual}.txt"
 
 # ------------------------------------------------------------------ harvest
 PF="$REPO/$DATASET"

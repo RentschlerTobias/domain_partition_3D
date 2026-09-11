@@ -14,7 +14,7 @@ point for the branch as a whole.
 
 ## Resume here
 
-**Current task:** T10 — the SLURM array driver, and it cannot be verified here
+**Current task:** T10 — throughput. A verified sample exists ON THE CLUSTER.
 **Last verified:** 2026-09-11. T0, T1, T2, T3, T4, T5, T6 and T9 `done`.
 
 * T0 — `fixtures/blocks_core.tar.zst` (5.5 MiB) holds what cannot be
@@ -39,11 +39,19 @@ point for the branch as a whole.
   **2210 of 2210 cells matched**, each congruent under a cube rotation. Read
   T3 before comparing meshes again — file comparison is NOT a valid gate here.
 
-**Everything that can be verified on this box is verified.** What is left is
-the cluster, and T10 needs you on the machine: there is no `sbatch`, no
-`sinfo` and no SSH to `uc3` from here, so its queue and module names cannot be
-checked. `dryrun_planb.slurm` carries an explicit warning about exactly that.
-Ship `output/hex3d_algohex/algohex.sqsh` and run `sinfo` first.
+**The cluster route is done and measured.** Job 6860177 on bwUniCluster
+produced a sample with a passing round-trip in 12:25, from an AlgoHex built
+there from its pinned public commit — no Docker, no image copied from any
+machine. It reproduces the VPS reference at `-n 2000` exactly: 16 blocks, 14
+cuboids, 107 edges, fit modes 89/0/18, residual median 0.048 %, Hausdorff
+0.04475. That closes the provenance question T2 left open.
+
+Every cluster-side trap is written up in
+[`../../docs/cluster-enroot-findings.md`](../../docs/cluster-enroot-findings.md)
+— read it before touching the scripts. The two that cost the most: enroot's
+`ENROOT_RUNTIME_PATH` defaults into `/run/user/$UID`, which does not exist on a
+compute node, and `dev_cpu_il` allows only ~4 QUEUED jobs per user, which makes
+dependency chains the wrong shape at any length.
 
 T7, T8 and T12 improve the sample but block nothing; take them whenever the
 cluster is queueing. Note that T12 now has a cheap new lead: T9 reports

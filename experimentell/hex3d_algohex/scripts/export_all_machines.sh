@@ -16,6 +16,13 @@ set -u
 DS="${1:-data/dataset/sobol}"
 cd /repo || exit 1
 
+# dtOO's case tree is baked into the container at /dtOO (every cluster config
+# in the sibling repo uses /dtOO/build/test/tistos); the machine yaml's
+# ~/dtOO default resolves to /root/dtOO in the container, which does not
+# exist and raises FileNotFoundError. export.py documents DTOO_CASE_DIR as
+# the override, so pin it here.
+export DTOO_CASE_DIR="${DTOO_CASE_DIR:-/dtOO/build/test/tistos}"
+
 RC_ALL=0
 for d in "$DS"/machine_00*; do
     [ -d "$d" ] || continue
@@ -29,6 +36,10 @@ for d in "$DS"/machine_00*; do
     rc=$?
     if [ "$rc" -ne 0 ]; then
         echo "[dtoo] $name FAILED rc=$rc"
+        RC_ALL=1
+    fi
+    if [ ! -f "$d/mesh.msh" ]; then
+        echo "[dtoo] $name produced no mesh (see export_error.txt)"
         RC_ALL=1
     fi
 done

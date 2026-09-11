@@ -34,8 +34,12 @@
 
 set -u
 
+# REPO: trust the directory sbatch was invoked from (SLURM_SUBMIT_DIR) over a
+# $WS that leaked in from an interactive shell that sourced another repo's
+# cluster_env.sh -- that leak sent job 6865252 to look for the dataset inside
+# ws eigenfreq. WS then only matters for enroot scratch, not for finding us.
+REPO="${REPO:-${SLURM_SUBMIT_DIR:-$WS/domain_partition_3D}}"
 WS="${WS:-$(ws_find hex3d 2>/dev/null)}"
-REPO="${REPO:-$WS/domain_partition_3D}"
 # The eigenfrequencies checkout lives under the eigenfreq workspace (home
 # holds only symlinks into it); resolving it via ws_find keeps the ws_ naming
 # consistent with everything else on the cluster. Home paths stay as fallback

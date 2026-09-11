@@ -16,6 +16,14 @@ set -u
 DS="${1:-data/dataset/sobol}"
 cd /repo || exit 1
 
+# Everything is also appended to a per-job progress file: stdout through the
+# srun step dies with a SIGKILLed step (see the batch driver's history), while
+# a file under /repo survives and can be committed from the login node later.
+PROG="/repo/experimentell/hex3d_algohex/logs/export_progress_${SLURM_JOB_ID:-manual}.log"
+mkdir -p "$(dirname "$PROG")"
+exec > >(tee -a "$PROG") 2>&1
+echo "[dtoo] progress log: $PROG"
+
 # dtOO's case tree is baked into the container at /dtOO (every cluster config
 # in the sibling repo uses /dtOO/build/test/tistos); the machine yaml's
 # ~/dtOO default resolves to /root/dtOO in the container, which does not

@@ -98,8 +98,12 @@ SQSH="${SQSH:-$EIG_WS/enroot-images/dtOO.sqsh}"
 DATASET="data/dataset/sobol"
 
 module load devel/python/3.13.3-gnu-14.2 2>/dev/null || true
-export ENROOT_TEMP_PATH="${ENROOT_TEMP_PATH:-/tmp/${USER:-$(id -un)}-enroot}"
-export ENROOT_RUNTIME_PATH="${ENROOT_RUNTIME_PATH:-/tmp/${USER:-$(id -un)}-enroot-run}"
+# Job-unique enroot dirs: a stalled or SIGKILLed predecessor on the same node
+# must not poison the next job through shared /tmp/$USER-enroot state (jobs
+# 6871118/6871479 hung at zero CPU on nodes where the same container had
+# started in seconds before). Per-job paths are the enroot-recommended form.
+export ENROOT_TEMP_PATH="${ENROOT_TEMP_PATH:-/tmp/${USER:-$(id -un)}-enroot-${SLURM_JOB_ID:-$$}}"
+export ENROOT_RUNTIME_PATH="${ENROOT_RUNTIME_PATH:-/tmp/${USER:-$(id -un)}-enroot-run-${SLURM_JOB_ID:-$$}}"
 mkdir -p "$ENROOT_TEMP_PATH" "$ENROOT_RUNTIME_PATH"
 
 [ -d "$REPO/$DATASET" ] || { echo "[dtoo] no dataset root: $REPO/$DATASET -- run the --preview draw first"; exit 1; }
@@ -147,8 +151,14 @@ fi
 # the container starts without /repo -- exactly what job 6869712 showed.
 # Two fields = default rbind,x-create=auto, destination auto-created.
 t0=$(date +%s)
+echo "[dtoo] container step starting at $(date -Is)"
 # --rc: OpenFOAM's eval-of-argv double-execution trap, see the header.
-srun -n1 -N1 enroot start --root \
+# timeout: a stalled step (jobs 6871118/6871479: zero CPU, no output, no file
+# activity) must end inside the slot so the harvest below still prints -- a
+# bare srun would sleep until the 30 min TIME LIMIT and swallow its output.
+# < /dev/null: every bisect probe redirected stdin and none stalled; without
+# it one start took 26 s where the same start took 3 s (bisect3 P2).
+timeout 1500 srun -n1 -N1 enroot start --root \
     --rc "$RC_SCRIPT" \
     --mount "$REPO:/repo" \
     --mount "$EF_ROOT:/ef" \
@@ -165,8 +175,13 @@ srun -n1 -N1 enroot start --root \
     cd /repo
     echo "[dtoo] container env ready, exporting"
     exec bash /repo/experimentell/hex3d_algohex/scripts/export_all_machines.sh '"$DATASET"'
-'
+' < /dev/null
+SRC=$?
 DT=$(( $(date +%s) - t0 ))
+echo "[dtoo] container step rc=$SRC after ${DT}s"
+if [ "$SRC" -eq 124 ]; then
+    echo "[dtoo] step hit the 1500 s bound -- stall, not a value error"
+fi
 
 # ------------------------------------------------------------------ harvest
 PF="$REPO/$DATASET"

@@ -187,6 +187,18 @@ measured numbers are in `MESH_QUALITY.md`.
 * [Resolved Analytics, mesh quality and CFD solution accuracy](https://www.resolvedanalytics.com/cfd-in-practice/what-is-effect-of-cfd-mesh-on-solution-accuracy) — **informed**
 * [wolfdynamics, meshing preliminaries and quality assessment](https://www.wolfdynamics.com/wiki/meshing_preliminaries_and_quality_assessment.pdf) — **informed**
 
+## J. In-house tooling this pipeline depends on
+
+Not literature, but the same question applies — what do we already rely on?
+
+| piece | where | what it gives us |
+|---|---|---|
+| **dtOO** | `github.com/ihs-ustutt/dtOO`, case `demo/tistos` | the parametric geometry generator behind every input mesh. All 30 `params.json` keys are its const-values |
+| **`DtooAdapter`** | `eigenfrequencies/src/eigenfrequencies/adapters/dtoo/adapter.py` | `export_mesh({label: value}) -> .msh` and `design_bounds() -> {label: (min,max)}`. Imports `dtOOPythonSWIG` directly, so it runs INSIDE the dtOO container |
+| **tistos machine config** | `eigenfrequencies/adapters/machines/tistos.yaml` | the 30 design parameters **with bounds** — checked key for key against our `params.json` |
+| **dtOO on the cluster** | `eigenfrequencies/cluster/enroot_dtoo_import.md`, `submit_dtoo_enroot_smoke.sh` | the enroot route, plus the two env-sourcing traps |
+| **cluster sizing** | `eigenfrequencies/docs/cluster-resource-sizing.md` | measured partitions; read our `docs/cluster-enroot-findings.md` §7 before trusting its recommendation |
+
 ## I. Benchmarks
 
 * **HexMe** — the hex-meshing benchmark the AlgoHex papers report against

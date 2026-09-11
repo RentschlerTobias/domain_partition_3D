@@ -21,9 +21,25 @@ export ENROOT_RUNTIME_PATH="${ENROOT_RUNTIME_PATH:-/tmp/$USER-enroot-run}"
 mkdir -p "$ENROOT_TEMP_PATH" "$ENROOT_RUNTIME_PATH"
 [ -f "$SQSH" ] || { echo "no image: $SQSH"; exit 1; }
 [ -d "$EF_ROOT/src" ] || { echo "no checkout: $EF_ROOT"; exit 1; }
-ENROOT_CMD="enroot start --root \
+
+# Same container discipline as batch_dtoo_export.slurm: shared persistent
+# store, start by name, --rc against OpenFOAM's eval trap. Read the header of
+# batch_dtoo_export.slurm for the measurements behind this.
+export ENROOT_DATA_PATH="${ENROOT_DATA_PATH:-$EIG_WS/enroot-data}"
+mkdir -p "$ENROOT_DATA_PATH"
+CONTAINER="${CONTAINER:-dtOO}"
+if ! enroot list 2>/dev/null | grep -qxF "$CONTAINER"; then
+    tmp_name="$CONTAINER.${SLURM_JOB_ID:-$$}"
+    echo "[probe] unpacking $SQSH -> $ENROOT_DATA_PATH/$CONTAINER (one time)"
+    enroot create --name "$tmp_name" "$SQSH" && {
+        mv -T "$ENROOT_DATA_PATH/$tmp_name" "$ENROOT_DATA_PATH/$CONTAINER" 2>/dev/null \
+            || rm -rf "$ENROOT_DATA_PATH/$tmp_name"
+    }
+fi
+
+ENROOT_CMD="enroot start --root --rc /ef/cluster/enroot_rc.sh \
     --mount \"$REPO:/repo:rw\" --mount \"$EF_ROOT:/ef:rw\" \
-    \"$SQSH\" bash -c \"
+    \"$CONTAINER\" bash -c \"
 source /usr/lib/openfoam/openfoam2606/etc/bashrc
 source /dtOO-install/bin/env.sh
 export EIGENFREQUENCIES_ROOT=/ef PYTHONUNBUFFERED=1

@@ -23,6 +23,26 @@
 # Both env files BEFORE python3.13 (or: libPstream.so / libTKFeat.so.7.9 not
 # found) and NO set -u inside the container (OpenFOAM's bashrc reads unset
 # variables) -- carried over verbatim from submit_dtoo_enroot_smoke.sh.
+#
+# START BY NAME, NOT BY --root <sqsh>. `enroot start --root <sqsh>` mounts the
+# squashfs through squashfuse, which decompresses every read in one user-space
+# process. Measured in the eigenfrequencies repo: dtOO's CreateStates takes 8 s
+# against an unpacked image and had not finished after 20 minutes under
+# squashfuse (37 % CPU the whole time -- not a hang, a crawl). That is what
+# job 6865391's empty 30-minute TIMEOUT was. This job unpacks the image ONCE
+# into the shared "$EIG_WS/enroot-data" store and then starts the container
+# "dtOO" by name; the next job, and every resume resubmission, skips the
+# unpack outright. The pattern (including the race-safe install) is copied
+# from eigenfrequencies cluster/submit_hydroflow_opt.sh -- their measurement,
+# their fix; our log of it is docs/cluster-enroot-findings.md.
+#
+# --rc /ef/cluster/enroot_rc.sh: without it the dtOO image's own command
+# script sources OpenFOAM, whose etc/config.sh/functions runs `eval` on the
+# argv. That destroys the quoting of `bash -c '...'` and runs the command
+# TWICE (their commit fae9a3d); the first, broken execution then decides the
+# exit code. The rc script is one line, `exec "$@"`. Its path must resolve
+# INSIDE the container, which is why it lives in the mounted eigenfrequencies
+# checkout. read eigenfrequencies/cluster/enroot_rc.sh before changing this.
 #SBATCH --job-name=hex3d_dtoo_export
 #SBATCH --output=hex3d_dtoo_export_%j.out
 #SBATCH --partition=dev_cpu_il
@@ -39,6 +59,15 @@ set -u
 # cluster_env.sh -- that leak sent job 6865252 to look for the dataset inside
 # ws eigenfreq. WS then only matters for enroot scratch, not for finding us.
 REPO="${REPO:-${SLURM_SUBMIT_DIR:-$WS/domain_partition_3D}}"
+# Logs survive the job and git: one file per job under the repo's logs/
+# directory, then commit them (mirrors the eigenfrequencies convention, see
+# experimentell/hex3d_algohex/logs/README.md). Everything printed below --
+# guards included -- lands in that file, because the guards are exactly the
+# evidence a failed job leaves behind.
+LOGDIR="$REPO/experimentell/hex3d_algohex/logs"
+mkdir -p "$LOGDIR"
+LOG="$LOGDIR/batch_dtoo_export_${SLURM_JOB_ID:-manual}.log"
+exec > >(tee "$LOG") 2>&1
 WS="${WS:-$(ws_find hex3d 2>/dev/null)}"
 # The eigenfrequencies checkout lives under the eigenfreq workspace (home
 # holds only symlinks into it); resolving it via ws_find keeps the ws_ naming
@@ -79,16 +108,41 @@ mkdir -p "$ENROOT_TEMP_PATH" "$ENROOT_RUNTIME_PATH"
 cpus=$(nproc)
 echo "[dtoo] host $(hostname), job ${SLURM_JOB_ID:-none}, $cpus cores"
 echo "[dtoo] repo $REPO"
-echo "[dtoo] container $SQSH"
+echo "[dtoo] image $SQSH"
 
-# Enroot writes unpack-state beside the image; keep it out of the checkout.
-export ENROOT_DATA_PATH="${ENROOT_DATA_PATH:-$WS/enroot-data}"
+# ------------------------------------------------- container: unpack once ever
+# One persistent store for both pipelines, beside the image it came from, so a
+# resubmission -- or the eigenfrequencies pipeline -- never unpacks twice.
+export ENROOT_DATA_PATH="${ENROOT_DATA_PATH:-$EIG_WS/enroot-data}"
+mkdir -p "$ENROOT_DATA_PATH"
+CONTAINER="${CONTAINER:-dtOO}"
+if ! enroot list 2>/dev/null | grep -qxF "$CONTAINER"; then
+    # Race-safe install, copied from submit_hydroflow_opt.sh: unpack under a
+    # private name, move into place atomically. The loser of a race deletes
+    # its copy and uses the winner's. A container that is present but whose
+    # name enroot does not list is a broken install, not a slow one.
+    tmp_name="$CONTAINER.${SLURM_JOB_ID:-$$}"
+    echo "[dtoo] unpacking $SQSH -> $ENROOT_DATA_PATH/$CONTAINER (one time, minutes from Lustre)"
+    enroot create --name "$tmp_name" "$SQSH" \
+        || { echo "[dtoo] enroot create failed: $SQSH"; exit 1; }
+    if mv -T "$ENROOT_DATA_PATH/$tmp_name" "$ENROOT_DATA_PATH/$CONTAINER" 2>/dev/null; then
+        echo "[dtoo] container $CONTAINER installed"
+    else
+        rm -rf "$ENROOT_DATA_PATH/$tmp_name"
+        enroot list 2>/dev/null | grep -qxF "$CONTAINER" \
+            || { echo "[dtoo] container name metadata mismatch: $ENROOT_DATA_PATH/$CONTAINER"; exit 1; }
+    fi
+else
+    echo "[dtoo] container $CONTAINER already unpacked, skipping"
+fi
 
 t0=$(date +%s)
+# --rc: OpenFOAM's eval-of-argv double-execution trap, see the header.
 srun -n1 -N1 enroot start --root \
+    --rc /ef/cluster/enroot_rc.sh \
     --mount "$REPO:/repo:rw" \
     --mount "$EF_ROOT:/ef:rw" \
-    "$SQSH" bash -c '
+    "$CONTAINER" bash -c '
     source /usr/lib/openfoam/openfoam2606/etc/bashrc
     source /dtOO-install/bin/env.sh
     export EIGENFREQUENCIES_ROOT=/ef
@@ -120,3 +174,10 @@ echo "[dtoo]   NS=\"2000 8000\" CANDS=\"$DATASET/machine_00*\" \\"
 echo "[dtoo]       sbatch experimentell/hex3d_algohex/scripts/batch_samples.slurm"
 echo "[dtoo] ============================================"
 [ "$MISS" -gt 0 ] && echo "[dtoo] $MISS machines have neither mesh.msh nor export_error.txt: job may have been cut before reaching them."
+
+# Persist the evidence: the log is the run's record and belongs in git, like
+# eigenfrequencies' cluster/logs/<jobid>/. The yield number T14 needs is in it.
+echo "[dtoo] keep this log:  git add experimentell/hex3d_algohex/logs && git commit -m 'cluster: dtOO export job ${SLURM_JOB_ID:-manual} log'"
+echo "[dtoo] log file:       $LOG"
+# let the tee process drain before the shell exits, or the tail is lost
+wait

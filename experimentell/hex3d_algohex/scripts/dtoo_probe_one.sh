@@ -7,7 +7,13 @@ set -u
 CW=$(cd "$(dirname "$0")" && pwd)
 REPO="${REPO:-$(cd "$CW/../../.." && pwd)}"
 EIG_WS="${EIG_WS:-$(ws_find eigenfreq 2>/dev/null)}"
-EF_ROOT="${EF_ROOT:-$EIG_WS/eigenfrequencies}"
+EF_ROOT="${EF_ROOT:-}"
+if [ -z "$EF_ROOT" ]; then
+    for c in "$EIG_WS/eigenfrequencies" "$HOME/eigen/eigenfrequencies" "$HOME/eigenfrequencies"; do
+        [ -d "$c/src" ] && { EF_ROOT="$c"; break; }
+    done
+fi
+[ -d "$EF_ROOT/src" ] || { echo "no checkout, probed: $EIG_WS/eigenfrequencies \$HOME/eigen/eigenfrequencies \$HOME/eigenfrequencies"; ls -la "$HOME" | grep -i ein; exit 1; }
 SQSH="${SQSH:-$EIG_WS/enroot-images/dtOO.sqsh}"
 COUNT="${1:-1}"
 export ENROOT_TEMP_PATH="${ENROOT_TEMP_PATH:-/tmp/$USER-enroot}"

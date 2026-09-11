@@ -1,0 +1,45 @@
+[bisect] host uc2n605.localdomain, job 6869278, 2026-09-11T18:59:10+02:00
+[bisect] repo /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D
+[bisect] ef   /home/st/st_us-042020/st_ac136362/eigenfrequencies
+[bisect] img  /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-images/dtOO.sqsh
+[bisect] data /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-data
+[bisect] 4.1.0
+6.4G	/pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-data/dtOO
+[bisect] no container dir /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-data/dtOO
+[bisect] --- step1 start+rc --- 19:02:07
+STEP1-OK
+[bisect] --- step1 start+rc rc=0 --- 19:02:11
+[bisect] --- step2 mounts+source --- 19:02:11
+srun: forcing job termination
+srun: got SIGCONT
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+[2026-09-11T19:06:11.903] error: *** STEP 6869278.1 ON uc2n605 CANCELLED AT 2026-09-11T19:06:11 DUE to SIGNAL Killed ***
+srun: error: uc2n605: task 0: Killed
+[bisect] --- step2 mounts+source rc=124 --- 19:06:11
+[bisect] --- step3 python --- 19:06:11
+srun: forcing job termination
+srun: got SIGCONT
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+[2026-09-11T19:10:11.928] error: *** STEP 6869278.2 ON uc2n605 CANCELLED AT 2026-09-11T19:10:11 DUE to SIGNAL Killed ***
+srun: error: uc2n605: task 0: Killed
+[bisect] --- step3 python rc=124 --- 19:10:11
+[bisect] --- step4 adapter import --- 19:10:11
+srun: forcing job termination
+srun: got SIGCONT
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+[2026-09-11T19:15:11.975] error: *** STEP 6869278.3 ON uc2n605 CANCELLED AT 2026-09-11T19:15:11 DUE to SIGNAL Killed ***
+srun: error: uc2n605: task 0: Killed
+[bisect] --- step4 adapter import rc=124 --- 19:15:12
+[bisect] --- step5 bounded export 600s --- 19:15:12
+srun: forcing job termination
+srun: got SIGCONT
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+[2026-09-11T19:25:12.792] error: *** STEP 6869278.4 ON uc2n605 CANCELLED AT 2026-09-11T19:25:12 DUE to SIGNAL Killed ***
+srun: error: uc2n605: task 0: Killed
+[bisect] --- step5 rc=124 --- 19:25:12
+
+[bisect] ================ bisect summary ================
+[bisect] machines        0 exported, 0 failed, 64 not attempted
+[bisect] log file:       /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/dtoo_bisect_6869278.log
+[bisect] keep this log:  git add experimentell/hex3d_algohex/logs && git commit -m 'cluster: dtOO bisect job 6869278 log'
+[bisect] ================================================

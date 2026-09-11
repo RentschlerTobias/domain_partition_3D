@@ -143,12 +143,16 @@ else
     echo "[dtoo] container $CONTAINER already unpacked, skipping"
 fi
 
+# --mount takes fstab fields (src:dst:TYPE:OPTIONS). A trailing ":rw" is a
+# filesystem TYPE, not an option: enroot skips the bind mount silently and
+# the container starts without /repo -- exactly what job 6869712 showed.
+# Two fields = default rbind,x-create=auto, destination auto-created.
 t0=$(date +%s)
 # --rc: OpenFOAM's eval-of-argv double-execution trap, see the header.
 srun -n1 -N1 enroot start --root \
     --rc "$RC_SCRIPT" \
-    --mount "$REPO:/repo:rw" \
-    --mount "$EF_ROOT:/ef:rw" \
+    --mount "$REPO:/repo" \
+    --mount "$EF_ROOT:/ef" \
     "$CONTAINER" bash -c '
     source /usr/lib/openfoam/openfoam2606/etc/bashrc
     source /dtOO-install/bin/env.sh

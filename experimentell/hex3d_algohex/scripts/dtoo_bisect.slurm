@@ -110,7 +110,7 @@ fi
 # --- step 2: the real invocation minus python -------------------------------
 # Both env files BEFORE python3.13, the container trap this repo documented.
 run_step 240 "step2 mounts+source" \
-    --rc "$RC_SCRIPT" --mount "$REPO:/repo:rw" --mount "$EF_ROOT:/ef:rw" \
+    --rc "$RC_SCRIPT" --mount "$REPO:/repo" --mount "$EF_ROOT:/ef" \
     "$CONTAINER" bash -c '
         source /usr/lib/openfoam/openfoam2606/etc/bashrc
         source /dtOO-install/bin/env.sh
@@ -118,7 +118,7 @@ run_step 240 "step2 mounts+source" \
 
 # --- step 3: python itself ---------------------------------------------------
 run_step 240 "step3 python" \
-    --rc "$RC_SCRIPT" --mount "$REPO:/repo:rw" --mount "$EF_ROOT:/ef:rw" \
+    --rc "$RC_SCRIPT" --mount "$REPO:/repo" --mount "$EF_ROOT:/ef" \
     "$CONTAINER" bash -c '
         source /usr/lib/openfoam/openfoam2606/etc/bashrc
         source /dtOO-install/bin/env.sh
@@ -131,7 +131,7 @@ run_step 240 "step3 python" \
 # generate_machines.py's first print comes AFTER this import, which is why a
 # hang here looks exactly like a dead job.
 run_step 300 "step4 adapter import" \
-    --rc "$RC_SCRIPT" --mount "$REPO:/repo:rw" --mount "$EF_ROOT:/ef:rw" \
+    --rc "$RC_SCRIPT" --mount "$REPO:/repo" --mount "$EF_ROOT:/ef" \
     "$CONTAINER" bash -c '
         source /usr/lib/openfoam/openfoam2606/etc/bashrc
         source /dtOO-install/bin/env.sh
@@ -151,7 +151,7 @@ print(\"design_bounds\", len(b), \"params\", round(time.time()-t,1), \"s\", flus
 # full 64 is a normal batch run after this.
 echo "[bisect] --- step5 bounded export 600s --- $(date +%T)"
 timeout 600 srun -n1 -N1 enroot start --root \
-    --rc "$RC_SCRIPT" --mount "$REPO:/repo:rw" --mount "$EF_ROOT:/ef:rw" \
+    --rc "$RC_SCRIPT" --mount "$REPO:/repo" --mount "$EF_ROOT:/ef" \
     "$CONTAINER" bash -c '
         source /usr/lib/openfoam/openfoam2606/etc/bashrc
         source /dtOO-install/bin/env.sh

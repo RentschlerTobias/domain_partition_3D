@@ -42,7 +42,7 @@ if ! enroot list 2>/dev/null | grep -qxF "$CONTAINER"; then
 fi
 
 ENROOT_CMD="enroot start --root --rc $RC_SCRIPT \
-    --mount \"$REPO:/repo:rw\" --mount \"$EF_ROOT:/ef:rw\" \
+    --mount \"$REPO:/repo\" --mount \"$EF_ROOT:/ef\" \
     \"$CONTAINER\" bash -c \"
 source /usr/lib/openfoam/openfoam2606/etc/bashrc
 source /dtOO-install/bin/env.sh

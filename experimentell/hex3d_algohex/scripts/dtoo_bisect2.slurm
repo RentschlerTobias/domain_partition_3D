@@ -100,14 +100,14 @@ r1=$?
 
 # ---------------------------------------------------------------- step 2 mounts
 run_step 90 "step2 mounts-only" --rc "$RC" \
-    --mount "$REPO:/repo:rw" --mount "$EF:/ef:rw" "$CONTAINER" \
+    --mount "$REPO:/repo" --mount "$EF:/ef" "$CONTAINER" \
     bash -c 'date -Is; exec echo MOUNT-OK'
 r2=$?
 
 if [ $r2 -ne 0 ]; then
-    run_step 60 "step3a repo-mount-only" --rc "$RC" --mount "$REPO:/repo:rw" "$CONTAINER" \
+    run_step 60 "step3a repo-mount-only" --rc "$RC" --mount "$REPO:/repo" "$CONTAINER" \
         bash -c 'exec echo REPO-MOUNT-OK'
-    run_step 60 "step3b ef-mount-only" --rc "$RC" --mount "$EF:/ef:rw" "$CONTAINER" \
+    run_step 60 "step3b ef-mount-only" --rc "$RC" --mount "$EF:/ef" "$CONTAINER" \
         bash -c 'exec echo EF-MOUNT-OK'
     run_step 60 "step3c repo-mount-hostpath-no-rw" --rc "$RC" --mount "$REPO:$REPO" "$CONTAINER" \
         bash -c 'exec echo REPO-HOSTPATH-OK'
@@ -119,7 +119,7 @@ if [ $r2 -ne 0 ]; then
     echo "[bisect2] --- step4 create rc=$rc4 --- $(date -Is)"
     if [ $rc4 -eq 0 ]; then
         run_step 90 "step4b fresh start+both-mounts" --rc "$RC" \
-            --mount "$REPO:/repo:rw" --mount "$EF:/ef:rw" "$FRESH" \
+            --mount "$REPO:/repo" --mount "$EF:/ef" "$FRESH" \
             bash -c 'exec echo FRESH-MOUNT-OK'
     fi
     enroot remove -f "$FRESH" 2>/dev/null || true
@@ -133,14 +133,14 @@ if [ $r2 -eq 0 ]; then
         bash -c 'source /usr/lib/openfoam/openfoam2606/etc/bashrc; source /dtOO-install/bin/env.sh; exec echo SOURCED-NOMOUNT-OK'
     r5=$?
     run_step 90 "step6 source+both-mounts" --rc "$RC" \
-        --mount "$REPO:/repo:rw" --mount "$EF:/ef:rw" "$CONTAINER" \
+        --mount "$REPO:/repo" --mount "$EF:/ef" "$CONTAINER" \
         bash -c 'source /usr/lib/openfoam/openfoam2606/etc/bashrc; source /dtOO-install/bin/env.sh; exec echo SOURCED-OK'
     r6=$?
 
     if [ $r5 -eq 0 ] && [ $r6 -eq 0 ]; then
         echo "[bisect2] --- step7 export smoke (600 s) --- $(date -Is)"
         timeout 600 srun -n1 -N1 enroot start --root --rc "$RC" \
-            --mount "$REPO:/repo:rw" --mount "$EF:/ef:rw" "$CONTAINER" \
+            --mount "$REPO:/repo" --mount "$EF:/ef" "$CONTAINER" \
             bash -c 'source /usr/lib/openfoam/openfoam2606/etc/bashrc; source /dtOO-install/bin/env.sh; export EIGENFREQUENCIES_ROOT=/ef; export PYTHONUNBUFFERED=1; cd /repo; python3.13 experimentell/hex3d_algohex/scripts/generate_machines.py --export --count '"$COUNT"'' < /dev/null
         r7=$?
         echo "[bisect2] --- step7 rc=$r7 --- $(date -Is)"

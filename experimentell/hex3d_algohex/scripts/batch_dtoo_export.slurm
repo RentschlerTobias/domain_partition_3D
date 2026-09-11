@@ -16,8 +16,9 @@
 # number T14 wants, so resubmitting is cheap and safe in both directions.
 #
 # Requires (one-time, cluster/eigenfrequencies/cluster/enroot_dtoo_import.md):
-#   $WS/enroot-images/dtOO.sqsh    imported via enroot import -- zstd options
-#   $WS/eigenfrequencies           the sibling repo, checked out in the workspace
+#   ws eigenfreq: enroot-images/dtOO.sqsh   imported via enroot import, zstd opts
+#   home: ~/eigen/eigenfrequencies          the sibling repo checkout
+#   this repo: data/dataset/sobol/          from the local --preview draw
 #
 # Both env files BEFORE python3.13 (or: libPstream.so / libTKFeat.so.7.9 not
 # found) and NO set -u inside the container (OpenFOAM's bashrc reads unset
@@ -35,7 +36,10 @@ set -u
 
 WS="${WS:-$(ws_find hex3d 2>/dev/null)}"
 REPO="${REPO:-$WS/domain_partition_3D}"
-EF_ROOT="${EIGENFREQUENCIES_ROOT:-$WS/eigenfrequencies}"
+# The eigenfrequencies checkout lives in HOME (cluster_env.sh of that repo:
+# kittel:/eigen/eigenfrequencies), NOT in a workspace; the workspace only
+# holds the image. Override with EIGENFREQUENCIES_ROOT if it moves.
+EF_ROOT="${EIGENFREQUENCIES_ROOT:-/home/st/${USER}/eigen/eigenfrequencies}"
 # The dtOO image lives in the EIGENFREQUENCIES workspace (ws eigenfreq), where
 # the existing smoke-test chain already imported and uses it -- one image, one
 # location, started by both pipelines. Do NOT copy it into this workspace.
@@ -75,7 +79,7 @@ srun -n1 -N1 enroot start --root \
 DT=$(( $(date +%s) - t0 ))
 
 # ------------------------------------------------------------------ harvest
-PF="$REPO/$DATASET/sobol"
+PF="$REPO/$DATASET"
 OK=0; MISS=0; FAIL=0
 for d in "$PF"/machine_00*; do
     [ -d "$d" ] || continue
@@ -90,6 +94,7 @@ echo "[dtoo] machines        $OK exported, $FAIL failed, $MISS not attempted"
 [ "$OK" -gt 0 ] && echo "[dtoo] mesh.msh        $(du -sh "$PF" | cut -f1) dataset total"
 echo "[dtoo] yield           $OK / $(( OK + FAIL )) attempted; with MISS >= 1, resubmit to finish"
 echo "[dtoo] feed these into batch_samples.slurm:"
-echo "[dtoo]   NS=\"2000 8000\" CANDS=\"$DATASET/sobol/machine_00*\"	sbatch scripts/batch_samples.slurm"
+echo "[dtoo]   NS=\"2000 8000\" CANDS=\"$DATASET/machine_00*\" \\"
+echo "[dtoo]       sbatch experimentell/hex3d_algohex/scripts/batch_samples.slurm"
 echo "[dtoo] ============================================"
 [ "$MISS" -gt 0 ] && echo "[dtoo] $MISS machines have neither mesh.msh nor export_error.txt: job may have been cut before reaching them."

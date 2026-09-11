@@ -21,13 +21,21 @@ export ENROOT_RUNTIME_PATH="${ENROOT_RUNTIME_PATH:-/tmp/$USER-enroot-run}"
 mkdir -p "$ENROOT_TEMP_PATH" "$ENROOT_RUNTIME_PATH"
 [ -f "$SQSH" ] || { echo "no image: $SQSH"; exit 1; }
 [ -d "$EF_ROOT/src" ] || { echo "no checkout: $EF_ROOT"; exit 1; }
-srun -p dev_cpu_il -t 10 --cpus-per-task=8 --mem=16G -n1 -N1 \
-    enroot start --root \
-    --mount "$REPO:/repo:rw" --mount "$EF_ROOT:/ef:rw" \
-    "$SQSH" bash -c "
+ENROOT_CMD="enroot start --root \
+    --mount \"$REPO:/repo:rw\" --mount \"$EF_ROOT:/ef:rw\" \
+    \"$SQSH\" bash -c \"
 source /usr/lib/openfoam/openfoam2606/etc/bashrc
 source /dtOO-install/bin/env.sh
 export EIGENFREQUENCIES_ROOT=/ef PYTHONUNBUFFERED=1
 cd /repo
 python3.13 experimentell/hex3d_algohex/scripts/generate_machines.py --export --count $COUNT
-"
+\""
+
+if [ -n "${SLURM_JOB_ID:-}" ]; then
+    # already inside a salloc/sbatch allocation: run the container directly,
+    # a second srun -p here would request a NEW allocation from the login
+    # queue and sit there silently (measured on 2026-09-11)
+    bash -c "$ENROOT_CMD"
+else
+    srun -p dev_cpu_il -t 10 --cpus-per-task=8 --mem=16G -n1 -N1 bash -c "$ENROOT_CMD"
+fi

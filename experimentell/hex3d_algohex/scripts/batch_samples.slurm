@@ -18,6 +18,12 @@
 #      use -- and 1.87 GB at -n 2000 (job 6860177). One task per node would
 #      leave 62 of 64 cores idle.
 #
+# CORES_PER_SAMPLE, measured and then corrected. With 8 cores allocated a
+# single sample averaged 1.45; with 64 cores three samples averaged 6.4 each
+# (job 6860772), because numpy/scipy expand into whatever is free.
+# sample_one.sh now pins OMP/OPENBLAS/MKL/NUMEXPR to 1 thread, which is what
+# makes the per-sample cost predictable enough to compute a concurrency from.
+#
 # So: one job, one queue slot, and `xargs -P` inside it. On a 64-core/256 GiB
 # node that is ~30 concurrent samples, which is the whole point.
 #
@@ -72,6 +78,8 @@ MEM_MB="${SLURM_MEM_PER_NODE:-131072}"
 # Per-sample figures. MEM_PER_SAMPLE_MB defaults to the -n 2000 measurement
 # plus headroom; override it upward for large -n or the node will OOM.
 MEM_PER_SAMPLE_MB="${MEM_PER_SAMPLE_MB:-2500}"
+# 2 with threads pinned to 1: AlgoHex is largely serial, plus some overlap.
+# Without the pinning in sample_one.sh this would have to be 7.
 CORES_PER_SAMPLE="${CORES_PER_SAMPLE:-2}"
 P_MEM=$(( MEM_MB / MEM_PER_SAMPLE_MB ))
 P_CPU=$(( CORES / CORES_PER_SAMPLE ))
@@ -139,9 +147,21 @@ echo "[batch] ================ throughput ================"
 echo "[batch] wall            ${DT}s"
 echo "[batch] samples         $OK ok, $MISS missing, of $TOTAL"
 [ "$OK" -gt 0 ] && {
-    echo "[batch] per sample      $(( DT / OK ))s wall-clock-equivalent at P=$P"
-    echo "[batch] rate            $(( OK * 3600 / (DT > 0 ? DT : 1) )) samples/hour on one node"
-    echo "[batch] retained        $(du -sh "$OUT_ROOT" | cut -f1) total"
+    echo "[batch] retained        $(du -sh "$OUT_ROOT" | cut -f1) total, $(( $(du -sk "$OUT_ROOT" | cut -f1) / OK )) KB per sample"
+    echo "[batch] measured rate   $(( OK * 3600 / (DT > 0 ? DT : 1) )) samples/hour"
+    # The measured rate is only a capacity number if the workers were actually
+    # busy. With TOTAL < P the wall time is the duration of the SLOWEST single
+    # sample and the rate says nothing about the node -- the first run of this
+    # script reported 8/hour for 3 samples on 32 slots, where the capacity was
+    # about 89/hour. Say which of the two this run measured.
+    if [ "$TOTAL" -lt "$P" ]; then
+        echo "[batch] ^^ NOT capacity: $TOTAL samples for $P slots, so the wall"
+        echo "[batch]    time is just the slowest single sample."
+        echo "[batch]    capacity would be ~$(( P * 3600 / (DT > 0 ? DT : 1) ))/hour -- UNVERIFIED,"
+        echo "[batch]    queue at least $P samples to measure it."
+    else
+        echo "[batch] ^^ saturated ($TOTAL >= $P), so this IS a capacity number."
+    fi
 }
 [ "$MISS" -gt 0 ] && {
     echo "[batch] failures, newest log first:"

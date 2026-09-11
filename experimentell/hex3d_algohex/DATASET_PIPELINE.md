@@ -898,8 +898,20 @@ derivatives are deleted. `KEEP_OVM=1` for a showcase set.
 
 ## T14 — Geometry supply: dtOO via enroot, driven by eigenfrequencies' adapter
 
-**Status:** `todo` — blocked on T10's throughput number, not on anything
-technical. The pieces all exist and are located.
+**Status:** `doing` — the sampler exists:
+`scripts/generate_machines.py` (decisions Q1-Q4 in
+`docs/decisions/2026-09-11-dataset-sampler-strategy.md`). Sobol, seeded,
+incremental; state in the dataset root's `sampler.json`; layout
+`data/dataset/<strategy>/machine_00NN/` with `params.json` (tracked) and
+later `mesh.msh` (gitignored, 429 MB scale). `--preview` draws and writes
+params only, verified locally against the live `design_bounds()` (64 draws,
+per-dimension realized span 0.97-0.99 of bounds); `--export` calls
+`adapter.export_mesh()` through the single eigenfrequencies import seam and
+runs only inside the dtOO container. Batch size N is still open: it follows
+from T10's throughput number and the measured dtOO yield rate, which the
+first `--export` batch measures via `export_error.txt` per failed draw.
+Still `todo`: the export batch on the cluster, then `batch_samples.slurm`
+with `CANDS="data/dataset/sobol/machine_00*"`.
 
 **Why.** 21 candidate geometries is not a dataset, and the 429 MB of
 `mesh.msh` are gitignored, so a fresh clone has none. Decision B left the
@@ -965,6 +977,51 @@ for each, write `params.json` beside each `.msh` in our candidate layout.
 **Done when.** N buildable geometries exist with their `params.json`, the yield
 rate is recorded here as a number, and `batch_samples.slurm` runs over them
 with `CANDS`.
+
+**The two passes are split across machines:** the Sobol draw needs only
+`scipy` (runs locally / on the login node with the repo venv), the mesh export
+needs the dtOO container. `scripts/generate_machines.py --preview` draws state
+durably; when every machine dir carries `params.json`, its `--export` pass
+skips the draw entirely, so the container needs nothing beyond the adapter:
+
+```bash
+# local: draw + dimensions coverage proof (done 2026-09-11, count 64)
+python experimentell/hex3d_algohex/scripts/generate_machines.py --count 64 --preview
+
+# cluster: mesh.msh per machine, enroot container, idempotent resubmit
+COUNT=64 sbatch experimentell/hex3d_algohex/scripts/batch_dtoo_export.slurm
+```
+
+`batch_dtoo_export.slurm` mounts the repo rw and the eigenfrequencies
+checkout at `/ef` (the Q4 import seam), sources both env files before
+`python3.13` and runs without `set -u` inside, exactly as
+`eigenfrequencies/cluster/submit_dtoo_enroot_smoke.sh` prescribes. It ends
+with a yield summary (exported / failed via `export_error.txt` / not
+attempted); the yield number from the first batch is what unblocks the
+dataset-size decision, and the next step after it is
+`NS="2000 8000" CANDS="data/dataset/sobol/machine_00*" sbatch
+scripts/batch_samples.slurm`.
+
+**Why the chain stops at `sample.npz` — no reattach.** The dataset unit is
+the sample file (block structure + tet + params + status); it fully serves
+the block-structure transformer. `reattach.py` (core + blade O-grid + wall
+layers = the CFD-ready `full.vtk`) stays OUT of the batch chain for three
+measured reasons:
+
+1. Economics (decision J, measured on cand_001): the `full.vtk` group is
+   66 MB per sample and re-derives in seconds from the retained
+   `blocks.vtk` + `tet.vtk` pair (7.1 MB, worth 13-55 min of compute) —
+   ~80 GB at 10k samples versus ~900 GB with reattach kept.
+2. Environment: reattach is the only stage needing torch (via `dp3d.tmesh`),
+   and torch is measured blocked in the cluster environment.
+3. Contracts: the CFD-ready consumer does not exist inside this repo.
+
+**When the pipeline joins the eigenfrequencies optimization loop (planned,
+see decision Q4 in `docs/decisions/2026-09-11-dataset-sampler-strategy.md`),
+reattach runs THERE** — in the eigenfrequencies CFD consumer seam, invoked
+per evaluated individual (torch available in that stack), not as a dataset
+stage. Until then, showcase samples can get their `full.vtk` rebuilt on the
+local box / VPS by rerunning `reattach.py` from the retained pair.
 
 ---
 

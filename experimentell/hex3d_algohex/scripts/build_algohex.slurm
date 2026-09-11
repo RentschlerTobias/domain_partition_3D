@@ -1,6 +1,11 @@
 #!/bin/bash
-# Phase 2 of 2: compile AlgoHex and export the image. COMPUTE node, no network
-# needed -- build_algohex_enroot.sh already downloaded everything.
+# Phase 2 of 2: compile AlgoHex and export the image, on a compute node.
+#
+# AlgoHex's cmake DOWNLOADS its own dependencies -- ALGOHEX_DOWNLOAD_MISSING_DEPS
+# is on by default when building standalone, per upstream's README -- and that
+# works here, because compute nodes on this cluster have internet (measured
+# 2026-09-11, job 6856932, COMPLETED). build_algohex_enroot.sh has already
+# fetched the coin-or sources, so this job mostly compiles.
 #
 #   STAGE=ipopt   sbatch .../build_algohex.slurm
 #   STAGE=bonmin  sbatch .../build_algohex.slurm

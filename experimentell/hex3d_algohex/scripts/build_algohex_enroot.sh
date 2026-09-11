@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
-# Phase 1 of 2: prepare the build container. LOGIN NODE, because this is the
-# only place with internet.
+# Phase 1 of 2: prepare the build container. Run it on the login node.
+#
+# NOT because compute nodes lack internet -- they have it. Measured 2026-09-11:
+# AlgoHex's cmake downloaded OpenVolumeMesh, libHexEx, CoMISo, GMM, TinyAD,
+# QGP3D, Eigen and CLI11 from inside a dev_cpu_il job and the build completed.
+# An earlier version of this file claimed the opposite, taken from a note in
+# the sibling eigenfrequencies repo rather than from this cluster, and it would
+# have split the build across an unnecessary manual step.
+#
+# The reason to download here is politeness and speed: the login node is not
+# billed against a 30-minute slot, and doing it once means the batch job spends
+# its whole slot compiling.
 #
 #   bash experimentell/hex3d_algohex/scripts/build_algohex_enroot.sh
 #
@@ -10,9 +20,9 @@
 # --rw` works (enroot even ships 10-aptfix.sh for Debian rootfs), the changes
 # persist across invocations, and `enroot export` captured them (87 -> 174 MB).
 #
-# Split at the network boundary, which is also where upstream's Dockerfile
-# splits: everything that DOWNLOADS runs here, everything that COMPILES runs in
-# build_algohex.slurm on a compute node with cores.
+# Split where upstream's Dockerfile splits: everything that DOWNLOADS runs
+# here, everything that COMPILES runs in build_algohex.slurm on a node with
+# cores. A convenience, not a constraint -- see above.
 #
 # Provenance after this route: a pinned public commit plus these two scripts.
 # No Docker volume, no image copied from anyone's disk, no registry.

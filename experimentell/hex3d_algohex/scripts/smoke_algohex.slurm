@@ -71,7 +71,7 @@ rc=${PIPESTATUS[0]}
 
 echo "[smoke] --- 3/3 no missing shared libraries, and the mount is visible ---"
 srun -n1 -N1 enroot start --root --rw --mount "$REPO:/work" "$IMAGE" \
-    sh -c 'ldd "$(command -v HexMeshing)" | grep -c "not found"; \
+    sh -c 'ldd /app/build/Build/bin/HexMeshing | grep -c "not found"; \
            ls /work/data/T1_9/ >/dev/null && echo "mount OK"'
 
 echo "[smoke] exit $rc"

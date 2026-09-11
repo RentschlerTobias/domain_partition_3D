@@ -85,7 +85,7 @@ fi
 # of checks. dev_cpu_il allows only 4 queued jobs per user
 # (QOSMaxSubmitJobPerUserLimit), and three of those are build stages, so a
 # separate smoke job costs the slot this job needs.
-echo "[smoke-pipe] --- 0/4 image usable on this compute node ---"
+echo "[smoke-pipe] --- precheck: is the image usable on this node? ---"
 # `| wc -l`, not `grep -c`: grep exits 1 when it finds NOTHING, and nothing
 # found is the success case here. In an && chain that aborts the check on a
 # healthy image, which is exactly what job 6858990 did. wc always exits 0.
@@ -100,24 +100,24 @@ enroot start --root --rw --mount "$PWD:/work" "$IMG" sh -c '
        exit 1; }
 
 t0=$(date +%s)
-echo "[smoke-pipe] --- 1/4 AlgoHex, enroot backend ---"
+echo "[smoke-pipe] --- step 1 of 4: AlgoHex, enroot backend ---"
 python $E/run_algohex.py --backend enroot --image "$IMG" \
     --prefix smoke --tag "$TAG" --in-vtk "$TET" --out-dir "$D" \
     -- -n "$N" || { echo "[smoke-pipe] FAIL: AlgoHex"; exit 1; }
 
-echo "[smoke-pipe] --- 2/4 clean_blocks ---"
+echo "[smoke-pipe] --- step 2 of 4: clean_blocks ---"
 python $E/clean_blocks.py "$D/smoke_hex_${TAG}.ovm" --input-vtk "$TET" \
     --collapse-rounds 5 --untangle --untangle-rounds 6 \
     --out "$D/blocks.vtk" > "$D/clean_blocks.log" 2>&1 \
   || { echo "[smoke-pipe] FAIL: clean_blocks, see $D/clean_blocks.log"; exit 1; }
 grep -E "^  [0-9]+ blocks,|Hausdorff|VALID|INVALID" "$D/clean_blocks.log" | tail -4
 
-echo "[smoke-pipe] --- 3/4 conforming divisions ---"
+echo "[smoke-pipe] --- step 3 of 4: conforming divisions ---"
 python $E/tfi.py "$D/blocks.vtk" --input-vtk "$TET" --target-h "$H" \
     --require-lattices --solve-divisions > "$D/tfi.log" 2>&1
 grep -E "direction classes|target h" "$D/tfi.log" | tail -2
 
-echo "[smoke-pipe] --- 4/4 the sample, with the round-trip gate ---"
+echo "[smoke-pipe] --- step 4 of 4: the sample, with the round-trip gate ---"
 python $E/export_sample.py "$D/blocks.vtk" --tet "$TET" --target-h "$H" \
     --n "$N" --out "$D/sample.npz" --check
 rc=$?

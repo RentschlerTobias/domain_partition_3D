@@ -51,3 +51,13 @@ slides/*.toc
 
 # generated tet inputs (reproducible via tet_prep*.py, see hex3d_algohex/README.md)
 data/T1_9/T1_9_tet*.vtk
+# dataset draws: params.json tracked, mesh.msh stays out (429 MB scale).
+# Descent chain, same reason as data/random_tistos/ above: a `!` below an
+# excluded DIRECTORY is never seen, each level must stay enterable.
+data/dataset/*
+!data/dataset/*/
+data/dataset/*/*
+!data/dataset/*/*/
+data/dataset/*/*/*
+!data/dataset/*/*/params.json
+!data/dataset/*/sampler.json

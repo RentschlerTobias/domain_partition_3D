@@ -989,8 +989,13 @@ skips the draw entirely, so the container needs nothing beyond the adapter:
 python experimentell/hex3d_algohex/scripts/generate_machines.py --count 64 --preview
 
 # cluster: mesh.msh per machine, enroot container, idempotent resubmit
-COUNT=64 sbatch experimentell/hex3d_algohex/scripts/batch_dtoo_export.slurm
+sbatch experimentell/hex3d_algohex/scripts/batch_dtoo_export.slurm
 ```
+
+Inside the container the job runs `scripts/export_all_machines.sh`, one fresh
+`python3.13` process per pending machine (dtOO SWIG state must not accumulate;
+see the sibling repo's `dtoo_cfd_build.py` docstring) and skips machines whose
+`mesh.msh` already exists.
 
 `batch_dtoo_export.slurm` mounts the repo rw and the eigenfrequencies
 checkout at `/ef` (the Q4 import seam), sources both env files before

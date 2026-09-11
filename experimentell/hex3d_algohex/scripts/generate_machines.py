@@ -42,6 +42,7 @@ import hashlib
 import json
 import math
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -123,6 +124,13 @@ def main() -> None:
     )
     p.add_argument("--preview", action="store_true", help="draw + params.json only")
     p.add_argument("--export", action="store_true", help="also run dtOO (container only)")
+    p.add_argument(
+        "--only",
+        default=None,
+        help="export only this machine (e.g. machine_0007); the batch loop "
+             "spawns one fresh python process per machine so dtOO SWIG state "
+             "cannot accumulate (segfault risk, see dtoo_cfd_build.py)",
+    )
     args = p.parse_args()
 
     if not EF_SRC.is_dir():
@@ -196,6 +204,12 @@ def main() -> None:
 
     if args.export:
         todo = pending(machine_dirs(root), True)
+        if args.only:
+            todo = [d for d in todo if d.name == args.only]
+            if not todo:
+                raise SystemExit(
+                    f"--only {args.only}: not a pending machine under {root} "
+                    "(unknown name or mesh.msh already present)")
         # A SIGTERM from SLURM mid-export leaves a torn mesh.msh.suffix next
         # to the finished ones. Presence of mesh.msh is Q2's idempotency
         # marker, so the suffix is not just cosmetic: without it the next
@@ -208,8 +222,19 @@ def main() -> None:
         for d in todo:
             values = json.loads((d / "params.json").read_text())
             try:
-                adapter.export_mesh(values, output_msh=str(d / "mesh.msh.part"))
-                os.replace(d / "mesh.msh.part", d / "mesh.msh")
+                # export_mesh(design_values) -> str has no output kwarg
+                # (adapter.py:35); location comes from DTOO_OUTPUT_MSH, which
+                # export.py reads. Older checkouts ignore the env and return
+                # their default path, which is moved (cross-device safe).
+                part = d / "mesh.msh.part"
+                os.environ["DTOO_OUTPUT_MSH"] = str(part)
+                mesh = adapter.export_mesh(values)
+                if part.is_file():
+                    os.replace(part, d / "mesh.msh")
+                elif mesh:
+                    shutil.move(str(mesh), str(d / "mesh.msh"))
+                else:
+                    raise RuntimeError("export_mesh returned no mesh path")
                 (d / "export_error.txt").unlink(missing_ok=True)
                 print(f"[sampler] {d.name} mesh OK")
             except Exception as e:  # noqa: BLE001 - yield measurement needs every failure

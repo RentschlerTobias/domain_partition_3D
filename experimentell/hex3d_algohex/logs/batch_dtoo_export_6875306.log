@@ -1,0 +1,1369 @@
+[dtoo] host uc2n601.localdomain, job 6875306, 1 cores
+[dtoo] repo /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D
+[dtoo] image /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-images/dtOO.sqsh
+[dtoo] container dtOO already unpacked, skipping
+[dtoo] preflight ok
+[dtoo] rootfs lock free
+[dtoo] lock probe rc=0 (0 free, 1 busy, 124 stuck)
+[dtoo] container step starting at 2026-09-12T08:12:30+02:00
+[dtoo] container env ready, exporting
+[dtoo] progress log: /repo/experimentell/hex3d_algohex/logs/export_progress_manual.log
+[dtoo] exporting machine_0001
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0001 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0001 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0002
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0002 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0002 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0003
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0003 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0003 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0004
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0004 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0004 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0005
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0005 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0005 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0006
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0006 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0006 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0007
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0007 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0007 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0008
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0008 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0008 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0009
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0009 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0009 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0010
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0010 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0010 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0011
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0011 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0011 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0012
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0012 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0012 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0013
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0013 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0013 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0014
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0014 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0014 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0015
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0015 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0015 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0016
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0016 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0016 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0017
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0017 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0017 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0018
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0018 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0018 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0019
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0019 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0019 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0020
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0020 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0020 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0021
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0021 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0021 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0022
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0022 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0022 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0023
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0023 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0023 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0024
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0024 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0024 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0025
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0025 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0025 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0026
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0026 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0026 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0027
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0027 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0027 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0028
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0028 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0028 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0029
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0029 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0029 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0030
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0030 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0030 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0031
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0031 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0031 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0032
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0032 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0032 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0033
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0033 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0033 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0034
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0034 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0034 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0035
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0035 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0035 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0036
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0036 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0036 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0037
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0037 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0037 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0038
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0038 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0038 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0039
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0039 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0039 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0040
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0040 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0040 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0041
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0041 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0041 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0042
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0042 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0042 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0043
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0043 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0043 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0044
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0044 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0044 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0045
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0045 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0045 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0046
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0046 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0046 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0047
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0047 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0047 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0048
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0048 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0048 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0049
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0049 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0049 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0050
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0050 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0050 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0051
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0051 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0051 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0052
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0052 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0052 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0053
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0053 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0053 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0054
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0054 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0054 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0055
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0055 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0055 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0056
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0056 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0056 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0057
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0057 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0057 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0058
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0058 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0058 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0059
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0059 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0059 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0060
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0060 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0060 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0061
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0061 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0061 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0062
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0062 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0062 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0063
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0063 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0063 produced no mesh (see export_error.txt)
+[dtoo] exporting machine_0064
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0064 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0064 produced no mesh (see export_error.txt)
+[dtoo] pass complete (rc=1)
+srun: error: uc2n601: task 0: Exited with exit code 1
+[dtoo] container step rc=1 after 162s
+[dtoo] stage file      /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/stage_6875306.txt
+
+[dtoo] ================ yield summary ================
+[dtoo] wall            162s
+[dtoo] machines        0 exported, 64 failed, 0 not attempted
+[dtoo] yield           0 / 64 attempted; with MISS >= 1, resubmit to finish
+[dtoo] feed these into batch_samples.slurm:
+[dtoo]   NS="2000 8000" CANDS="data/dataset/sobol/machine_00*" \
+[dtoo]       sbatch experimentell/hex3d_algohex/scripts/batch_samples.slurm
+[dtoo] ============================================
+[dtoo] keep this log:  git add experimentell/hex3d_algohex/logs && git commit -m 'cluster: dtOO export job 6875306 log'
+[dtoo] log file:       /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/batch_dtoo_export_6875306.log

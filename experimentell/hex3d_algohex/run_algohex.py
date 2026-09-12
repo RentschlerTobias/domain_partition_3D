@@ -17,6 +17,7 @@ Docker needs `--network=host`: the default bridge network cannot resolve DNS
 in this sandbox (see PROGRESS.md).
 """
 
+import random
 import shutil
 import subprocess
 import sys
@@ -159,11 +160,29 @@ def run_hexmeshing(extra_args=(), tag="", in_vtk=None, prefix="T1_9",
     cmd = container_cmd(backend, [*args, *extra_args], image=image, cpus=cpus)
     print(f"[run_algohex] backend={backend}")
     print(f"[run_algohex] {' '.join(cmd)}")
-    t0 = time.time()
-    with open(log_path, "w") as log:
-        proc = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT)
-    dt = time.time() - t0
-    print(f"[run_algohex] exit={proc.returncode} in {dt:.1f}s, log: {log_path}")
+    # enroot takes a per-container rootfs lock while it sets the container up
+    # (runtime.sh: flock -w 30 on $ENROOT_DATA_PATH/<name>/.lock) and releases
+    # it before HexMeshing runs. A burst of parallel starts of the SAME
+    # container therefore starves the tail: whoever cannot get the lock within
+    # 30 s dies with "[ERROR] Could not acquire rootfs lock" (job 6880969,
+    # 32-way). The lock is free again as soon as one start has set up, so a
+    # jittered retry drains the backlog; only this exact failure is retried,
+    # every other failure still fails through on the first attempt.
+    attempts = 6 if backend == "enroot" else 1
+    for attempt in range(1, attempts + 1):
+        t0 = time.time()
+        with open(log_path, "w") as log:
+            proc = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT)
+        dt = time.time() - t0
+        note = f" (attempt {attempt}/{attempts})" if attempts > 1 else ""
+        print(f"[run_algohex] exit={proc.returncode} in {dt:.1f}s, log: {log_path}{note}")
+        if (proc.returncode != 0 and attempt < attempts
+                and "Could not acquire rootfs lock" in log_path.read_text()):
+            delay = random.uniform(2.0, 12.0) * attempt
+            print(f"[run_algohex] rootfs lock busy, retrying in {delay:.0f}s")
+            time.sleep(delay)
+            continue
+        break
 
     tail = log_path.read_text().splitlines()[-40:]
     print("[run_algohex] --- log tail ---")

@@ -343,6 +343,35 @@ lesson (`_stage_case_dir` in physics.py, defect table in
 docs/cluster-resource-sizing.md §6). The case is ~1.8 MB, so per-machine
 copying is cheap.
 
+## 16. The rootfs lock is setup-scoped -- parallel starts of one container need retries
+
+Every `enroot start` takes a per-container lock while it sets the container up:
+
+```
+src/runtime.sh:23   readonly lock_file="/.lock"   # -> $ENROOT_DATA_PATH/<name>/.lock
+src/runtime.sh:260  flock -w 30 "${_lock}" ... || common::err "Could not acquire rootfs lock"
+```
+
+The locked subshell ends after the runtime hooks and the config are applied, i.e.
+**before** the payload runs; the lock is free while HexMeshing itself computes.
+The 30 s timeout punishes a burst of simultaneous starts of the SAME container:
+the queue of setups must drain within 30 s, otherwise the tail dies with
+`[ERROR] Could not acquire rootfs lock` after ~30.3 s. Measured with job 6880969:
+32 parallel samples of one container -> waves of lock failures; the earlier T1_9
+batch with 7 parallel samples never hit it.
+
+What does NOT help: dropping `--rw` (the lock is taken with and without it) and
+per-worker `ENROOT_RUNTIME_PATH`/`ENROOT_TEMP_PATH` (the lock lives in the
+rootfs, not in the runtime dir). Extra container copies would work but waste
+~2 GB each. Starting the `.sqsh` directly would move the lock onto per-process
+tmpfs, but reads then go through squashfuse -- measured at >20 minutes for a
+2 GB image (sections 3 and 12), so that is not an option here.
+
+The fix lives in `run_algohex.py`: an enroot attempt whose log contains exactly
+this error is retried with a jittered backoff (up to 6 attempts). Retrying is
+safe because a failed start leaves no runtime behind, and the jitter disperses
+the herd instead of re-colliding.
+
 ## Measured costs, for planning
 
 | step | time | resources |

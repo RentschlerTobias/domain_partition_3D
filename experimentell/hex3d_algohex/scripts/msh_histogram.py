@@ -7,8 +7,8 @@ structural check of a dtOO export before tet_prep_v5 reads it.
 The dataset machine meshes must look like the T1_9 / candidate meshes:
 volume elements et=4 (tets), et=5 (hexes), et=6 (prisms), et=7 (pyramids)
 plus tagged 2D elements et=2/3. A mesh with only et=11 (quadratic tets)
-is the wrong boundedVolume (the CFD mech mesh), see
-docs/cluster-enroot-findings.md.
+is the wrong boundedVolume: `ruWithRounding_mechMesh` is the structural
+(FEM) runner solid, not the fluid grid this pipeline reads.
 
 Usage:
     .venv/bin/python experimentell/hex3d_algohex/scripts/msh_histogram.py FILE.msh

@@ -10,16 +10,21 @@
 # Runs INSIDE the dtOO container with /repo mounted; the batch driver execs
 # into this script (exec also disarms OpenFOAM's eval-of-argv double-execution).
 #
-# Usage (in container): bash /repo/experimentell/hex3d_algohex/scripts/export_all_machines.sh [dataset_dir]
+# Usage (in container): bash /repo/experimentell/hex3d_algohex/scripts/export_all_machines.sh [dataset_dir] [run_id]
+#
+# run_id: enroot does not propagate SLURM_JOB_ID into the container, so the
+# driver injects its own host-side job id as the second argument; without it
+# every run would append to the same *_manual.* progress and stage paths.
 set -u
 
 DS="${1:-data/dataset/sobol}"
+RUN="${2:-manual}"
 cd /repo || exit 1
 
 # Everything is also appended to a per-job progress file: stdout through the
 # srun step dies with a SIGKILLed step (see the batch driver's history), while
 # a file under /repo survives and can be committed from the login node later.
-PROG="/repo/experimentell/hex3d_algohex/logs/export_progress_${SLURM_JOB_ID:-manual}.log"
+PROG="/repo/experimentell/hex3d_algohex/logs/export_progress_${RUN}.log"
 mkdir -p "$(dirname "$PROG")"
 exec > >(tee -a "$PROG") 2>&1
 echo "[dtoo] progress log: $PROG"
@@ -38,7 +43,7 @@ echo "[dtoo] progress log: $PROG"
 # copy cannot carry the previous machine's written-back state, and
 # dereference symlinks with cp -L since they point into the read-only image.
 CASE_SRC="${DTOO_CASE_DIR:-/dtOO/build/test/tistos}"
-STAGE_ROOT="/tmp/dtoo-case-${SLURM_JOB_ID:-manual}"
+STAGE_ROOT="/tmp/dtoo-case-${RUN}"
 echo "[dtoo] case source: $CASE_SRC"
 
 RC_ALL=0

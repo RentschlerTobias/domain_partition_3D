@@ -8,6 +8,8 @@ greppable instead of only in a scratch directory that gets rotated away.
 - `batch_dtoo_export_<jobid>.log` — T14 pass 2, dtOO `export_mesh` per machine.
 - `batch_samples_<jobid>.log` — T10 hexablock batch (the driver tees its output
   here; the SLURM `.out` in the submit directory holds the same text).
+- `batch_generate_<jobid>.log` — the production job (`batch_generate.slurm`,
+  cpu_il) that chains both phases; its per-phase logs are the two above.
 
 The SLURM `.out` in the submit directory still exists, but it is not durable;
 this directory is. After a run:

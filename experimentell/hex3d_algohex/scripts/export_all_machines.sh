@@ -55,12 +55,15 @@ STAGE_ROOT="/tmp/dtoo-case-${RUN}"
 mkdir -p "$STAGE_ROOT"
 echo "[dtoo] case source: $CASE_SRC"
 
-# The dataset needs the block-structured grid, not the CFD mechanical mesh.
-# tistos.yaml ships mech_volume=ruWithRounding_mechMesh, whose export is an
-# all-quadratic-tet CFD mesh: tet_prep_v5.reduce finds no keep elements in it
-# and classify then crashes on the empty boundary ("0 boundary triangles").
-# ru_gridGmsh is the map3dTo3dGmsh volume that produced T1_9_ru_gridGmsh.msh
-# and the 21 candidates; export.py documents DTOO_MECH_VOLUME as the override.
+# The dataset needs the fluid flow-channel grid, not the runner's structural
+# solid. tistos.yaml ships mech_volume=ruWithRounding_mechMesh (quadratic
+# tets, the FEM mesh of the solid): tet_prep_v5.reduce finds no keep elements
+# in it and classify then crashes on the empty boundary ("0 boundary
+# triangles"). ru_gridGmsh is the map3dTo3dGmsh volume that produced
+# T1_9_ru_gridGmsh.msh and the 21 candidates. Despite the name, mech_volume is
+# the adapter's EXPORT SLOT, not a mesh kind -- the sibling repo's own
+# naca.yaml points the same slot at gridGmsh. export.py documents
+# DTOO_MECH_VOLUME as its env override.
 export DTOO_MECH_VOLUME="${DTOO_MECH_VOLUME:-ru_gridGmsh}"
 
 # The worker runs in a child bash spawned by xargs, so everything it touches

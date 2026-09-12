@@ -1017,10 +1017,13 @@ modal stage). The dataset pipeline needs the FLUID flow-channel grid instead —
 5/6). Exporting the wrong volume is not loud: the structural mesh parses
 fine, but `reduced_boundary` finds no keep elements, so `tet_prep_v5` reports
 `0 boundary triangles` and crashes. `export_all_machines.sh` therefore pins
-`DTOO_MECH_VOLUME=ru_gridGmsh` (`export.py` documents the env override), and
-`scripts/msh_histogram.py` checks an export's element structure before
-`tet_prep` reads it. The first export pass (63 machines, 2026-09-12) held the
-solid mesh; those files are preserved beside their design as
+`DTOO_MECH_VOLUME=ru_gridGmsh` (`export.py` documents the env override).
+Despite its name that field is the adapter's export slot, not a mesh kind:
+the sibling repo's own `naca.yaml` points it at `gridGmsh`, and `tistos.yaml`
+ships the structural mesh only because the modal stage is its default
+consumer. `scripts/msh_histogram.py` checks an export's element structure
+before `tet_prep` reads it. The first export pass (63 machines, 2026-09-12)
+held the solid mesh; those files are preserved beside their design as
 `machine_00NN/mesh_mech.msh` — kept for later pipeline tests on the runner —
 while `mesh.msh` is the grid this chain consumes.
 

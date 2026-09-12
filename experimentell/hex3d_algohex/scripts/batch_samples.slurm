@@ -60,6 +60,15 @@ WS="$(ws_find hex3d 2>/dev/null)"
 REPO="${REPO:-${SLURM_SUBMIT_DIR:-$WS/domain_partition_3D}}"
 [ -n "$WS" ] && [ -d "$REPO/experimentell/hex3d_algohex" ] || {
     echo "[batch] not the hex3d checkout: WS=$WS REPO=$REPO"; exit 1; }
+
+# Keep the batch log in the repository: the SLURM .out in the submit directory
+# is not durable, and the throughput block at the end is a T10 measurement we
+# want committed. Mirrors batch_dtoo_export.slurm.
+LOGDIR="$REPO/experimentell/hex3d_algohex/logs"
+mkdir -p "$LOGDIR"
+LOG="$LOGDIR/batch_samples_${SLURM_JOB_ID:-manual}.log"
+exec > >(tee "$LOG") 2>&1
+
 PYTHON_MODULE="${PYTHON_MODULE:-devel/python/3.13.3-gnu-14.2}"
 NS="${NS:-500 2000 8000}"          # the -n values; each becomes its own sample
 CANDS="${CANDS:-}"                 # candidate dirs; empty = the fixtures tet
@@ -177,4 +186,6 @@ echo "[batch] samples         $OK ok, $MISS missing, of $TOTAL"
 echo "[batch] ============================================"
 echo "[batch] Resubmit to retry only the missing ones -- sample_one.sh skips"
 echo "[batch] anything that already has a sample.npz."
+# Let the tee drain before the script exits and SLURM sees the job as done.
+wait
 [ "$MISS" -eq 0 ]

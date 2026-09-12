@@ -6,8 +6,8 @@ repo (`cluster/logs/<jobid>/`), so a failed run leaves its evidence somewhere
 greppable instead of only in a scratch directory that gets rotated away.
 
 - `batch_dtoo_export_<jobid>.log` — T14 pass 2, dtOO `export_mesh` per machine.
-- `batch_samples_<jobid>.log` — T10 hexablock batch (if the driver learns to
-  tee; until then its record is the SLURM `.out` file).
+- `batch_samples_<jobid>.log` — T10 hexablock batch (the driver tees its output
+  here; the SLURM `.out` in the submit directory holds the same text).
 
 The SLURM `.out` in the submit directory still exists, but it is not durable;
 this directory is. After a run:

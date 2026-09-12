@@ -17,6 +17,7 @@ Docker needs `--network=host`: the default bridge network cannot resolve DNS
 in this sandbox (see PROGRESS.md).
 """
 
+import os
 import random
 import shutil
 import subprocess
@@ -53,6 +54,32 @@ ENROOT_IMAGE = REPO / "output" / "hex3d_algohex" / "algohex.sqsh"
 HEXMESHING_BIN = "HexMeshing"          # on PATH inside the image, since T2
 WORK = "/work"                          # the repo, inside the container
 
+# Neither runtime inherits the caller's environment: enroot composes the
+# container environment from the image's /etc/environment, the environ.d files
+# and explicit `--env` entries; docker starts from the image environment unless
+# `-e` is passed. The thread pins exported by sample_one.sh therefore used to
+# stop at the container boundary -- measured on the cluster (2026-09-12,
+# [mon] batch monitor): a 12-way batch reported hm_threads=768, i.e. every
+# HexMeshing opened the OpenMP default of 64 threads and the node ran at load
+# ~157 on 64 cores. Forward whatever pinning the caller chose.
+ENV_PASSTHROUGH = (
+    "OMP_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+)
+
+
+def _env_args(backend):
+    """Runtime flags that carry the caller's thread pins into the container."""
+    flag = "-e" if backend == "docker" else "--env"
+    out = []
+    for var in ENV_PASSTHROUGH:
+        value = os.environ.get(var)
+        if value:
+            out += [flag, f"{var}={value}"]
+    return out
+
 
 def container_cmd(backend, args, image=None, cpus=None, mounts=()):
     """One command line for either runtime. `mounts` is (host, container).
@@ -66,7 +93,7 @@ def container_cmd(backend, args, image=None, cpus=None, mounts=()):
     """
     binds = list(mounts) or [(str(REPO), WORK)]
     if backend == "docker":
-        cmd = ["docker", "run", "--rm", "--network=host"]
+        cmd = ["docker", "run", "--rm", "--network=host", *_env_args(backend)]
         if cpus:
             cmd += ["--cpus", str(cpus)]
         for h, c in binds:
@@ -94,7 +121,7 @@ def container_cmd(backend, args, image=None, cpus=None, mounts=()):
         # --root: uid 0 inside, --rw: the image's own root is writable, which
         # AlgoHex needs for temporaries. Both verified in T1 together with a
         # writable bind mount.
-        cmd = ["enroot", "start", "--root", "--rw"]
+        cmd = ["enroot", "start", "--root", "--rw", *_env_args(backend)]
         for h, c in binds:
             cmd += ["--mount", f"{h}:{c}"]
         return cmd + [img, HEXMESHING_BIN, *args]

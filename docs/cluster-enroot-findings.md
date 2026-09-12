@@ -372,6 +372,28 @@ this error is retried with a jittered backoff (up to 6 attempts). Retrying is
 safe because a failed start leaves no runtime behind, and the jitter disperses
 the herd instead of re-colliding.
 
+## 17. Neither runtime inherits the caller's environment -- forward thread pins
+
+`sample_one.sh` exports `OMP_NUM_THREADS=1` (and the OpenBLAS/MKL/NumExpr
+equivalents) so that many workers share the node instead of each expanding to
+every core. That pinning stops at the container boundary: enroot builds the
+container environment from the image's `/etc/environment`, `environ.d` files
+and explicit `--env` entries; docker starts from the image environment unless
+`-e` is given. Neither reads the caller's exports.
+
+Symptom: the batch monitor (`[mon] ... hm_threads=` lines in the sample batch
+log) reported **768 threads for 12 workers** (2026-09-12) -- every HexMeshing
+opened the OpenMP default of 64 threads and the node ran at load ~157 on 64
+cores. The rootfs-lock retries were not involved; this was pure
+oversubscription.
+
+`run_algohex.py` now forwards `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`,
+`MKL_NUM_THREADS` and `NUMEXPR_NUM_THREADS` with `--env` (enroot) or `-e`
+(docker) when the caller has them set. The submit environment therefore
+controls the container too:
+
+    OMP_NUM_THREADS=4 PARALLEL=16 sbatch experimentell/hex3d_algohex/scripts/batch_samples.slurm
+
 ## Measured costs, for planning
 
 | step | time | resources |

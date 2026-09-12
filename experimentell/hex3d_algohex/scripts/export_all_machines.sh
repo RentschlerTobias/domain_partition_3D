@@ -28,8 +28,18 @@ echo "[dtoo] progress log: $PROG"
 # in the sibling repo uses /dtOO/build/test/tistos); the machine yaml's
 # ~/dtOO default resolves to /root/dtOO in the container, which does not
 # exist and raises FileNotFoundError. export.py documents DTOO_CASE_DIR as
-# the override, so pin it here.
-export DTOO_CASE_DIR="${DTOO_CASE_DIR:-/dtOO/build/test/tistos}"
+# the override, so use it to point at a WRITABLE copy.
+#
+# The copy is required: dtOO chdirs into the case directory and opens
+# machineSave.xml ReadWrite, but the case tree inside the image sits on the
+# enroot rootfs, which is mounted read-only ("Failed to open fileName =
+# machineSave.xml", dtXmlParser::checkFile). The sibling repo fixes this the
+# same way (_stage_case_dir): stage a fresh case per machine so a leftover
+# copy cannot carry the previous machine's written-back state, and
+# dereference symlinks with cp -L since they point into the read-only image.
+CASE_SRC="${DTOO_CASE_DIR:-/dtOO/build/test/tistos}"
+STAGE_ROOT="/tmp/dtoo-case-${SLURM_JOB_ID:-manual}"
+echo "[dtoo] case source: $CASE_SRC"
 
 RC_ALL=0
 for d in "$DS"/machine_00*; do
@@ -39,8 +49,16 @@ for d in "$DS"/machine_00*; do
         echo "[dtoo] $name mesh.msh present, skipping"
         continue
     fi
-    echo "[dtoo] exporting $name"
-    python3.13 -u experimentell/hex3d_algohex/scripts/generate_machines.py --export --only "$name"
+    stage="$STAGE_ROOT/$name"
+    rm -rf "$stage"
+    mkdir -p "$stage"
+    if ! cp -rL "$CASE_SRC/." "$stage/"; then
+        echo "[dtoo] $name case stage failed (source: $CASE_SRC)"
+        RC_ALL=1
+        continue
+    fi
+    echo "[dtoo] exporting $name $(date -Is)"
+    DTOO_CASE_DIR="$stage" python3.13 -u experimentell/hex3d_algohex/scripts/generate_machines.py --export --only "$name"
     rc=$?
     if [ "$rc" -ne 0 ]; then
         echo "[dtoo] $name FAILED rc=$rc"
@@ -51,5 +69,6 @@ for d in "$DS"/machine_00*; do
         RC_ALL=1
     fi
 done
+rm -rf "$STAGE_ROOT"
 echo "[dtoo] pass complete (rc=$RC_ALL)"
 exit "$RC_ALL"

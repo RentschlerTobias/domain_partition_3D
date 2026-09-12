@@ -70,7 +70,7 @@ LOGDIR="$REPO/experimentell/hex3d_algohex/logs"
 mkdir -p "$LOGDIR"
 LOG="$LOGDIR/batch_dtoo_export_${SLURM_JOB_ID:-manual}.log"
 exec > >(tee "$LOG") 2>&1
-WS="${WS:-$(ws_find hex3d 2>/dev/null)}"
+WS="$(ws_find hex3d 2>/dev/null)"   # not from the env; see the leak note above
 # The eigenfrequencies checkout lives under the eigenfreq workspace (home
 # holds only symlinks into it); resolving it via ws_find keeps the ws_ naming
 # consistent with everything else on the cluster. Home paths stay as fallback

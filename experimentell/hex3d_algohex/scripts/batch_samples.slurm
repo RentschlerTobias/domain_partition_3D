@@ -53,8 +53,13 @@
 
 set -u
 
-WS="${WS:-$(ws_find hex3d 2>/dev/null)}"
-REPO="${REPO:-$WS/domain_partition_3D}"
+# ws_find, NOT the environment: an interactive shell that sourced the
+# eigenfrequencies cluster_env.sh exports WS=<eigenfreq workspace> and every
+# sbatch inherits it -- job 6877668 died on cd "<eigenfreq>/domain_partition_3D".
+WS="$(ws_find hex3d 2>/dev/null)"
+REPO="${REPO:-${SLURM_SUBMIT_DIR:-$WS/domain_partition_3D}}"
+[ -n "$WS" ] && [ -d "$REPO/experimentell/hex3d_algohex" ] || {
+    echo "[batch] not the hex3d checkout: WS=$WS REPO=$REPO"; exit 1; }
 PYTHON_MODULE="${PYTHON_MODULE:-devel/python/3.13.3-gnu-14.2}"
 NS="${NS:-500 2000 8000}"          # the -n values; each becomes its own sample
 CANDS="${CANDS:-}"                 # candidate dirs; empty = the fixtures tet

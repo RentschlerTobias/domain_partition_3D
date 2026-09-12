@@ -1,0 +1,7 @@
+[dtoo] host uc2n602.localdomain, job 6871714, 1 cores
+[dtoo] repo /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D
+[dtoo] image /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-images/dtOO.sqsh
+[dtoo] container dtOO already unpacked, skipping
+[dtoo] container step starting at 2026-09-11T23:38:26+02:00
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+[2026-09-11T23:50:45.330] error: *** STEP 6871714.0 ON uc2n602 CANCELLED AT 2026-09-11T23:50:45 DUE to SIGNAL Terminated ***

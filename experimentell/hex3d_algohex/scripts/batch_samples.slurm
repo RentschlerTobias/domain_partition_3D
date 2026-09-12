@@ -143,12 +143,34 @@ TOTAL=$(wc -l < "$MAN")
 echo "[batch] $TOTAL samples queued:"
 sed 's/^/          /' "$MAN"
 
+# ------------------------------------------------------------- host monitor
+# SLURM's per-job CPU accounting reports 0.00 % for these enroot payloads (job
+# 6861458 finished six samples at 0.00 %, verified on disk), so it cannot tell
+# a busy node from a stuck one -- the exact question job 6882450 left open.
+# Sample the host once a minute into this log instead: load says whether the
+# workers were doing work, hm_threads shows how many threads HexMeshing really
+# uses (i.e. whether the OMP_NUM_THREADS=1 pin reaches the container).
+(
+    while :; do
+        printf '[mon] %s load=%s run=%s hm_threads=%s memMB=%s\n' \
+            "$(date +%H:%M:%S)" \
+            "$(cut -d' ' -f1-3 /proc/loadavg)" \
+            "$(ps -eo stat= 2>/dev/null | grep -c '^R')" \
+            "$(ps -eL -o comm= 2>/dev/null | grep -c '^HexMeshing')" \
+            "$(free -m | awk '/Mem:/{print $3}')"
+        sleep 60
+    done
+) &
+MON=$!
+
 # -------------------------------------------------------------------- run it
 t0=$(date +%s)
 # -P $P workers, one line each. --line means a whole manifest line becomes the
 # argument list, so the worker gets <tet> <n> <outdir> [params] positionally.
 xargs -a "$MAN" -P "$P" -L 1 bash "$E/scripts/sample_one.sh"
 DT=$(( $(date +%s) - t0 ))
+kill "$MON" 2>/dev/null || true
+wait "$MON" 2>/dev/null || true
 
 # ------------------------------------------------------------------ summary
 OK=0; MISS=0

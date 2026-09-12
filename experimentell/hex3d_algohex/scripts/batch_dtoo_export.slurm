@@ -170,13 +170,16 @@ fi
 # coincides with every silent batch stall (6870688/6871479/6871714/6871828),
 # while all one-line probe payloads ran in seconds. The dtOO image re-reads
 # its argv (OpenFOAM eval trap), so the string must stay on one line.
+# The job id is injected host-side: enroot does not propagate SLURM_JOB_ID
+# into the container, so the container-side fallback collapsed every run's
+# progress and stage files into the same *_manual.* paths.
 t0=$(date +%s)
 echo "[dtoo] container step starting at $(date -Is)"
 timeout 1500 srun -n1 -N1 enroot start --root \
     --rc "$RC_SCRIPT" \
     --mount "$REPO:/repo" \
     --mount "$EF_ROOT:/ef" \
-    "$CONTAINER" bash -c 'source /usr/lib/openfoam/openfoam2606/etc/bashrc; source /dtOO-install/bin/env.sh; export EIGENFREQUENCIES_ROOT=/ef PYTHONUNBUFFERED=1; ST="/repo/experimentell/hex3d_algohex/logs/stage_${SLURM_JOB_ID:-manual}.txt"; echo "stage=sourced $(date -Is)" >> "$ST"; echo "[dtoo] container env ready, exporting"; echo "stage=exec-export-all $(date -Is)" >> "$ST"; exec bash /repo/experimentell/hex3d_algohex/scripts/export_all_machines.sh '"$DATASET"'' < /dev/null
+    "$CONTAINER" bash -c 'source /usr/lib/openfoam/openfoam2606/etc/bashrc; source /dtOO-install/bin/env.sh; export EIGENFREQUENCIES_ROOT=/ef PYTHONUNBUFFERED=1; ST="/repo/experimentell/hex3d_algohex/logs/stage_'"${SLURM_JOB_ID:-manual}"'.txt"; echo "stage=sourced $(date -Is)" >> "$ST"; echo "[dtoo] container env ready, exporting"; echo "stage=exec-export-all $(date -Is)" >> "$ST"; exec bash /repo/experimentell/hex3d_algohex/scripts/export_all_machines.sh '"$DATASET ${SLURM_JOB_ID:-manual}"'' < /dev/null
 SRC=$?
 DT=$(( $(date +%s) - t0 ))
 echo "[dtoo] container step rc=$SRC after ${DT}s"

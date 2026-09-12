@@ -1007,6 +1007,23 @@ dataset-size decision, and the next step after it is
 `NS="2000 8000" CANDS="data/dataset/sobol/machine_00*" sbatch
 scripts/batch_samples.slurm`.
 
+**Which mesh — the fluid grid, not the runner solid.** `tistos.yaml`'s
+`mech_volume: ruWithRounding_mechMesh` is the STRUCTURAL mesh of the runner
+solid (quadratic tets; `turbine_runner` builds it into `runner.msh` for the
+modal stage). The dataset pipeline needs the FLUID flow-channel grid instead —
+`ru_gridGmsh`, the boundedVolume of type `map3dTo3dGmsh` that produced
+`T1_9_ru_gridGmsh.msh` and the 21 candidates, whose geometric entity ids
+`tet_prep_v5.classify` reads (hub 1, shroud 2, inlet 3, outlet 4, periodic
+5/6). Exporting the wrong volume is not loud: the structural mesh parses
+fine, but `reduced_boundary` finds no keep elements, so `tet_prep_v5` reports
+`0 boundary triangles` and crashes. `export_all_machines.sh` therefore pins
+`DTOO_MECH_VOLUME=ru_gridGmsh` (`export.py` documents the env override), and
+`scripts/msh_histogram.py` checks an export's element structure before
+`tet_prep` reads it. The first export pass (63 machines, 2026-09-12) held the
+solid mesh; those files are preserved beside their design as
+`machine_00NN/mesh_mech.msh` — kept for later pipeline tests on the runner —
+while `mesh.msh` is the grid this chain consumes.
+
 **Why the chain stops at `sample.npz` — no reattach.** The dataset unit is
 the sample file (block structure + tet + params + status); it fully serves
 the block-structure transformer. `reattach.py` (core + blade O-grid + wall

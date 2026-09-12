@@ -215,7 +215,12 @@ def main() -> None:
         # marker, so the suffix is not just cosmetic: without it the next
         # resubmit would feed a torn mesh into tet_prep. Write to the suffix,
         # rename only on success, sweep stale suffixes before anything runs.
-        for d in machine_dirs(root):
+        # Sweep ONLY this process's machines: the parallel export (xargs -P)
+        # runs one process per machine, and a sweep over every directory
+        # deletes the .part files of exports still in flight in sibling
+        # processes -- job 6876591 lost five machines that way (mesh.msh.part
+        # gone between dtOO's writeMSH and the rename below).
+        for d in todo:
             (d / "mesh.msh.part").unlink(missing_ok=True)
         print(f"[sampler] exporting {len(todo)} meshes (dtOO, container only)")
         failed: list[str] = []

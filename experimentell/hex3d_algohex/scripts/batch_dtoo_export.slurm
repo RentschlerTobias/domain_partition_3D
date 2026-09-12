@@ -51,8 +51,8 @@
 #SBATCH --time=00:30:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=16G
+#SBATCH --cpus-per-task=64
+#SBATCH --mem=128G
 
 set -u
 
@@ -96,6 +96,13 @@ if [ -z "$EF_ROOT" ]; then
 # (EIG_WS is resolved above, together with the checkout candidates.)
 SQSH="${SQSH:-$EIG_WS/enroot-images/dtOO.sqsh}"
 DATASET="data/dataset/sobol"
+# Parallel exports in the one container: each export is its own python3.13
+# process with its own /tmp case stage and output paths (~1 GB RAM, mostly one
+# core), so they can run concurrently. The 64 cpus / 128 GB request budgets
+# PAR=48 -- headroom for occasional extra threads, and the pending machines
+# then fit in one or two 25-minute slots instead of eleven. A single PAR
+# overrides this: `PAR=32 sbatch ...`.
+PAR="${PAR:-48}"
 
 module load devel/python/3.13.3-gnu-14.2 2>/dev/null || true
 # Job-unique enroot dirs: a stalled or SIGKILLed predecessor on the same node
@@ -116,7 +123,7 @@ RC_SCRIPT="$EF_ROOT/cluster/enroot_rc.sh"
 [ -f "$RC_SCRIPT" ] || { echo "[dtoo] no --rc command script: $RC_SCRIPT"; exit 1; }
 
 cpus=$(nproc)
-echo "[dtoo] host $(hostname), job ${SLURM_JOB_ID:-none}, $cpus cores"
+echo "[dtoo] host $(hostname), job ${SLURM_JOB_ID:-none}, $cpus cores, parallelism $PAR"
 echo "[dtoo] repo $REPO"
 echo "[dtoo] image $SQSH"
 
@@ -179,7 +186,7 @@ timeout 1500 srun -n1 -N1 enroot start --root \
     --rc "$RC_SCRIPT" \
     --mount "$REPO:/repo" \
     --mount "$EF_ROOT:/ef" \
-    "$CONTAINER" bash -c 'source /usr/lib/openfoam/openfoam2606/etc/bashrc; source /dtOO-install/bin/env.sh; export EIGENFREQUENCIES_ROOT=/ef PYTHONUNBUFFERED=1; ST="/repo/experimentell/hex3d_algohex/logs/stage_'"${SLURM_JOB_ID:-manual}"'.txt"; echo "stage=sourced $(date -Is)" >> "$ST"; echo "[dtoo] container env ready, exporting"; echo "stage=exec-export-all $(date -Is)" >> "$ST"; exec bash /repo/experimentell/hex3d_algohex/scripts/export_all_machines.sh '"$DATASET ${SLURM_JOB_ID:-manual}"'' < /dev/null
+    "$CONTAINER" bash -c 'source /usr/lib/openfoam/openfoam2606/etc/bashrc; source /dtOO-install/bin/env.sh; export EIGENFREQUENCIES_ROOT=/ef PYTHONUNBUFFERED=1; ST="/repo/experimentell/hex3d_algohex/logs/stage_'"${SLURM_JOB_ID:-manual}"'.txt"; echo "stage=sourced $(date -Is)" >> "$ST"; echo "[dtoo] container env ready, exporting"; echo "stage=exec-export-all $(date -Is)" >> "$ST"; exec bash /repo/experimentell/hex3d_algohex/scripts/export_all_machines.sh '"$DATASET ${SLURM_JOB_ID:-manual} ${PAR:-48}"'' < /dev/null
 SRC=$?
 DT=$(( $(date +%s) - t0 ))
 echo "[dtoo] container step rc=$SRC after ${DT}s"

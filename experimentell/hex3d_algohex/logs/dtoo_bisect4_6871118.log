@@ -1,0 +1,6 @@
+[bisect4] host uc2n601.localdomain, job 6871118, 2026-09-11T22:21:21+02:00
+[bisect4] repo /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D  ef /home/st/st_us-042020/st_ac136362/eigenfrequencies
+[bisect4] img  /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-images/dtOO.sqsh  data /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-data
+[bisect4] --- single bounded step ---
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+[2026-09-11T22:38:27.964] error: *** STEP 6871118.0 ON uc2n601 CANCELLED AT 2026-09-11T22:38:27 DUE to SIGNAL Terminated ***

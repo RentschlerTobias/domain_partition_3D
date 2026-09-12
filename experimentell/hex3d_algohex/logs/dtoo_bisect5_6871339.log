@@ -1,0 +1,75 @@
+[bisect5] host uc2n602.localdomain, job 6871339, 2026-09-11T22:53:22+02:00
+[bisect5] repo /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D
+[bisect5] ef   /home/st/st_us-042020/st_ac136362/eigenfrequencies
+[bisect5] img  /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-images/dtOO.sqsh
+[bisect5] data /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-data
+dolfinx
+dtOO
+[bisect5] --- S0 host diagnostics ---
+total 4
+drwxr-xr-x  2 st_ac136362 st_us-042020    6 Sep 11 14:00 .
+drwxrwxrwt 16 root        root         4096 Sep 11 22:53 ..
+total 4
+drwxr-xr-x  2 st_ac136362 st_us-042020    6 Sep 11 14:00 .
+drwxrwxrwt 16 root        root         4096 Sep 11 22:53 ..
+total 100
+drwxr-xr-x 24 st_ac136362 st_us-042020 4096 Sep 11 19:44 .
+drwxr-xr-x  4 st_ac136362 st_us-042020 4096 Sep  7 23:34 ..
+lrwxrwxrwx  1 st_ac136362 st_us-042020    7 Jan 28  2025 bin -> usr/bin
+drwxr-xr-x  2 st_ac136362 st_us-042020 4096 Aug 26  2025 boot
+drwxr-xr-x  2 st_ac136362 st_us-042020 4096 Aug 26  2025 dev
+drwxr-xr-x 14 st_ac136362 st_us-042020 4096 Aug 30 23:11 dtOO
+drwxr-xr-x 11 st_ac136362 st_us-042020 4096 Aug 26 16:23 dtOO-install
+drwxr-xr-x  5 st_ac136362 st_us-042020 4096 Aug 24 11:44 dtOO-ThirdParty
+d---------  2 st_ac136362 st_us-042020 4096 Sep 11 19:44 ef
+[bisect5] no enroot/fuse processes
+│ ├─/sys/firmware/efi/efivars                           efivarfs                                                                                                                                                 efivarfs    rw,nosuid,nodev,noexec,relatime
+│ ├─/sys/fs/fuse/connections                            fusectl                                                                                                                                                  fusectl     rw,nosuid,nodev,noexec,relatime
+├─/boot/efi                                             /dev/nvme0n1p1                                                                                                                                           vfat        rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=ascii,shortname=winnt,errors=remount-ro,discard
+total 0
+[bisect5] --- S1 rootfs lock probe ---
+-rw-r--r-- 1 st_ac136362 st_us-042020 0 Sep 11 22:21 /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-data/dtOO/.lock
+LOCK-FREE
+[bisect5] S1 flock rc=0 (0 free, 1 busy, 124 stuck)
+[bisect5] --- S2 dtOO sanity start --- 2026-09-11T22:53:22+02:00
+SANITY-OK
+[bisect5] --- S2 dtOO sanity start rc=0 --- 2026-09-11T22:53:25+02:00
+[bisect5] --- S3 dolfinx control start --- 2026-09-11T22:53:25+02:00
+DOLFINX-OK
+[bisect5] --- S3 dolfinx control start rc=0 --- 2026-09-11T22:53:27+02:00
+[bisect5] --- S4 one-machine export with markers --- 2026-09-11T22:53:27+02:00
+[bisect5] --- S4 one-machine export with markers rc=0 --- 2026-09-11T22:54:19+02:00
+[bisect5] --- harvest ---
+[bisect5] summary: S2_dtoo=0 S3_dolfinx=0 S4_export=0
+total 13
+drwxr-xr-x  2 st_ac136362 st_us-042020 4096 Sep 11 22:54 .
+drwxr-xr-x 66 st_ac136362 st_us-042020 4096 Sep 11 13:54 ..
+-rw-r--r--  1 st_ac136362 st_us-042020   84 Sep 11 22:54 export_error.txt
+-rw-r--r--  1 st_ac136362 st_us-042020 1028 Sep 11 13:54 params.json
+[bisect5] --- marker trace ---
+2026-09-11T22:53:29+02:00 container alive: uc2n602.localdomain, python3.13=/usr/bin/python3.13
+2026-09-11T22:53:29+02:00 cd /repo OK
+2026-09-11T22:53:29+02:00 gen script present: yes
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[sampler] machine_0001 export FAILED: FileNotFoundError
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+2026-09-11T22:54:19+02:00 generate_machines --only machine_0001 rc=0
+2026-09-11T22:54:19+02:00 no mesh file written
+[bisect5] log: /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/dtoo_bisect5_6871339.log
+[bisect5] commit this log: git add experimentell/hex3d_algohex/logs && git commit -m 'cluster: dtOO bisect5 log'

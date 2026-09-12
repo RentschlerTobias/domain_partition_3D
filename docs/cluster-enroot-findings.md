@@ -318,6 +318,31 @@ mount two fields only. The bisect steps before step 7 (mounts-only,
 sources-without-mounts) all exited 0, which first made the mount phase look
 innocent — the mount was only testable once the payload actually used `/repo`.
 
+## 15. dtOO opens `machineSave.xml` ReadWrite — stage the case out of the image
+
+dtOO chdirs into the case directory and then opens `machineSave.xml` with
+`QIODevice::ReadWrite` (`dtXmlParser::checkFile`). The case tree is baked into
+the container image (`/dtOO/build/test/tistos`) and the enroot rootfs is
+mounted read-only, so every export dies after ~2.5 s with:
+
+```
+Exception: [ dtXmlParser::checkFile() ] ... condition: !xmlFile.open(QIODevice::ReadWrite | QIODevice::Text) is true.
+Failed to open fileName = machineSave.xml
+```
+
+Measured on job 6875306 (2026-09-11): 64/64 machines failed within 162 s of
+wall time — the one-line payload ran, the case was simply not writable.
+
+Fix: stage a writable copy of the case per machine before each export
+(`CASE_SRC=/dtOO/build/test/tistos` → `/tmp/dtoo-case-<jobid>/<machine>`),
+point `DTOO_CASE_DIR` at the copy, and re-stage for every machine. Re-staging
+matters: dtOO writes back into the case, so a reused copy would carry the
+previous machine's state; `cp -rL` dereferences symlinks, which otherwise
+still point into the read-only image. The sibling repo learned the same
+lesson (`_stage_case_dir` in physics.py, defect table in
+docs/cluster-resource-sizing.md §6). The case is ~1.8 MB, so per-machine
+copying is cheap.
+
 ## Measured costs, for planning
 
 | step | time | resources |

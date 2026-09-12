@@ -1,0 +1,2143 @@
+[dtoo] host uc2n602.localdomain, job 6879223, 1 cores, parallelism 48
+[dtoo] repo /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D
+[dtoo] image /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-images/dtOO.sqsh
+[dtoo] container dtOO already unpacked, skipping
+[dtoo] preflight ok
+[dtoo] rootfs lock free
+[dtoo] lock probe rc=0 (0 free, 1 busy, 124 stuck)
+[dtoo] container step starting at 2026-09-12T11:58:30+02:00
+[dtoo] container env ready, exporting
+[dtoo] progress log: /repo/experimentell/hex3d_algohex/logs/export_progress_6879223.log (parallel=48)
+[dtoo] case source: /dtOO/build/test/tistos
+[dtoo] machine_0002 mesh.msh present, skipping
+[dtoo] machine_0003 mesh.msh present, skipping
+[dtoo] machine_0004 mesh.msh present, skipping
+[dtoo] machine_0005 mesh.msh present, skipping
+[dtoo] machine_0006 mesh.msh present, skipping
+[dtoo] machine_0007 mesh.msh present, skipping
+[dtoo] machine_0008 mesh.msh present, skipping
+[dtoo] machine_0009 mesh.msh present, skipping
+[dtoo] machine_0010 mesh.msh present, skipping
+[dtoo] machine_0011 mesh.msh present, skipping
+[dtoo] machine_0012 mesh.msh present, skipping
+[dtoo] machine_0013 mesh.msh present, skipping
+[dtoo] machine_0014 mesh.msh present, skipping
+[dtoo] machine_0015 mesh.msh present, skipping
+[dtoo] machine_0016 mesh.msh present, skipping
+[dtoo] machine_0017 mesh.msh present, skipping
+[dtoo] machine_0018 mesh.msh present, skipping
+[dtoo] machine_0019 mesh.msh present, skipping
+[dtoo] machine_0020 mesh.msh present, skipping
+[dtoo] machine_0021 mesh.msh present, skipping
+[dtoo] machine_0022 mesh.msh present, skipping
+[dtoo] machine_0023 mesh.msh present, skipping
+[dtoo] machine_0024 mesh.msh present, skipping
+[dtoo] machine_0025 mesh.msh present, skipping
+[dtoo] machine_0026 mesh.msh present, skipping
+[dtoo] machine_0027 mesh.msh present, skipping
+[dtoo] machine_0028 mesh.msh present, skipping
+[dtoo] machine_0029 mesh.msh present, skipping
+[dtoo] machine_0030 mesh.msh present, skipping
+[dtoo] machine_0031 mesh.msh present, skipping
+[dtoo] machine_0032 mesh.msh present, skipping
+[dtoo] machine_0033 mesh.msh present, skipping
+[dtoo] machine_0034 mesh.msh present, skipping
+[dtoo] machine_0035 mesh.msh present, skipping
+[dtoo] machine_0036 mesh.msh present, skipping
+[dtoo] machine_0037 mesh.msh present, skipping
+[dtoo] machine_0038 mesh.msh present, skipping
+[dtoo] machine_0039 mesh.msh present, skipping
+[dtoo] machine_0040 mesh.msh present, skipping
+[dtoo] machine_0041 mesh.msh present, skipping
+[dtoo] machine_0042 mesh.msh present, skipping
+[dtoo] machine_0043 mesh.msh present, skipping
+[dtoo] machine_0044 mesh.msh present, skipping
+[dtoo] machine_0045 mesh.msh present, skipping
+[dtoo] machine_0046 mesh.msh present, skipping
+[dtoo] machine_0047 mesh.msh present, skipping
+[dtoo] machine_0048 mesh.msh present, skipping
+[dtoo] machine_0049 mesh.msh present, skipping
+[dtoo] machine_0050 mesh.msh present, skipping
+[dtoo] machine_0051 mesh.msh present, skipping
+[dtoo] machine_0052 mesh.msh present, skipping
+[dtoo] machine_0053 mesh.msh present, skipping
+[dtoo] machine_0054 mesh.msh present, skipping
+[dtoo] machine_0055 mesh.msh present, skipping
+[dtoo] machine_0056 mesh.msh present, skipping
+[dtoo] machine_0057 mesh.msh present, skipping
+[dtoo] machine_0058 mesh.msh present, skipping
+[dtoo] machine_0060 mesh.msh present, skipping
+[dtoo] machine_0061 mesh.msh present, skipping
+[dtoo] machine_0062 mesh.msh present, skipping
+[dtoo] machine_0063 mesh.msh present, skipping
+[dtoo] machine_0064 mesh.msh present, skipping
+[dtoo] pending: 2 machines, parallel=48
+[dtoo] exporting machine_0059 2026-09-12T11:58:34+02:00
+[dtoo] exporting machine_0001 2026-09-12T11:58:34+02:00
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[dtoo] applied 30 parameter overrides
+[dtoo] applied 30 parameter overrides
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[dtoo] plugin ru_adjustDomain applied
+[dtoo] makeGrid on ruWithRounding_mechMesh ...
+Debug   : Decoded option name 'General' . 'ExpertMode' (index 0)
+Debug   : Decoded option name 'Mesh' . 'LcIntegrationPrecision' (index 0)
+Debug   : Decoded option name 'Mesh' . 'SecondOrderLinear' (index 0)
+Debug   : Decoded option name 'Mesh' . 'Algorithm' (index 0)
+Debug   : Decoded option name 'Mesh' . 'CharacteristicLengthMin' (index 0)
+Debug   : Decoded option name 'Mesh' . 'CharacteristicLengthMax' (index 0)
+Debug   : Decoded option name 'Mesh' . 'MeshSizeExtendFromBoundary' (index 0)
+Debug   : Decoded option name 'Mesh' . 'MeshSizeFromPoints' (index 0)
+Debug   : Decoded option name 'Mesh' . 'MeshSizeFromCurvature' (index 0)
+Info    : Meshing vertex 1 ( dtGmshVertex )
+Info    : Meshing vertex 2 ( dtGmshVertex )
+Info    : Meshing vertex 3 ( dtGmshVertex )
+Info    : Meshing vertex 4 ( dtGmshVertex )
+Info    : Meshing vertex 5 ( dtGmshVertex )
+Info    : Meshing vertex 6 ( dtGmshVertex )
+Info    : Meshing vertex 7 ( dtGmshVertex )
+Info    : Meshing vertex 8 ( dtGmshVertex )
+Info    : Meshing vertex 9 ( dtGmshVertex )
+Info    : Meshing vertex 10 ( dtGmshVertex )
+Info    : Meshing vertex 11 ( dtGmshVertex )
+Info    : Meshing vertex 12 ( dtGmshVertex )
+Info    : Meshing vertex 13 ( dtGmshVertex )
+Info    : Meshing vertex 14 ( dtGmshVertex )
+Info    : Meshing vertex 15 ( dtGmshVertex )
+Info    : Meshing vertex 16 ( dtGmshVertex )
+Info    : Meshing vertex 17 ( dtGmshVertex )
+Info    : Meshing vertex 18 ( dtGmshVertex )
+Info    : Meshing vertex 19 ( dtGmshVertex )
+Info    : Meshing vertex 20 ( dtGmshVertex )
+Info    : Meshing vertex 21 ( dtGmshVertex )
+Info    : Meshing vertex 22 ( dtGmshVertex )
+Info    : Meshing vertex 23 ( dtGmshVertex )
+Info    : Meshing vertex 24 ( dtGmshVertex )
+Info    : Meshing vertex 25 ( dtGmshVertex )
+Info    : Meshing vertex 26 ( dtGmshVertex )
+Info    : Meshing curve 1 (Unknown)
+Debug   : Meshing curve 1 (Unknown): 11 interior vertices
+Info    : Meshing curve 2 (Unknown)
+Debug   : Meshing curve 2 (Unknown): 45 interior vertices
+Info    : Meshing curve 3 (Unknown)
+Debug   : Meshing curve 3 (Unknown): 11 interior vertices
+Info    : Meshing curve 4 (Unknown)
+Debug   : Meshing curve 4 (Unknown): 45 interior vertices
+Info    : Meshing curve 5 (Unknown)
+Debug   : Meshing curve 5 (Unknown): 5 interior vertices
+Info    : Meshing curve 6 (Unknown)
+Debug   : Meshing curve 6 (Unknown): 45 interior vertices
+Info    : Meshing curve 7 (Unknown)
+Debug   : Meshing curve 7 (Unknown): 5 interior vertices
+Info    : Meshing curve 8 (Unknown)
+Debug   : Meshing curve 8 (Unknown): 5 interior vertices
+Info    : Meshing curve 9 (Unknown)
+Debug   : Meshing curve 9 (Unknown): 45 interior vertices
+Info    : Meshing curve 10 (Unknown)
+Debug   : Meshing curve 10 (Unknown): 5 interior vertices
+Info    : Meshing curve 11 (Unknown)
+Debug   : Meshing curve 11 (Unknown): 34 interior vertices
+Info    : Meshing curve 12 (Unknown)
+Debug   : Meshing curve 12 (Unknown): 34 interior vertices
+Info    : Meshing curve 13 (Unknown)
+Debug   : Meshing curve 13 (Unknown): 48 interior vertices
+Info    : Meshing curve 14 (Unknown)
+Debug   : Meshing curve 14 (Unknown): 26 interior vertices
+Info    : Meshing curve 15 (Unknown)
+Debug   : Meshing curve 15 (Unknown): 24 interior vertices
+Info    : Meshing curve 16 (Unknown)
+Debug   : Meshing curve 16 (Unknown): 33 interior vertices
+Info    : Meshing curve 17 (Unknown)
+Debug   : Meshing curve 17 (Unknown): 26 interior vertices
+Info    : Meshing curve 18 (Unknown)
+Debug   : Meshing curve 18 (Unknown): 27 interior vertices
+Info    : Meshing curve 19 (Unknown)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Debug   : Meshing curve 19 (Unknown): 24 interior vertices
+Info    : Meshing curve 20 (Unknown)
+Debug   : Meshing curve 20 (Unknown): 57 interior vertices
+Info    : Meshing curve 21 (Unknown)
+Debug   : Meshing curve 21 (Unknown): 21 interior vertices
+Info    : Meshing curve 22 (Unknown)
+Debug   : Meshing curve 22 (Unknown): 35 interior vertices
+Info    : Meshing curve 23 (Unknown)
+Debug   : Meshing curve 23 (Unknown): 13 interior vertices
+Info    : Meshing curve 24 (Unknown)
+Debug   : Meshing curve 24 (Unknown): 12 interior vertices
+Info    : Meshing curve 25 (Unknown)
+Debug   : Meshing curve 25 (Unknown): 4 interior vertices
+Info    : Meshing curve 26 (Unknown)
+Debug   : Meshing curve 26 (Unknown): 153 interior vertices
+Info    : Meshing curve 27 (Unknown)
+Debug   : Meshing curve 27 (Unknown): 5 interior vertices
+Info    : Meshing curve 28 (Unknown)
+Debug   : Meshing curve 28 (Unknown): 21 interior vertices
+Info    : Meshing curve 29 (Unknown)
+Debug   : Meshing curve 29 (Unknown): 4 interior vertices
+Info    : Meshing curve 30 (Unknown)
+Debug   : Meshing curve 30 (Unknown): 61 interior vertices
+Info    : Meshing curve 31 (Unknown)
+Debug   : Meshing curve 31 (Unknown): 4 interior vertices
+Info    : Meshing curve 32 (Unknown)
+Debug   : Meshing curve 32 (Unknown): 15 interior vertices
+Info    : Meshing curve 33 (Unknown)
+Debug   : Meshing curve 33 (Unknown): 23 interior vertices
+Info    : Meshing curve 34 (Unknown)
+Debug   : Meshing curve 34 (Unknown): 35 interior vertices
+Info    : Meshing curve 35 (Unknown)
+Debug   : Meshing curve 35 (Unknown): 21 interior vertices
+Info    : Meshing curve 36 (Unknown)
+Debug   : Meshing curve 36 (Unknown): 14 interior vertices
+Info    : Meshing curve 37 (Unknown)
+Debug   : Meshing curve 37 (Unknown): 5 interior vertices
+Info    : Meshing curve 38 (Unknown)
+[dtoo] plugin ru_adjustDomain applied
+[dtoo] makeGrid on ruWithRounding_mechMesh ...
+Debug   : Decoded option name 'General' . 'ExpertMode' (index 0)
+Debug   : Decoded option name 'Mesh' . 'LcIntegrationPrecision' (index 0)
+Debug   : Decoded option name 'Mesh' . 'SecondOrderLinear' (index 0)
+Debug   : Decoded option name 'Mesh' . 'Algorithm' (index 0)
+Debug   : Decoded option name 'Mesh' . 'CharacteristicLengthMin' (index 0)
+Debug   : Decoded option name 'Mesh' . 'CharacteristicLengthMax' (index 0)
+Debug   : Decoded option name 'Mesh' . 'MeshSizeExtendFromBoundary' (index 0)
+Debug   : Decoded option name 'Mesh' . 'MeshSizeFromPoints' (index 0)
+Debug   : Decoded option name 'Mesh' . 'MeshSizeFromCurvature' (index 0)
+Debug   : Meshing curve 38 (Unknown): 158 interior vertices
+Info    : Meshing curve 39 (Unknown)
+Debug   : Meshing curve 39 (Unknown): 8 interior vertices
+Info    : Meshing vertex 1 ( dtGmshVertex )
+Info    : Meshing vertex 2 ( dtGmshVertex )
+Info    : Meshing vertex 3 ( dtGmshVertex )
+Info    : Meshing vertex 4 ( dtGmshVertex )
+Info    : Meshing vertex 5 ( dtGmshVertex )
+Info    : Meshing vertex 6 ( dtGmshVertex )
+Info    : Meshing vertex 7 ( dtGmshVertex )
+Info    : Meshing vertex 8 ( dtGmshVertex )
+Info    : Meshing vertex 9 ( dtGmshVertex )
+Info    : Meshing vertex 10 ( dtGmshVertex )
+Info    : Meshing vertex 11 ( dtGmshVertex )
+Info    : Meshing vertex 12 ( dtGmshVertex )
+Info    : Meshing vertex 13 ( dtGmshVertex )
+Info    : Meshing vertex 14 ( dtGmshVertex )
+Info    : Meshing vertex 15 ( dtGmshVertex )
+Info    : Meshing vertex 16 ( dtGmshVertex )
+Info    : Meshing vertex 17 ( dtGmshVertex )
+Info    : Meshing vertex 18 ( dtGmshVertex )
+Info    : Meshing vertex 19 ( dtGmshVertex )
+Info    : Meshing vertex 20 ( dtGmshVertex )
+Info    : Meshing vertex 21 ( dtGmshVertex )
+Info    : Meshing vertex 22 ( dtGmshVertex )
+Info    : Meshing vertex 23 ( dtGmshVertex )
+Info    : Meshing vertex 24 ( dtGmshVertex )
+Info    : Meshing vertex 25 ( dtGmshVertex )
+Info    : Meshing vertex 26 ( dtGmshVertex )
+Info    : Meshing curve 1 (Unknown)
+Debug   : Meshing curve 1 (Unknown): 11 interior vertices
+Info    : Meshing curve 2 (Unknown)
+Info    : Meshing curve 40 (Unknown)
+Debug   : Meshing curve 2 (Unknown): 45 interior vertices
+Info    : Meshing curve 3 (Unknown)
+Debug   : Meshing curve 3 (Unknown): 11 interior vertices
+Info    : Meshing curve 4 (Unknown)
+Debug   : Meshing curve 4 (Unknown): 45 interior vertices
+Info    : Meshing curve 5 (Unknown)
+Debug   : Meshing curve 5 (Unknown): 5 interior vertices
+Info    : Meshing curve 6 (Unknown)
+Debug   : Meshing curve 6 (Unknown): 45 interior vertices
+Info    : Meshing curve 7 (Unknown)
+Debug   : Meshing curve 7 (Unknown): 5 interior vertices
+Info    : Meshing curve 8 (Unknown)
+Debug   : Meshing curve 8 (Unknown): 5 interior vertices
+Info    : Meshing curve 9 (Unknown)
+Debug   : Meshing curve 9 (Unknown): 45 interior vertices
+Info    : Meshing curve 10 (Unknown)
+Debug   : Meshing curve 10 (Unknown): 5 interior vertices
+Info    : Meshing curve 11 (Unknown)
+Debug   : Meshing curve 11 (Unknown): 34 interior vertices
+Info    : Meshing curve 12 (Unknown)
+Debug   : Meshing curve 12 (Unknown): 34 interior vertices
+Info    : Meshing curve 13 (Unknown)
+Debug   : Meshing curve 40 (Unknown): 23 interior vertices
+Info    : Meshing curve 41 (Unknown)
+Debug   : Meshing curve 13 (Unknown): 54 interior vertices
+Info    : Meshing curve 14 (Unknown)
+Debug   : Meshing curve 41 (Unknown): 5 interior vertices
+Info    : Meshing curve 42 (Unknown)
+Debug   : Meshing curve 14 (Unknown): 27 interior vertices
+Info    : Meshing curve 15 (Unknown)
+Debug   : Meshing curve 42 (Unknown): 9 interior vertices
+Debug   : Meshing curve 15 (Unknown): 24 interior vertices
+Info    : Meshing curve 16 (Unknown)
+Debug   : Meshing curve 16 (Unknown): 42 interior vertices
+Info    : Meshing curve 17 (Unknown)
+Debug   : Meshing curve 17 (Unknown): 27 interior vertices
+Info    : Meshing curve 18 (Unknown)
+Info    : Meshing surface 1 (Parametric surface, MeshAdapt)
+Debug   : Meshing curve 18 (Unknown): 27 interior vertices
+Info    : Meshing curve 19 (Unknown)
+Debug   : Meshing curve 19 (Unknown): 23 interior vertices
+Info    : Meshing curve 20 (Unknown)
+Debug   : Meshing curve 20 (Unknown): 58 interior vertices
+Info    : Meshing curve 21 (Unknown)
+Debug   : Meshing curve 21 (Unknown): 15 interior vertices
+Info    : Meshing curve 22 (Unknown)
+Debug   : Meshing curve 22 (Unknown): 41 interior vertices
+Info    : Meshing curve 23 (Unknown)
+Debug   : Meshing curve 23 (Unknown): 11 interior vertices
+Info    : Meshing curve 24 (Unknown)
+Debug   : Meshing curve 24 (Unknown): 11 interior vertices
+Info    : Meshing curve 25 (Unknown)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 116 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 1
+Debug   : Computing mesh size field at mesh nodes 116
+Debug   : Delaunizing the initial mesh
+Debug   : Meshing curve 25 (Unknown): 6 interior vertices
+Info    : Meshing curve 26 (Unknown)
+Debug   : Starting to add internal nodes
+Debug   : Meshing curve 26 (Unknown): 160 interior vertices
+Info    : Meshing curve 27 (Unknown)
+Debug   : Meshing curve 27 (Unknown): 6 interior vertices
+Info    : Meshing curve 28 (Unknown)
+Debug   : Meshing curve 28 (Unknown): 22 interior vertices
+Info    : Meshing curve 29 (Unknown)
+Debug   :  iter   1 minL    0.353/   0.700 maxL    4.138/   1.400 -- Small/Large/Total (   146/   676/  1333):    421 splits,    216 swaps,     53 collapses,   1202 moves
+Debug   : Meshing curve 29 (Unknown): 5 interior vertices
+Info    : Meshing curve 30 (Unknown)
+Debug   : Meshing curve 30 (Unknown): 60 interior vertices
+Info    : Meshing curve 31 (Unknown)
+Debug   : Meshing curve 31 (Unknown): 5 interior vertices
+Info    : Meshing curve 32 (Unknown)
+Debug   :  iter   2 minL    0.413/   0.700 maxL    2.174/   1.400 -- Small/Large/Total (   371/     7/  2476):    676 splits,    872 swaps,    295 collapses,   2693 moves
+Debug   : Meshing curve 32 (Unknown): 15 interior vertices
+Info    : Meshing curve 33 (Unknown)
+Debug   :  iter   3 minL    0.570/   0.700 maxL    1.382/   1.400 -- Small/Large/Total (    28/     0/  2071):      7 splits,     20 swaps,    142 collapses,    882 moves
+Debug   :  iter   4 minL    0.570/   0.700 maxL    1.382/   1.400 -- Small/Large/Total (    25/     0/  2071):      0 splits,      0 swaps,      0 collapses,     93 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     4.19600E-03 sec (  4 %)
+Debug   :  CPU SPLIT    1.16050E-02 sec ( 10 %) 
+Debug   :  CPU COLLAPS  3.37640E-02 sec ( 30 %) 
+Debug   :  CPU SMOOTH   6.41610E-02 sec ( 56 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.13726E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Meshing curve 33 (Unknown): 22 interior vertices
+Info    : Meshing curve 34 (Unknown)
+Debug   :  iter   1 minL    0.570/   0.700 maxL    1.382/   1.400 -- Small/Large/Total (    21/     0/  2071):      0 splits,      0 swaps,      0 collapses,     55 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     7.68000E-04 sec (  6 %)
+Debug   :  CPU SPLIT    5.66800E-03 sec ( 44 %) 
+Debug   :  CPU COLLAPS  2.78600E-03 sec ( 22 %) 
+Debug   :  CPU SMOOTH   3.65900E-03 sec ( 28 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.28810E-02 sec 
+Debug   :  ---------------------------------------
+Debug   : Meshing curve 34 (Unknown): 42 interior vertices
+Info    : Meshing curve 35 (Unknown)
+Debug   : Meshing curve 35 (Unknown): 14 interior vertices
+Info    : Meshing curve 36 (Unknown)
+Debug   : Type 23 1342 triangles generated, 614 internal nodes
+Info    : Meshing surface 2 (Parametric surface, MeshAdapt)
+Debug   : Meshing curve 36 (Unknown): 15 interior vertices
+Info    : Meshing curve 37 (Unknown)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 104 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 2
+Debug   : Computing mesh size field at mesh nodes 104
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   : Meshing curve 37 (Unknown): 6 interior vertices
+Info    : Meshing curve 38 (Unknown)
+Debug   :  iter   1 minL    0.533/   0.700 maxL    1.546/   1.400 -- Small/Large/Total (   153/    97/  1141):    373 splits,    277 swaps,     61 collapses,   1083 moves
+Debug   :  iter   2 minL    0.533/   0.700 maxL    1.358/   1.400 -- Small/Large/Total (    22/     0/  1084):     97 splits,    121 swaps,    116 collapses,    612 moves
+Debug   : Meshing curve 38 (Unknown): 162 interior vertices
+Info    : Meshing curve 39 (Unknown)
+Debug   :  iter   3 minL    0.624/   0.700 maxL    1.358/   1.400 -- Small/Large/Total (    15/     0/  1078):      0 splits,      1 swaps,      2 collapses,     51 moves
+Debug   :  iter   4 minL    0.624/   0.700 maxL    1.358/   1.400 -- Small/Large/Total (    15/     0/  1078):      0 splits,      0 swaps,      0 collapses,     31 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.96200E-03 sec (  4 %)
+Debug   :  CPU SPLIT    7.58100E-03 sec ( 16 %) 
+Debug   :  CPU COLLAPS  1.57590E-02 sec ( 32 %) 
+Debug   :  CPU SMOOTH   2.33320E-02 sec ( 48 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    4.86340E-02 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.624/   0.700 maxL    1.298/   1.400 -- Small/Large/Total (    15/     0/  1078):      0 splits,      0 swaps,      0 collapses,     27 moves
+Debug   : Meshing curve 39 (Unknown): 7 interior vertices
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.77000E-04 sec (  5 %)
+Debug   :  CPU SPLIT    3.51500E-03 sec ( 48 %) 
+Debug   :  CPU COLLAPS  1.71500E-03 sec ( 24 %) 
+Debug   :  CPU SMOOTH   1.66400E-03 sec ( 23 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    7.27100E-03 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 684 triangles generated, 291 internal nodes
+Info    : Meshing curve 40 (Unknown)
+Info    : Meshing surface 3 (Parametric surface, MeshAdapt)
+Debug   : Meshing curve 40 (Unknown): 26 interior vertices
+Info    : Meshing curve 41 (Unknown)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 104 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 3
+Debug   : Computing mesh size field at mesh nodes 104
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   : Meshing curve 41 (Unknown): 6 interior vertices
+Info    : Meshing curve 42 (Unknown)
+Debug   :  iter   1 minL    0.533/   0.700 maxL    1.546/   1.400 -- Small/Large/Total (   153/   105/  1141):    373 splits,    275 swaps,     61 collapses,   1089 moves
+Debug   : Meshing curve 42 (Unknown): 7 interior vertices
+Info    : Meshing surface 1 (Parametric surface, MeshAdapt)
+Debug   :  iter   2 minL    0.533/   0.700 maxL    1.358/   1.400 -- Small/Large/Total (    22/     0/  1096):    105 splits,    125 swaps,    120 collapses,    630 moves
+Debug   :  iter   3 minL    0.624/   0.700 maxL    1.358/   1.400 -- Small/Large/Total (    15/     0/  1090):      0 splits,      1 swaps,      2 collapses,     53 moves
+Debug   :  iter   4 minL    0.624/   0.700 maxL    1.298/   1.400 -- Small/Large/Total (    15/     0/  1090):      0 splits,      0 swaps,      0 collapses,     30 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.76300E-03 sec (  4 %)
+Debug   :  CPU SPLIT    6.10800E-03 sec ( 14 %) 
+Debug   :  CPU COLLAPS  1.32230E-02 sec ( 30 %) 
+Debug   :  CPU SMOOTH   2.30000E-02 sec ( 52 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    4.40940E-02 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.624/   0.700 maxL    1.298/   1.400 -- Small/Large/Total (    15/     0/  1090):      0 splits,      0 swaps,      0 collapses,     26 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.81000E-04 sec (  6 %)
+Debug   :  CPU SPLIT    2.84500E-03 sec ( 45 %) 
+Debug   :  CPU COLLAPS  1.42900E-03 sec ( 23 %) 
+Debug   :  CPU SMOOTH   1.65100E-03 sec ( 26 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    6.30600E-03 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 692 triangles generated, 295 internal nodes
+Info    : Meshing surface 4 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 116 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 1
+Debug   : Computing mesh size field at mesh nodes 116
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   : Recovering 4 model edges
+Debug   : Recovering 59 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 4
+Debug   : Computing mesh size field at mesh nodes 59
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.353/   0.700 maxL    4.138/   1.400 -- Small/Large/Total (   146/   676/  1333):    421 splits,    216 swaps,     53 collapses,   1202 moves
+Debug   :  iter   1 minL    0.388/   0.700 maxL    6.144/   1.400 -- Small/Large/Total (    27/   215/   598):    211 splits,    348 swaps,     50 collapses,    567 moves
+Debug   :  iter   2 minL    0.615/   0.700 maxL    1.376/   1.400 -- Small/Large/Total (    32/     0/  1039):    216 splits,    110 swaps,     69 collapses,    874 moves
+Debug   :  iter   3 minL    0.578/   0.700 maxL    1.415/   1.400 -- Small/Large/Total (    25/     1/  1033):      0 splits,      0 swaps,      2 collapses,    127 moves
+Debug   :  iter   4 minL    0.578/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    24/     0/  1036):      1 splits,      1 swaps,      0 collapses,     45 moves
+Debug   :  iter   2 minL    0.413/   0.700 maxL    2.174/   1.400 -- Small/Large/Total (   371/     7/  2476):    676 splits,    872 swaps,    295 collapses,   2693 moves
+Debug   :  iter   5 minL    0.578/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    24/     0/  1036):      0 splits,      0 swaps,      0 collapses,     29 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     2.44900E-03 sec (  3 %)
+Debug   :  CPU SPLIT    6.87000E-03 sec ( 10 %) 
+Debug   :  CPU COLLAPS  1.20630E-02 sec ( 17 %) 
+Debug   :  CPU SMOOTH   4.98600E-02 sec ( 70 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    7.12420E-02 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   3 minL    0.570/   0.700 maxL    1.382/   1.400 -- Small/Large/Total (    28/     0/  2071):      7 splits,     20 swaps,    142 collapses,    882 moves
+Debug   :  iter   1 minL    0.578/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    24/     0/  1036):      0 splits,      0 swaps,      0 collapses,     27 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     4.09000E-04 sec (  4 %)
+Debug   :  CPU SPLIT    2.94300E-03 sec ( 26 %) 
+Debug   :  CPU COLLAPS  1.48100E-03 sec ( 13 %) 
+Debug   :  CPU SMOOTH   6.37300E-03 sec ( 57 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.12060E-02 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 671 triangles generated, 307 internal nodes
+Debug   :  iter   4 minL    0.570/   0.700 maxL    1.382/   1.400 -- Small/Large/Total (    25/     0/  2071):      0 splits,      0 swaps,      0 collapses,     93 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     4.19100E-03 sec (  4 %)
+Debug   :  CPU SPLIT    1.13900E-02 sec ( 10 %) 
+Debug   :  CPU COLLAPS  3.60640E-02 sec ( 31 %) 
+Debug   :  CPU SMOOTH   6.39720E-02 sec ( 55 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.15617E-01 sec 
+Debug   :  ---------------------------------------
+Info    : Meshing surface 5 (Parametric surface, MeshAdapt)
+Debug   :  iter   1 minL    0.570/   0.700 maxL    1.382/   1.400 -- Small/Large/Total (    21/     0/  2071):      0 splits,      0 swaps,      0 collapses,     55 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     7.71000E-04 sec (  6 %)
+Debug   :  CPU SPLIT    6.13500E-03 sec ( 45 %) 
+Debug   :  CPU COLLAPS  3.02600E-03 sec ( 22 %) 
+Debug   :  CPU SMOOTH   3.67600E-03 sec ( 27 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.36080E-02 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 1342 triangles generated, 614 internal nodes
+Info    : Meshing surface 2 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 59 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 5
+Debug   : Computing mesh size field at mesh nodes 59
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.386/   0.700 maxL    5.738/   1.400 -- Small/Large/Total (    37/   208/   577):    206 splits,    337 swaps,     52 collapses,    542 moves
+Debug   : Recovering 4 model edges
+Debug   : Recovering 104 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 2
+Debug   : Computing mesh size field at mesh nodes 104
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   2 minL    0.543/   0.700 maxL    1.661/   1.400 -- Small/Large/Total (    44/    16/   991):    211 splits,    112 swaps,     73 collapses,    822 moves
+Debug   :  iter   1 minL    0.533/   0.700 maxL    1.546/   1.400 -- Small/Large/Total (   153/    97/  1141):    373 splits,    277 swaps,     61 collapses,   1083 moves
+Debug   :  iter   3 minL    0.587/   0.700 maxL    1.379/   1.400 -- Small/Large/Total (    22/     0/  1009):     18 splits,     10 swaps,     12 collapses,    281 moves
+Debug   :  iter   4 minL    0.587/   0.700 maxL    1.377/   1.400 -- Small/Large/Total (    17/     0/  1000):      0 splits,      0 swaps,      3 collapses,     84 moves
+Debug   :  iter   2 minL    0.533/   0.700 maxL    1.358/   1.400 -- Small/Large/Total (    22/     0/  1084):     97 splits,    121 swaps,    116 collapses,    612 moves
+Debug   :  iter   5 minL    0.587/   0.700 maxL    1.377/   1.400 -- Small/Large/Total (    17/     0/  1000):      0 splits,      0 swaps,      0 collapses,     50 moves
+Debug   :  iter   3 minL    0.624/   0.700 maxL    1.358/   1.400 -- Small/Large/Total (    15/     0/  1078):      0 splits,      1 swaps,      2 collapses,     51 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     2.41500E-03 sec (  3 %)
+Debug   :  CPU SPLIT    6.96800E-03 sec ( 10 %) 
+Debug   :  CPU COLLAPS  1.28130E-02 sec ( 18 %) 
+Debug   :  CPU SMOOTH   5.02850E-02 sec ( 69 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    7.24810E-02 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   4 minL    0.624/   0.700 maxL    1.358/   1.400 -- Small/Large/Total (    15/     0/  1078):      0 splits,      0 swaps,      0 collapses,     31 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.96000E-03 sec (  4 %)
+Debug   :  CPU SPLIT    8.43200E-03 sec ( 17 %) 
+Debug   :  CPU COLLAPS  1.76130E-02 sec ( 34 %) 
+Debug   :  CPU SMOOTH   2.30800E-02 sec ( 45 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    5.10850E-02 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.587/   0.700 maxL    1.377/   1.400 -- Small/Large/Total (    17/     0/  1000):      0 splits,      0 swaps,      0 collapses,     44 moves
+Debug   :  iter   1 minL    0.624/   0.700 maxL    1.298/   1.400 -- Small/Large/Total (    15/     0/  1078):      0 splits,      0 swaps,      0 collapses,     27 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.96000E-04 sec (  4 %)
+Debug   :  CPU SPLIT    2.98000E-03 sec ( 29 %) 
+Debug   :  CPU COLLAPS  1.48800E-03 sec ( 15 %) 
+Debug   :  CPU SMOOTH   5.26200E-03 sec ( 52 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.01260E-02 sec 
+Debug   :  ---------------------------------------
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.78000E-04 sec (  5 %)
+Debug   :  CPU SPLIT    3.91400E-03 sec ( 50 %) 
+Debug   :  CPU COLLAPS  1.95000E-03 sec ( 25 %) 
+Debug   :  CPU SMOOTH   1.65400E-03 sec ( 21 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    7.89600E-03 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 647 triangles generated, 295 internal nodes
+Debug   : Type 23 684 triangles generated, 291 internal nodes
+Info    : Meshing surface 3 (Parametric surface, MeshAdapt)
+Info    : Meshing surface 6 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 104 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 3
+Debug   : Computing mesh size field at mesh nodes 104
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.533/   0.700 maxL    1.546/   1.400 -- Small/Large/Total (   153/   105/  1141):    373 splits,    275 swaps,     61 collapses,   1089 moves
+Debug   :  iter   2 minL    0.533/   0.700 maxL    1.358/   1.400 -- Small/Large/Total (    22/     0/  1096):    105 splits,    125 swaps,    120 collapses,    630 moves
+Debug   :  iter   3 minL    0.624/   0.700 maxL    1.358/   1.400 -- Small/Large/Total (    15/     0/  1090):      0 splits,      1 swaps,      2 collapses,     53 moves
+Debug   :  iter   4 minL    0.624/   0.700 maxL    1.298/   1.400 -- Small/Large/Total (    15/     0/  1090):      0 splits,      0 swaps,      0 collapses,     30 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.98000E-03 sec (  4 %)
+Debug   :  CPU SPLIT    6.28000E-03 sec ( 14 %) 
+Debug   :  CPU COLLAPS  1.30690E-02 sec ( 29 %) 
+Debug   :  CPU SMOOTH   2.33250E-02 sec ( 52 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    4.46540E-02 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.624/   0.700 maxL    1.298/   1.400 -- Small/Large/Total (    15/     0/  1090):      0 splits,      0 swaps,      0 collapses,     26 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.83000E-04 sec (  6 %)
+Debug   :  CPU SPLIT    2.81900E-03 sec ( 45 %) 
+Debug   :  CPU COLLAPS  1.41300E-03 sec ( 23 %) 
+Debug   :  CPU SMOOTH   1.64300E-03 sec ( 26 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    6.25800E-03 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 692 triangles generated, 295 internal nodes
+Info    : Meshing surface 4 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 59 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 4
+Debug   : Computing mesh size field at mesh nodes 59
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   : Recovering 10 model edges
+Debug   : Recovering 352 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 6
+Debug   : Computing mesh size field at mesh nodes 352
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.388/   0.700 maxL    6.144/   1.400 -- Small/Large/Total (    27/   215/   598):    211 splits,    348 swaps,     50 collapses,    567 moves
+Debug   :  iter   2 minL    0.615/   0.700 maxL    1.376/   1.400 -- Small/Large/Total (    32/     0/  1039):    216 splits,    110 swaps,     69 collapses,    874 moves
+Debug   :  iter   3 minL    0.578/   0.700 maxL    1.415/   1.400 -- Small/Large/Total (    25/     1/  1033):      0 splits,      0 swaps,      2 collapses,    127 moves
+Debug   :  iter   4 minL    0.578/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    24/     0/  1036):      1 splits,      1 swaps,      0 collapses,     45 moves
+Debug   :  iter   5 minL    0.578/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    24/     0/  1036):      0 splits,      0 swaps,      0 collapses,     29 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     2.45300E-03 sec (  3 %)
+Debug   :  CPU SPLIT    8.47100E-03 sec ( 11 %) 
+Debug   :  CPU COLLAPS  1.48580E-02 sec ( 20 %) 
+Debug   :  CPU SMOOTH   4.98840E-02 sec ( 66 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    7.56660E-02 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.578/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    24/     0/  1036):      0 splits,      0 swaps,      0 collapses,     27 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     4.10000E-04 sec (  3 %)
+Debug   :  CPU SPLIT    3.66500E-03 sec ( 30 %) 
+Debug   :  CPU COLLAPS  1.82800E-03 sec ( 15 %) 
+Debug   :  CPU SMOOTH   6.30700E-03 sec ( 52 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.22100E-02 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 671 triangles generated, 307 internal nodes
+Info    : Meshing surface 5 (Parametric surface, MeshAdapt)
+Debug   :  iter   1 minL    0.082/   0.700 maxL   10.622/   1.400 -- Small/Large/Total (   477/  2737/  4664):   1380 splits,    964 swaps,     60 collapses,   3689 moves
+Debug   : Recovering 4 model edges
+Debug   : Recovering 59 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 5
+Debug   : Computing mesh size field at mesh nodes 59
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.386/   0.700 maxL    5.738/   1.400 -- Small/Large/Total (    37/   208/   577):    206 splits,    337 swaps,     52 collapses,    542 moves
+Debug   :  iter   2 minL    0.543/   0.700 maxL    1.661/   1.400 -- Small/Large/Total (    44/    16/   991):    211 splits,    112 swaps,     73 collapses,    822 moves
+Debug   :  iter   3 minL    0.587/   0.700 maxL    1.379/   1.400 -- Small/Large/Total (    22/     0/  1009):     18 splits,     10 swaps,     12 collapses,    281 moves
+Debug   :  iter   4 minL    0.587/   0.700 maxL    1.377/   1.400 -- Small/Large/Total (    17/     0/  1000):      0 splits,      0 swaps,      3 collapses,     84 moves
+Debug   :  iter   5 minL    0.587/   0.700 maxL    1.377/   1.400 -- Small/Large/Total (    17/     0/  1000):      0 splits,      0 swaps,      0 collapses,     50 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     2.42000E-03 sec (  3 %)
+Debug   :  CPU SPLIT    7.21200E-03 sec ( 10 %) 
+Debug   :  CPU COLLAPS  1.31770E-02 sec ( 18 %) 
+Debug   :  CPU SMOOTH   4.98280E-02 sec ( 69 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    7.26370E-02 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.587/   0.700 maxL    1.377/   1.400 -- Small/Large/Total (    17/     0/  1000):      0 splits,      0 swaps,      0 collapses,     44 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.97000E-04 sec (  4 %)
+Debug   :  CPU SPLIT    3.07300E-03 sec ( 30 %) 
+Debug   :  CPU COLLAPS  1.51600E-03 sec ( 15 %) 
+Debug   :  CPU SMOOTH   5.22700E-03 sec ( 51 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.02130E-02 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 647 triangles generated, 295 internal nodes
+Info    : Meshing surface 6 (Parametric surface, MeshAdapt)
+Debug   :  iter   2 minL    0.042/   0.700 maxL    6.175/   1.400 -- Small/Large/Total (  1749/  2469/ 10370):   2738 splits,   1453 swaps,    836 collapses,   9011 moves
+Debug   : Recovering 10 model edges
+Debug   : Recovering 369 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 6
+Debug   : Computing mesh size field at mesh nodes 369
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.067/   0.700 maxL   10.378/   1.400 -- Small/Large/Total (   494/  2808/  4869):   1448 splits,   1008 swaps,     71 collapses,   3933 moves
+Debug   :  iter   3 minL    0.026/   0.700 maxL    7.629/   1.400 -- Small/Large/Total (  2503/   960/ 11063):   2568 splits,   3780 swaps,   2337 collapses,  11765 moves
+Debug   :  iter   2 minL    0.039/   0.700 maxL    7.461/   1.400 -- Small/Large/Total (  1817/  2441/ 10443):   2815 splits,   1481 swaps,    957 collapses,   9443 moves
+Debug   :  iter   4 minL    0.073/   0.700 maxL    4.665/   1.400 -- Small/Large/Total (   889/   139/  9908):   1135 splits,   2186 swaps,   1520 collapses,   7360 moves
+Debug   :  iter   5 minL    0.377/   0.700 maxL    1.811/   1.400 -- Small/Large/Total (   427/    28/  9629):    158 splits,    244 swaps,    251 collapses,   2717 moves
+Debug   :  iter   3 minL    0.059/   0.700 maxL    7.266/   1.400 -- Small/Large/Total (  2516/   982/ 11163):   2563 splits,   4117 swaps,   2323 collapses,  11932 moves
+Debug   :  iter   6 minL    0.386/   0.700 maxL    1.812/   1.400 -- Small/Large/Total (   383/    15/  9602):     31 splits,     22 swaps,     40 collapses,   1223 moves
+Debug   :  iter   7 minL    0.391/   0.700 maxL    1.736/   1.400 -- Small/Large/Total (   390/    11/  9623):     17 splits,     15 swaps,     10 collapses,    656 moves
+Debug   :  iter   8 minL    0.391/   0.700 maxL    1.810/   1.400 -- Small/Large/Total (   381/     6/  9629):     12 splits,      8 swaps,     10 collapses,    476 moves
+Debug   :  iter   4 minL    0.160/   0.700 maxL    4.308/   1.400 -- Small/Large/Total (   793/    96/ 10161):   1148 splits,   2155 swaps,   1482 collapses,   7426 moves
+Debug   :  iter   9 minL    0.376/   0.700 maxL    1.585/   1.400 -- Small/Large/Total (   384/     1/  9623):      7 splits,      3 swaps,      9 collapses,    374 moves
+Debug   :  iter   5 minL    0.320/   0.700 maxL    1.908/   1.400 -- Small/Large/Total (   503/    22/ 10020):    106 splits,    139 swaps,    153 collapses,   2555 moves
+Debug   :  iter  10 minL    0.395/   0.700 maxL    1.494/   1.400 -- Small/Large/Total (   381/     1/  9620):      1 splits,      1 swaps,      2 collapses,    247 moves
+Debug   :  iter   6 minL    0.295/   0.700 maxL    1.672/   1.400 -- Small/Large/Total (   454/     9/ 10008):     26 splits,     23 swaps,     30 collapses,   1104 moves
+Debug   :  iter  11 minL    0.396/   0.700 maxL    1.399/   1.400 -- Small/Large/Total (   379/     0/  9620):      1 splits,      3 swaps,      1 collapses,    235 moves
+Debug   :  iter   7 minL    0.295/   0.700 maxL    1.689/   1.400 -- Small/Large/Total (   457/     8/  9996):     10 splits,     12 swaps,     14 collapses,    610 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     6.69400E-02 sec (  4 %)
+Debug   :  CPU SPLIT    1.61171E-01 sec ( 10 %) 
+Debug   :  CPU COLLAPS  3.61503E-01 sec ( 23 %) 
+Debug   :  CPU SMOOTH   9.74884E-01 sec ( 62 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.56450E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   8 minL    0.295/   0.700 maxL    1.738/   1.400 -- Small/Large/Total (   437/    12/  9996):     10 splits,      6 swaps,     10 collapses,    428 moves
+Debug   :  iter   1 minL    0.396/   0.700 maxL    1.399/   1.400 -- Small/Large/Total (   379/     0/  9620):      0 splits,      0 swaps,      0 collapses,    118 moves
+Debug   :  iter   9 minL    0.295/   0.700 maxL    1.869/   1.400 -- Small/Large/Total (   440/    14/  9999):     12 splits,     12 swaps,     11 collapses,    456 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     4.48700E-03 sec (  5 %)
+Debug   :  CPU SPLIT    2.54000E-02 sec ( 29 %) 
+Debug   :  CPU COLLAPS  1.20820E-02 sec ( 14 %) 
+Debug   :  CPU SMOOTH   4.61670E-02 sec ( 52 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    8.81360E-02 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 6296 triangles generated, 2972 internal nodes
+Info    : Meshing surface 7 (Parametric surface, MeshAdapt)
+Debug   :  iter  10 minL    0.295/   0.700 maxL    1.721/   1.400 -- Small/Large/Total (   432/     4/  9999):     15 splits,     19 swaps,     15 collapses,    402 moves
+Debug   :  iter  11 minL    0.295/   0.700 maxL    1.426/   1.400 -- Small/Large/Total (   427/     3/  9993):      4 splits,      7 swaps,      6 collapses,    329 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     6.92220E-02 sec (  4 %)
+Debug   :  CPU SPLIT    1.64347E-01 sec ( 10 %) 
+Debug   :  CPU COLLAPS  3.47951E-01 sec ( 22 %) 
+Debug   :  CPU SMOOTH   9.98785E-01 sec ( 63 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.58031E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.295/   0.700 maxL    1.399/   1.400 -- Small/Large/Total (   427/     0/  9993):      0 splits,      0 swaps,      0 collapses,    129 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     4.76300E-03 sec (  5 %)
+Debug   :  CPU SPLIT    2.62060E-02 sec ( 29 %) 
+Debug   :  CPU COLLAPS  1.25790E-02 sec ( 14 %) 
+Debug   :  CPU SMOOTH   4.71910E-02 sec ( 52 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    9.07390E-02 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 6539 triangles generated, 3085 internal nodes
+Info    : Meshing surface 7 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 141 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 7
+Debug   : Computing mesh size field at mesh nodes 141
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   : Recovering 4 model edges
+Debug   : Recovering 141 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 7
+Debug   : Computing mesh size field at mesh nodes 141
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.129/   0.700 maxL    5.657/   1.400 -- Small/Large/Total (   178/   623/  1530):    511 splits,    609 swaps,     94 collapses,   1407 moves
+Debug   :  iter   1 minL    0.116/   0.700 maxL    6.907/   1.400 -- Small/Large/Total (   148/   643/  1500):    511 splits,    596 swaps,    104 collapses,   1370 moves
+Debug   :  iter   2 minL    0.323/   0.700 maxL    2.762/   1.400 -- Small/Large/Total (   214/   115/  2169):    632 splits,    753 swaps,    419 collapses,   2452 moves
+Debug   :  iter   2 minL    0.220/   0.700 maxL    2.596/   1.400 -- Small/Large/Total (   168/   169/  2319):    654 splits,    759 swaps,    381 collapses,   2539 moves
+Debug   :  iter   3 minL    0.452/   0.700 maxL    1.569/   1.400 -- Small/Large/Total (   102/     7/  2355):    142 splits,     97 swaps,     80 collapses,   1205 moves
+Debug   :  iter   3 minL    0.507/   0.700 maxL    1.671/   1.400 -- Small/Large/Total (   108/    15/  2598):    185 splits,    123 swaps,     92 collapses,   1427 moves
+Debug   :  iter   4 minL    0.483/   0.700 maxL    1.490/   1.400 -- Small/Large/Total (    84/     1/  2349):      9 splits,      9 swaps,     11 collapses,    441 moves
+Debug   :  iter   4 minL    0.521/   0.700 maxL    1.394/   1.400 -- Small/Large/Total (    90/     0/  2589):     15 splits,     12 swaps,     18 collapses,    548 moves
+Debug   :  iter   5 minL    0.483/   0.700 maxL    1.391/   1.400 -- Small/Large/Total (    83/     0/  2352):      1 splits,      1 swaps,      0 collapses,    183 moves
+Debug   :  iter   5 minL    0.517/   0.700 maxL    1.394/   1.400 -- Small/Large/Total (    89/     0/  2586):      0 splits,      0 swaps,      1 collapses,    242 moves
+Debug   :  iter   6 minL    0.483/   0.700 maxL    1.391/   1.400 -- Small/Large/Total (    84/     0/  2352):      0 splits,      0 swaps,      0 collapses,    152 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     7.66000E-03 sec (  0 %)
+Debug   :  CPU SPLIT    5.14177E-01 sec (  5 %) 
+Debug   :  CPU COLLAPS  1.22575E+00 sec ( 12 %) 
+Debug   :  CPU SMOOTH   8.52618E+00 sec ( 83 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.02738E+01 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   6 minL    0.518/   0.700 maxL    1.394/   1.400 -- Small/Large/Total (    89/     0/  2586):      0 splits,      0 swaps,      0 collapses,    178 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     8.50600E-03 sec (  0 %)
+Debug   :  CPU SPLIT    5.70947E-01 sec (  5 %) 
+Debug   :  CPU COLLAPS  1.32583E+00 sec ( 12 %) 
+Debug   :  CPU SMOOTH   9.55044E+00 sec ( 83 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.14557E+01 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.483/   0.700 maxL    1.391/   1.400 -- Small/Large/Total (    84/     0/  2352):      0 splits,      0 swaps,      0 collapses,    129 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     9.89000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    1.99189E-01 sec ( 17 %) 
+Debug   :  CPU COLLAPS  9.88420E-02 sec (  8 %) 
+Debug   :  CPU SMOOTH   8.88340E-01 sec ( 75 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.18736E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 1521 triangles generated, 691 internal nodes
+Info    : Meshing surface 8 (Parametric surface, MeshAdapt)
+Debug   :  iter   1 minL    0.518/   0.700 maxL    1.394/   1.400 -- Small/Large/Total (    89/     0/  2586):      0 splits,      0 swaps,      0 collapses,    106 moves
+Debug   : Recovering 4 model edges
+Debug   : Recovering 103 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 8
+Debug   : Computing mesh size field at mesh nodes 103
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.11200E-03 sec (  0 %)
+Debug   :  CPU SPLIT    2.25768E-01 sec ( 17 %) 
+Debug   :  CPU COLLAPS  1.11734E-01 sec (  8 %) 
+Debug   :  CPU SMOOTH   1.02630E+00 sec ( 75 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.36492E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 1677 triangles generated, 769 internal nodes
+Info    : Meshing surface 8 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 101 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 8
+Debug   : Computing mesh size field at mesh nodes 101
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.217/   0.700 maxL    4.548/   1.400 -- Small/Large/Total (   141/   391/  1133):    366 splits,    305 swaps,     56 collapses,    991 moves
+Debug   :  iter   1 minL    0.245/   0.700 maxL    4.936/   1.400 -- Small/Large/Total (   104/   381/  1075):    354 splits,    344 swaps,     62 collapses,    956 moves
+Debug   :  iter   2 minL    0.274/   0.700 maxL    2.145/   1.400 -- Small/Large/Total (   154/    34/  1520):    402 splits,    331 swaps,    273 collapses,   1613 moves
+Debug   :  iter   2 minL    0.274/   0.700 maxL    2.469/   1.400 -- Small/Large/Total (   166/    90/  1528):    388 splits,    305 swaps,    237 collapses,   1584 moves
+Debug   :  iter   3 minL    0.526/   0.700 maxL    1.435/   1.400 -- Small/Large/Total (    77/     1/  1499):     47 splits,     33 swaps,     54 collapses,    783 moves
+Debug   :  iter   3 minL    0.538/   0.700 maxL    1.473/   1.400 -- Small/Large/Total (    88/     3/  1591):    108 splits,     73 swaps,     87 collapses,   1005 moves
+Debug   :  iter   4 minL    0.508/   0.700 maxL    1.371/   1.400 -- Small/Large/Total (    67/     0/  1490):      4 splits,      5 swaps,      7 collapses,    301 moves
+Debug   :  iter   4 minL    0.495/   0.700 maxL    1.465/   1.400 -- Small/Large/Total (    69/     1/  1579):      3 splits,      2 swaps,      7 collapses,    402 moves
+Debug   :  iter   5 minL    0.508/   0.700 maxL    1.368/   1.400 -- Small/Large/Total (    65/     0/  1490):      0 splits,      1 swaps,      0 collapses,    125 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     4.08200E-03 sec (  0 %)
+Debug   :  CPU SPLIT    2.68414E-01 sec (  4 %) 
+Debug   :  CPU COLLAPS  7.08846E-01 sec ( 12 %) 
+Debug   :  CPU SMOOTH   5.05508E+00 sec ( 84 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    6.03642E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   5 minL    0.543/   0.700 maxL    1.375/   1.400 -- Small/Large/Total (    64/     0/  1579):      2 splits,      1 swaps,      2 collapses,    274 moves
+Debug   :  iter   1 minL    0.508/   0.700 maxL    1.368/   1.400 -- Small/Large/Total (    64/     0/  1490):      0 splits,      0 swaps,      0 collapses,     94 moves
+Debug   :  iter   6 minL    0.543/   0.700 maxL    1.392/   1.400 -- Small/Large/Total (    62/     0/  1579):      0 splits,      0 swaps,      0 collapses,    184 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     6.26000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    1.20399E-01 sec ( 16 %) 
+Debug   :  CPU COLLAPS  5.97860E-02 sec (  8 %) 
+Debug   :  CPU SMOOTH   5.75546E-01 sec ( 76 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    7.56357E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 959 triangles generated, 429 internal nodes
+Info    : Meshing surface 9 (Parametric surface, MeshAdapt)
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     4.86800E-03 sec (  0 %)
+Debug   :  CPU SPLIT    3.57994E-01 sec (  6 %) 
+Debug   :  CPU COLLAPS  8.66973E-01 sec ( 14 %) 
+Debug   :  CPU SMOOTH   5.17729E+00 sec ( 81 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    6.40712E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.543/   0.700 maxL    1.392/   1.400 -- Small/Large/Total (    62/     0/  1579):      0 splits,      0 swaps,      0 collapses,    132 moves
+Debug   : Recovering 4 model edges
+Debug   : Recovering 234 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 9
+Debug   : Computing mesh size field at mesh nodes 234
+Debug   : Delaunizing the initial mesh
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     6.50000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    1.35127E-01 sec ( 16 %) 
+Debug   :  CPU COLLAPS  6.75750E-02 sec (  8 %) 
+Debug   :  CPU SMOOTH   6.37262E-01 sec ( 76 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    8.40614E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 1019 triangles generated, 460 internal nodes
+Info    : Meshing surface 9 (Parametric surface, MeshAdapt)
+Debug   : Starting to add internal nodes
+Debug   : Recovering 4 model edges
+Debug   : Recovering 223 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 9
+Debug   : Computing mesh size field at mesh nodes 223
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.308/   0.700 maxL    2.108/   1.400 -- Small/Large/Total (   193/   349/  2853):    908 splits,    626 swaps,    112 collapses,   2495 moves
+Debug   :  iter   1 minL    0.294/   0.700 maxL    2.525/   1.400 -- Small/Large/Total (   377/   734/  2870):    880 splits,    396 swaps,     71 collapses,   2106 moves
+Debug   :  iter   2 minL    0.511/   0.700 maxL    1.470/   1.400 -- Small/Large/Total (   124/     8/  3354):    426 splits,    230 swaps,    259 collapses,   2375 moves
+Debug   :  iter   3 minL    0.576/   0.700 maxL    1.426/   1.400 -- Small/Large/Total (    85/     1/  3375):     22 splits,     15 swaps,     15 collapses,    589 moves
+Debug   :  iter   2 minL    0.532/   0.700 maxL    1.535/   1.400 -- Small/Large/Total (   186/     3/  3437):    825 splits,    387 swaps,    636 collapses,   3400 moves
+Debug   :  iter   4 minL    0.576/   0.700 maxL    1.391/   1.400 -- Small/Large/Total (    81/     0/  3375):      3 splits,      4 swaps,      3 collapses,    159 moves
+Debug   :  iter   5 minL    0.576/   0.700 maxL    1.391/   1.400 -- Small/Large/Total (    79/     0/  3375):      0 splits,      1 swaps,      0 collapses,     89 moves
+Debug   :  iter   3 minL    0.532/   0.700 maxL    1.452/   1.400 -- Small/Large/Total (   114/     2/  3368):      5 splits,     15 swaps,     28 collapses,    712 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     8.28100E-03 sec (  0 %)
+Debug   :  CPU SPLIT    5.74521E-01 sec (  4 %) 
+Debug   :  CPU COLLAPS  1.09759E+00 sec (  8 %) 
+Debug   :  CPU SMOOTH   1.20492E+01 sec ( 88 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.37296E+01 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   4 minL    0.532/   0.700 maxL    1.398/   1.400 -- Small/Large/Total (   109/     0/  3371):      3 splits,      3 swaps,      2 collapses,    235 moves
+Debug   :  iter   1 minL    0.576/   0.700 maxL    1.391/   1.400 -- Small/Large/Total (    79/     0/  3375):      0 splits,      0 swaps,      0 collapses,     36 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.42500E-03 sec (  0 %)
+Debug   :  CPU SPLIT    2.59030E-01 sec ( 15 %) 
+Debug   :  CPU COLLAPS  1.29589E-01 sec (  8 %) 
+Debug   :  CPU SMOOTH   1.28500E+00 sec ( 77 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.67504E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 2172 triangles generated, 970 internal nodes
+Info    : Meshing surface 10 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 70 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 10
+Debug   : Computing mesh size field at mesh nodes 70
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   5 minL    0.532/   0.700 maxL    1.398/   1.400 -- Small/Large/Total (   108/     0/  3371):      1 splits,      1 swaps,      1 collapses,    102 moves
+Debug   :  iter   1 minL    0.207/   0.700 maxL    4.112/   1.400 -- Small/Large/Total (    62/   110/   659):    235 splits,    250 swaps,     61 collapses,    639 moves
+Debug   :  iter   2 minL    0.531/   0.700 maxL    1.474/   1.400 -- Small/Large/Total (    51/     2/   827):    126 splits,     85 swaps,     70 collapses,    647 moves
+Debug   :  iter   3 minL    0.552/   0.700 maxL    1.391/   1.400 -- Small/Large/Total (    32/     0/   806):      2 splits,      4 swaps,      9 collapses,    241 moves
+Debug   :  iter   4 minL    0.552/   0.700 maxL    1.375/   1.400 -- Small/Large/Total (    28/     0/   809):      1 splits,      1 swaps,      0 collapses,    139 moves
+Debug   :  iter   6 minL    0.532/   0.700 maxL    1.398/   1.400 -- Small/Large/Total (   106/     0/  3371):      0 splits,      0 swaps,      0 collapses,     55 moves
+Debug   :  iter   5 minL    0.552/   0.700 maxL    1.375/   1.400 -- Small/Large/Total (    28/     0/   809):      0 splits,      0 swaps,      0 collapses,     79 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     2.11400E-03 sec (  0 %)
+Debug   :  CPU SPLIT    1.35513E-01 sec (  5 %) 
+Debug   :  CPU COLLAPS  3.01742E-01 sec ( 12 %) 
+Debug   :  CPU SMOOTH   2.03005E+00 sec ( 82 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    2.46942E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.552/   0.700 maxL    1.375/   1.400 -- Small/Large/Total (    28/     0/   809):      0 splits,      0 swaps,      0 collapses,     70 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.02110E-02 sec (  0 %)
+Debug   :  CPU SPLIT    7.48178E-01 sec (  4 %) 
+Debug   :  CPU COLLAPS  1.68406E+00 sec (  9 %) 
+Debug   :  CPU SMOOTH   1.57080E+01 sec ( 87 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.81505E+01 sec 
+Debug   :  ---------------------------------------
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.33000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    5.91410E-02 sec ( 16 %) 
+Debug   :  CPU COLLAPS  2.94600E-02 sec (  8 %) 
+Debug   :  CPU SMOOTH   2.84704E-01 sec ( 76 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    3.73638E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 516 triangles generated, 224 internal nodes
+Info    : Meshing surface 11 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 234 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 11
+Debug   : Computing mesh size field at mesh nodes 234
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.532/   0.700 maxL    1.398/   1.400 -- Small/Large/Total (   106/     0/  3371):      0 splits,      0 swaps,      0 collapses,     37 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.46400E-03 sec (  0 %)
+Debug   :  CPU SPLIT    2.71753E-01 sec ( 14 %) 
+Debug   :  CPU COLLAPS  1.34969E-01 sec (  7 %) 
+Debug   :  CPU SMOOTH   1.50101E+00 sec ( 79 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.90919E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 2173 triangles generated, 976 internal nodes
+Info    : Meshing surface 10 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 68 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 10
+Debug   : Computing mesh size field at mesh nodes 68
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.430/   0.700 maxL    4.296/   1.400 -- Small/Large/Total (    58/    99/   646):    227 splits,    221 swaps,     56 collapses,    629 moves
+Debug   :  iter   2 minL    0.498/   0.700 maxL    2.292/   1.400 -- Small/Large/Total (    58/     5/   784):    118 splits,     67 swaps,     72 collapses,    588 moves
+Debug   :  iter   3 minL    0.522/   0.700 maxL    1.381/   1.400 -- Small/Large/Total (    31/     0/   766):      7 splits,      3 swaps,     13 collapses,    194 moves
+Debug   :  iter   4 minL    0.540/   0.700 maxL    1.381/   1.400 -- Small/Large/Total (    33/     0/   766):      2 splits,      1 swaps,      2 collapses,    118 moves
+Debug   :  iter   5 minL    0.540/   0.700 maxL    1.381/   1.400 -- Small/Large/Total (    33/     0/   766):      0 splits,      0 swaps,      0 collapses,     87 moves
+Debug   :  iter   1 minL    0.333/   0.700 maxL    2.095/   1.400 -- Small/Large/Total (   168/   343/  2865):    920 splits,    631 swaps,    120 collapses,   2535 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.97700E-03 sec (  0 %)
+Debug   :  CPU SPLIT    1.34230E-01 sec (  4 %) 
+Debug   :  CPU COLLAPS  3.08723E-01 sec ( 10 %) 
+Debug   :  CPU SMOOTH   2.75764E+00 sec ( 86 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    3.20257E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.540/   0.700 maxL    1.381/   1.400 -- Small/Large/Total (    33/     0/   766):      0 splits,      0 swaps,      0 collapses,     68 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.10000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    5.86020E-02 sec ( 14 %) 
+Debug   :  CPU COLLAPS  2.93150E-02 sec (  7 %) 
+Debug   :  CPU SMOOTH   3.19702E-01 sec ( 78 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    4.07929E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 488 triangles generated, 211 internal nodes
+Info    : Meshing surface 11 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 226 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 11
+Debug   : Computing mesh size field at mesh nodes 226
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   2 minL    0.530/   0.700 maxL    1.448/   1.400 -- Small/Large/Total (   101/     5/  3369):    414 splits,    191 swaps,    246 collapses,   2449 moves
+Debug   :  iter   3 minL    0.535/   0.700 maxL    1.409/   1.400 -- Small/Large/Total (    66/     2/  3363):     15 splits,     14 swaps,     17 collapses,    600 moves
+Debug   :  iter   1 minL    0.235/   0.700 maxL    2.462/   1.400 -- Small/Large/Total (   319/   591/  2819):    891 splits,    425 swaps,    101 collapses,   2306 moves
+Debug   :  iter   4 minL    0.535/   0.700 maxL    1.383/   1.400 -- Small/Large/Total (    62/     0/  3360):      3 splits,      4 swaps,      4 collapses,    233 moves
+Debug   :  iter   5 minL    0.535/   0.700 maxL    1.381/   1.400 -- Small/Large/Total (    59/     0/  3354):      0 splits,      0 swaps,      2 collapses,    143 moves
+Debug   :  iter   6 minL    0.535/   0.700 maxL    1.419/   1.400 -- Small/Large/Total (    60/     1/  3354):      0 splits,      0 swaps,      0 collapses,     96 moves
+Debug   :  iter   2 minL    0.458/   0.700 maxL    1.547/   1.400 -- Small/Large/Total (   179/     5/  3323):    653 splits,    389 swaps,    485 collapses,   3049 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     9.65400E-03 sec (  0 %)
+Debug   :  CPU SPLIT    7.04508E-01 sec (  4 %) 
+Debug   :  CPU COLLAPS  1.22336E+00 sec (  8 %) 
+Debug   :  CPU SMOOTH   1.40141E+01 sec ( 88 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.59516E+01 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.535/   0.700 maxL    1.381/   1.400 -- Small/Large/Total (    59/     0/  3354):      1 splits,      1 swaps,      1 collapses,     78 moves
+Debug   :  iter   3 minL    0.462/   0.700 maxL    1.513/   1.400 -- Small/Large/Total (   106/     1/  3239):      7 splits,     13 swaps,     35 collapses,    794 moves
+Debug   :  iter   2 minL    0.535/   0.700 maxL    1.381/   1.400 -- Small/Large/Total (    59/     0/  3354):      0 splits,      0 swaps,      0 collapses,     59 moves
+Debug   :  iter   4 minL    0.462/   0.700 maxL    1.376/   1.400 -- Small/Large/Total (    96/     0/  3227):      2 splits,      5 swaps,      6 collapses,    256 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     2.85600E-03 sec (  0 %)
+Debug   :  CPU SPLIT    3.86708E-01 sec ( 12 %) 
+Debug   :  CPU COLLAPS  2.57445E-01 sec (  8 %) 
+Debug   :  CPU SMOOTH   2.67570E+00 sec ( 81 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    3.32271E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 2158 triangles generated, 963 internal nodes
+Info    : Meshing surface 12 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 70 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 12
+Debug   : Computing mesh size field at mesh nodes 70
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.377/   0.700 maxL    3.344/   1.400 -- Small/Large/Total (    36/   120/   617):    235 splits,    242 swaps,     75 collapses,    633 moves
+Debug   :  iter   5 minL    0.462/   0.700 maxL    1.376/   1.400 -- Small/Large/Total (    94/     0/  3224):      0 splits,      0 swaps,      1 collapses,     99 moves
+Debug   :  iter   2 minL    0.553/   0.700 maxL    1.779/   1.400 -- Small/Large/Total (    30/     6/   779):    134 splits,     92 swaps,     80 collapses,    599 moves
+Debug   :  iter   3 minL    0.557/   0.700 maxL    1.334/   1.400 -- Small/Large/Total (    26/     0/   788):      8 splits,      6 swaps,      5 collapses,    173 moves
+Debug   :  iter   4 minL    0.557/   0.700 maxL    1.329/   1.400 -- Small/Large/Total (    25/     0/   782):      0 splits,      0 swaps,      2 collapses,     69 moves
+Debug   :  iter   5 minL    0.557/   0.700 maxL    1.329/   1.400 -- Small/Large/Total (    21/     0/   779):      0 splits,      0 swaps,      1 collapses,     53 moves
+Debug   :  iter   6 minL    0.557/   0.700 maxL    1.329/   1.400 -- Small/Large/Total (    21/     0/   779):      0 splits,      0 swaps,      0 collapses,     35 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     2.36900E-03 sec (  0 %)
+Debug   :  CPU SPLIT    1.55603E-01 sec (  6 %) 
+Debug   :  CPU COLLAPS  3.19947E-01 sec ( 12 %) 
+Debug   :  CPU SMOOTH   2.21870E+00 sec ( 82 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    2.69662E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   6 minL    0.462/   0.700 maxL    1.376/   1.400 -- Small/Large/Total (    94/     0/  3224):      0 splits,      0 swaps,      0 collapses,     58 moves
+Debug   :  iter   1 minL    0.557/   0.700 maxL    1.329/   1.400 -- Small/Large/Total (    21/     0/   779):      0 splits,      0 swaps,      0 collapses,     30 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.17000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    5.60340E-02 sec ( 17 %) 
+Debug   :  CPU COLLAPS  2.80160E-02 sec (  8 %) 
+Debug   :  CPU SMOOTH   2.52374E-01 sec ( 75 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    3.36741E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 496 triangles generated, 214 internal nodes
+Info    : Meshing surface 13 (Parametric surface, MeshAdapt)
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     8.73500E-03 sec (  0 %)
+Debug   :  CPU SPLIT    7.13277E-01 sec (  4 %) 
+Debug   :  CPU COLLAPS  1.56630E+00 sec (  9 %) 
+Debug   :  CPU SMOOTH   1.46947E+01 sec ( 87 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.69830E+01 sec 
+Debug   :  ---------------------------------------
+Debug   : Recovering 4 model edges
+Debug   : Recovering 142 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 13
+Debug   : Computing mesh size field at mesh nodes 142
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.462/   0.700 maxL    1.376/   1.400 -- Small/Large/Total (    94/     0/  3224):      0 splits,      0 swaps,      0 collapses,     54 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.39200E-03 sec (  0 %)
+Debug   :  CPU SPLIT    2.55075E-01 sec ( 14 %) 
+Debug   :  CPU COLLAPS  1.28757E-01 sec (  7 %) 
+Debug   :  CPU SMOOTH   1.47879E+00 sec ( 79 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.86401E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 2074 triangles generated, 925 internal nodes
+Info    : Meshing surface 12 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 68 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 12
+Debug   : Computing mesh size field at mesh nodes 68
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.254/   0.700 maxL    5.519/   1.400 -- Small/Large/Total (   131/   427/  1472):    517 splits,    822 swaps,    120 collapses,   1463 moves
+Debug   :  iter   1 minL    0.322/   0.700 maxL    4.263/   1.400 -- Small/Large/Total (    60/    84/   619):    226 splits,    206 swaps,     64 collapses,    597 moves
+Debug   :  iter   2 minL    0.459/   0.700 maxL    2.061/   1.400 -- Small/Large/Total (    38/     6/   754):     95 splits,     63 swaps,     50 collapses,    567 moves
+Debug   :  iter   3 minL    0.459/   0.700 maxL    1.388/   1.400 -- Small/Large/Total (    30/     0/   760):     10 splits,      9 swaps,      8 collapses,    249 moves
+Debug   :  iter   2 minL    0.436/   0.700 maxL    2.331/   1.400 -- Small/Large/Total (   108/   112/  2066):    448 splits,    377 swaps,    250 collapses,   1906 moves
+Debug   :  iter   4 minL    0.459/   0.700 maxL    1.365/   1.400 -- Small/Large/Total (    26/     0/   757):      0 splits,      0 swaps,      1 collapses,     56 moves
+Debug   :  iter   5 minL    0.459/   0.700 maxL    1.365/   1.400 -- Small/Large/Total (    26/     0/   757):      0 splits,      0 swaps,      0 collapses,     24 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.90100E-03 sec (  0 %)
+Debug   :  CPU SPLIT    1.29540E-01 sec (  4 %) 
+Debug   :  CPU COLLAPS  2.89940E-01 sec (  8 %) 
+Debug   :  CPU SMOOTH   3.02045E+00 sec ( 88 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    3.44183E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   3 minL    0.443/   0.700 maxL    1.465/   1.400 -- Small/Large/Total (    75/     3/  2351):    131 splits,     77 swaps,     36 collapses,    948 moves
+Debug   :  iter   1 minL    0.459/   0.700 maxL    1.365/   1.400 -- Small/Large/Total (    26/     0/   757):      0 splits,      0 swaps,      0 collapses,     10 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.05000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    5.68580E-02 sec ( 10 %) 
+Debug   :  CPU COLLAPS  2.85640E-02 sec (  5 %) 
+Debug   :  CPU SMOOTH   4.61005E-01 sec ( 84 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    5.46732E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 482 triangles generated, 208 internal nodes
+Info    : Meshing surface 13 (Parametric surface, MeshAdapt)
+Debug   :  iter   4 minL    0.443/   0.700 maxL    1.382/   1.400 -- Small/Large/Total (    68/     0/  2351):      3 splits,      2 swaps,      3 collapses,    251 moves
+Debug   : Recovering 4 model edges
+Debug   : Recovering 144 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 13
+Debug   : Computing mesh size field at mesh nodes 144
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   5 minL    0.443/   0.700 maxL    1.382/   1.400 -- Small/Large/Total (    68/     0/  2351):      0 splits,      0 swaps,      0 collapses,    116 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     6.27400E-03 sec (  0 %)
+Debug   :  CPU SPLIT    3.92688E-01 sec (  5 %) 
+Debug   :  CPU COLLAPS  9.08522E-01 sec ( 11 %) 
+Debug   :  CPU SMOOTH   7.17258E+00 sec ( 85 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    8.48007E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.443/   0.700 maxL    1.382/   1.400 -- Small/Large/Total (    66/     0/  2351):      0 splits,      0 swaps,      0 collapses,     96 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     9.72000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    1.94097E-01 sec ( 15 %) 
+Debug   :  CPU COLLAPS  9.66810E-02 sec (  8 %) 
+Debug   :  CPU SMOOTH   9.77377E-01 sec ( 77 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.26913E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 1520 triangles generated, 690 internal nodes
+Info    : Meshing surface 14 (Parametric surface, MeshAdapt)
+Debug   :  iter   1 minL    0.121/   0.700 maxL   17.755/   1.400 -- Small/Large/Total (   195/   620/  1542):    527 splits,    754 swaps,    108 collapses,   1444 moves
+Debug   : Recovering 4 model edges
+Debug   : Recovering 98 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 14
+Debug   : Computing mesh size field at mesh nodes 98
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.142/   0.700 maxL    4.692/   1.400 -- Small/Large/Total (    60/   301/  1027):    347 splits,    446 swaps,     69 collapses,    945 moves
+Debug   :  iter   2 minL    0.323/   0.700 maxL    9.293/   1.400 -- Small/Large/Total (   138/   150/  2208):    623 splits,    867 swaps,    401 collapses,   2398 moves
+Debug   :  iter   2 minL    0.384/   0.700 maxL    2.610/   1.400 -- Small/Large/Total (    89/    25/  1600):    328 splits,    265 swaps,    137 collapses,   1410 moves
+Debug   :  iter   3 minL    0.523/   0.700 maxL    2.548/   1.400 -- Small/Large/Total (    60/    50/  2433):    152 splits,    108 swaps,     77 collapses,   1264 moves
+Debug   :  iter   3 minL    0.556/   0.700 maxL    1.397/   1.400 -- Small/Large/Total (    65/     0/  1645):     41 splits,     13 swaps,     26 collapses,    575 moves
+Debug   :  iter   4 minL    0.554/   0.700 maxL    1.422/   1.400 -- Small/Large/Total (    60/     3/  2547):     52 splits,     32 swaps,     14 collapses,    533 moves
+Debug   :  iter   4 minL    0.551/   0.700 maxL    1.397/   1.400 -- Small/Large/Total (    59/     0/  1639):      0 splits,      1 swaps,      2 collapses,    245 moves
+Debug   :  iter   5 minL    0.551/   0.700 maxL    1.397/   1.400 -- Small/Large/Total (    58/     0/  1639):      0 splits,      0 swaps,      0 collapses,    172 moves
+Debug   :  iter   5 minL    0.554/   0.700 maxL    1.460/   1.400 -- Small/Large/Total (    55/     4/  2544):      3 splits,      2 swaps,      4 collapses,    254 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     4.15900E-03 sec (  0 %)
+Debug   :  CPU SPLIT    2.70430E-01 sec (  4 %) 
+Debug   :  CPU COLLAPS  5.71602E-01 sec (  9 %) 
+Debug   :  CPU SMOOTH   5.83072E+00 sec ( 87 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    6.67691E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.551/   0.700 maxL    1.397/   1.400 -- Small/Large/Total (    58/     0/  1639):      0 splits,      0 swaps,      0 collapses,    149 moves
+Debug   :  iter   6 minL    0.554/   0.700 maxL    1.383/   1.400 -- Small/Large/Total (    56/     0/  2547):      4 splits,      3 swaps,      3 collapses,    202 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     6.77000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    1.30513E-01 sec ( 16 %) 
+Debug   :  CPU COLLAPS  6.50110E-02 sec (  8 %) 
+Debug   :  CPU SMOOTH   6.29976E-01 sec ( 76 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    8.26177E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 1060 triangles generated, 482 internal nodes
+Info    : Meshing surface 15 (Parametric surface, MeshAdapt)
+Debug   :  iter   7 minL    0.554/   0.700 maxL    1.383/   1.400 -- Small/Large/Total (    56/     0/  2547):      0 splits,      0 swaps,      0 collapses,    122 moves
+Debug   : Recovering 4 model edges
+Debug   : Recovering 221 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 15
+Debug   : Computing mesh size field at mesh nodes 221
+Debug   : Delaunizing the initial mesh
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     9.38400E-03 sec (  0 %)
+Debug   :  CPU SPLIT    6.58003E-01 sec (  5 %) 
+Debug   :  CPU COLLAPS  1.38690E+00 sec ( 11 %) 
+Debug   :  CPU SMOOTH   1.10434E+01 sec ( 84 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.30977E+01 sec 
+Debug   :  ---------------------------------------
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.554/   0.700 maxL    1.383/   1.400 -- Small/Large/Total (    56/     0/  2547):      0 splits,      0 swaps,      0 collapses,     93 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.07000E-03 sec (  0 %)
+Debug   :  CPU SPLIT    2.20668E-01 sec ( 17 %) 
+Debug   :  CPU COLLAPS  1.10309E-01 sec (  9 %) 
+Debug   :  CPU SMOOTH   9.55313E-01 sec ( 74 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.28736E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 1650 triangles generated, 754 internal nodes
+Info    : Meshing surface 14 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 89 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 14
+Debug   : Computing mesh size field at mesh nodes 89
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.193/   0.700 maxL    4.850/   1.400 -- Small/Large/Total (    66/   262/   886):    306 splits,    339 swaps,     69 collapses,    808 moves
+Debug   :  iter   1 minL    0.276/   0.700 maxL    3.243/   1.400 -- Small/Large/Total (   331/   915/  2662):    872 splits,    536 swaps,    131 collapses,   2231 moves
+Debug   :  iter   2 minL    0.473/   0.700 maxL    2.025/   1.400 -- Small/Large/Total (    84/    45/  1309):    267 splits,    192 swaps,    126 collapses,   1112 moves
+Debug   :  iter   3 minL    0.503/   0.700 maxL    1.386/   1.400 -- Small/Large/Total (    44/     0/  1372):     56 splits,     24 swaps,     35 collapses,    515 moves
+Debug   :  iter   4 minL    0.523/   0.700 maxL    1.391/   1.400 -- Small/Large/Total (    42/     0/  1372):      2 splits,      0 swaps,      2 collapses,    178 moves
+Debug   :  iter   5 minL    0.523/   0.700 maxL    1.391/   1.400 -- Small/Large/Total (    41/     0/  1372):      0 splits,      0 swaps,      0 collapses,     76 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.40100E-03 sec (  0 %)
+Debug   :  CPU SPLIT    2.39281E-01 sec (  4 %) 
+Debug   :  CPU COLLAPS  5.36027E-01 sec (  9 %) 
+Debug   :  CPU SMOOTH   4.92865E+00 sec ( 86 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    5.70736E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.523/   0.700 maxL    1.391/   1.400 -- Small/Large/Total (    41/     0/  1372):      0 splits,      0 swaps,      0 collapses,     43 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     5.61000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    1.14167E-01 sec ( 12 %) 
+Debug   :  CPU COLLAPS  5.64500E-02 sec (  6 %) 
+Debug   :  CPU SMOOTH   8.02078E-01 sec ( 82 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    9.73256E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 885 triangles generated, 399 internal nodes
+Info    : Meshing surface 15 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 210 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 15
+Debug   : Computing mesh size field at mesh nodes 210
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   2 minL    0.471/   0.700 maxL    1.716/   1.400 -- Small/Large/Total (   263/    22/  3775):   1048 splits,    599 swaps,    677 collapses,   3924 moves
+Debug   :  iter   3 minL    0.532/   0.700 maxL    1.576/   1.400 -- Small/Large/Total (   161/    13/  3715):     29 splits,     39 swaps,     49 collapses,   1021 moves
+Debug   :  iter   1 minL    0.349/   0.700 maxL    4.267/   1.400 -- Small/Large/Total (   173/   648/  2493):    828 splits,    785 swaps,    136 collapses,   2190 moves
+Debug   :  iter   4 minL    0.489/   0.700 maxL    1.972/   1.400 -- Small/Large/Total (   154/     5/  3721):     15 splits,     10 swaps,     13 collapses,    434 moves
+Debug   :  iter   5 minL    0.443/   0.700 maxL    1.619/   1.400 -- Small/Large/Total (   150/     6/  3703):      6 splits,      3 swaps,     12 collapses,    235 moves
+Debug   :  iter   2 minL    0.405/   0.700 maxL    2.203/   1.400 -- Small/Large/Total (   205/    74/  3555):    699 splits,    406 swaps,    345 collapses,   2928 moves
+Debug   :  iter   6 minL    0.489/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (   146/     0/  3700):      6 splits,      6 swaps,      7 collapses,    148 moves
+Debug   :  iter   3 minL    0.440/   0.700 maxL    1.668/   1.400 -- Small/Large/Total (   116/    11/  3534):     83 splits,     42 swaps,     90 collapses,   1123 moves
+Debug   :  iter   7 minL    0.489/   0.700 maxL    1.506/   1.400 -- Small/Large/Total (   143/     1/  3697):      0 splits,      0 swaps,      1 collapses,     72 moves
+Debug   :  iter   4 minL    0.440/   0.700 maxL    1.578/   1.400 -- Small/Large/Total (   110/    14/  3537):     13 splits,      8 swaps,     12 collapses,    389 moves
+Debug   :  iter   8 minL    0.489/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (   143/     0/  3691):      1 splits,      0 swaps,      3 collapses,     36 moves
+Debug   :  iter   5 minL    0.440/   0.700 maxL    1.616/   1.400 -- Small/Large/Total (   112/     6/  3552):     15 splits,     11 swaps,     10 collapses,    272 moves
+Debug   :  iter   9 minL    0.489/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (   143/     0/  3691):      0 splits,      0 swaps,      0 collapses,     23 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.64480E-02 sec (  0 %)
+Debug   :  CPU SPLIT    1.35251E+00 sec (  5 %) 
+Debug   :  CPU COLLAPS  2.65506E+00 sec (  9 %) 
+Debug   :  CPU SMOOTH   2.58275E+01 sec ( 87 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    2.98515E+01 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   6 minL    0.440/   0.700 maxL    1.674/   1.400 -- Small/Large/Total (   106/     2/  3546):      6 splits,      9 swaps,      8 collapses,    174 moves
+Debug   :  iter   7 minL    0.440/   0.700 maxL    1.559/   1.400 -- Small/Large/Total (    96/     1/  3543):      2 splits,      1 swaps,      3 collapses,     89 moves
+Debug   :  iter   1 minL    0.489/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (   143/     0/  3691):      0 splits,      0 swaps,      0 collapses,     20 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.63200E-03 sec (  0 %)
+Debug   :  CPU SPLIT    3.25202E-01 sec ( 14 %) 
+Debug   :  CPU COLLAPS  1.60993E-01 sec (  7 %) 
+Debug   :  CPU SMOOTH   1.91023E+00 sec ( 80 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    2.39806E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 2387 triangles generated, 1084 internal nodes
+Info    : Meshing surface 16 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 78 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 16
+Debug   : Computing mesh size field at mesh nodes 78
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   8 minL    0.440/   0.700 maxL    1.408/   1.400 -- Small/Large/Total (    96/     1/  3537):      1 splits,      1 swaps,      3 collapses,     43 moves
+Debug   :  iter   1 minL    0.395/   0.700 maxL    4.435/   1.400 -- Small/Large/Total (    71/   144/   780):    265 splits,    293 swaps,     56 collapses,    748 moves
+Debug   :  iter   9 minL    0.440/   0.700 maxL    1.511/   1.400 -- Small/Large/Total (    94/     2/  3534):      1 splits,      1 swaps,      2 collapses,     52 moves
+Debug   :  iter   2 minL    0.389/   0.700 maxL    1.885/   1.400 -- Small/Large/Total (    66/     7/   984):    168 splits,    126 swaps,    100 collapses,    814 moves
+Debug   :  iter   3 minL    0.549/   0.700 maxL    1.363/   1.400 -- Small/Large/Total (    47/     0/   981):     10 splits,      9 swaps,     11 collapses,    326 moves
+Debug   :  iter   4 minL    0.504/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    43/     0/   969):      0 splits,      0 swaps,      4 collapses,    144 moves
+Debug   :  iter  10 minL    0.440/   0.700 maxL    1.387/   1.400 -- Small/Large/Total (    94/     0/  3537):      2 splits,      1 swaps,      1 collapses,     52 moves
+Debug   :  iter   5 minL    0.549/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    42/     0/   966):      0 splits,      0 swaps,      1 collapses,     96 moves
+Debug   :  iter   6 minL    0.547/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    41/     0/   966):      0 splits,      0 swaps,      0 collapses,     50 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     2.76800E-03 sec (  0 %)
+Debug   :  CPU SPLIT    2.16496E-01 sec (  4 %) 
+Debug   :  CPU COLLAPS  4.46702E-01 sec (  7 %) 
+Debug   :  CPU SMOOTH   5.39602E+00 sec ( 89 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    6.06198E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.547/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    41/     0/   966):      0 splits,      0 swaps,      0 collapses,     27 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.97000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    7.84920E-02 sec ( 10 %) 
+Debug   :  CPU COLLAPS  3.92480E-02 sec (  5 %) 
+Debug   :  CPU SMOOTH   6.75262E-01 sec ( 85 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    7.93399E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 618 triangles generated, 271 internal nodes
+Info    : Meshing surface 17 (Parametric surface, MeshAdapt)
+Debug   :  iter  11 minL    0.440/   0.700 maxL    1.375/   1.400 -- Small/Large/Total (    95/     0/  3537):      0 splits,      2 swaps,      0 collapses,     38 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.83730E-02 sec (  0 %)
+Debug   :  CPU SPLIT    1.61554E+00 sec (  5 %) 
+Debug   :  CPU COLLAPS  2.80475E+00 sec (  9 %) 
+Debug   :  CPU SMOOTH   2.59254E+01 sec ( 85 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    3.03641E+01 sec 
+Debug   :  ---------------------------------------
+Debug   : Recovering 4 model edges
+Debug   : Recovering 220 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 17
+Debug   : Computing mesh size field at mesh nodes 220
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.440/   0.700 maxL    1.375/   1.400 -- Small/Large/Total (    95/     0/  3537):      0 splits,      0 swaps,      0 collapses,     25 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.52800E-03 sec (  0 %)
+Debug   :  CPU SPLIT    3.09266E-01 sec ( 14 %) 
+Debug   :  CPU COLLAPS  1.53986E-01 sec (  7 %) 
+Debug   :  CPU SMOOTH   1.73769E+00 sec ( 79 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    2.20247E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 2288 triangles generated, 1040 internal nodes
+Info    : Meshing surface 16 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 72 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 16
+Debug   : Computing mesh size field at mesh nodes 72
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.246/   0.700 maxL    3.037/   1.400 -- Small/Large/Total (   304/   943/  2636):    862 splits,    480 swaps,    129 collapses,   2076 moves
+Debug   :  iter   2 minL    0.447/   0.700 maxL    1.622/   1.400 -- Small/Large/Total (   243/    35/  3725):   1038 splits,    594 swaps,    675 collapses,   3756 moves
+Debug   :  iter   3 minL    0.498/   0.700 maxL    1.845/   1.400 -- Small/Large/Total (   166/    11/  3656):     45 splits,     41 swaps,     68 collapses,   1115 moves
+Debug   :  iter   4 minL    0.540/   0.700 maxL    1.507/   1.400 -- Small/Large/Total (   134/     7/  3641):     14 splits,      9 swaps,     19 collapses,    439 moves
+Debug   :  iter   1 minL    0.296/   0.700 maxL    4.642/   1.400 -- Small/Large/Total (    48/   100/   690):    244 splits,    284 swaps,     61 collapses,    667 moves
+Debug   :  iter   5 minL    0.540/   0.700 maxL    1.498/   1.400 -- Small/Large/Total (   132/     3/  3635):      8 splits,      6 swaps,     10 collapses,    260 moves
+Debug   :  iter   2 minL    0.416/   0.700 maxL    2.594/   1.400 -- Small/Large/Total (    67/     7/   855):    123 splits,     73 swaps,     68 collapses,    608 moves
+Debug   :  iter   6 minL    0.540/   0.700 maxL    1.386/   1.400 -- Small/Large/Total (   128/     0/  3638):      4 splits,      3 swaps,      3 collapses,    163 moves
+Debug   :  iter   7 minL    0.540/   0.700 maxL    1.386/   1.400 -- Small/Large/Total (   127/     0/  3638):      0 splits,      0 swaps,      0 collapses,     61 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.29720E-02 sec (  0 %)
+Debug   :  CPU SPLIT    1.01082E+00 sec (  4 %) 
+Debug   :  CPU COLLAPS  2.17107E+00 sec (  9 %) 
+Debug   :  CPU SMOOTH   1.97013E+01 sec ( 86 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    2.28962E+01 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   3 minL    0.508/   0.700 maxL    1.458/   1.400 -- Small/Large/Total (    53/     1/   849):     10 splits,      4 swaps,     12 collapses,    201 moves
+Debug   :  iter   1 minL    0.540/   0.700 maxL    1.386/   1.400 -- Small/Large/Total (   127/     0/  3638):      0 splits,      0 swaps,      0 collapses,     39 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.60900E-03 sec (  0 %)
+Debug   :  CPU SPLIT    3.17769E-01 sec ( 14 %) 
+Debug   :  CPU COLLAPS  1.58397E-01 sec (  7 %) 
+Debug   :  CPU SMOOTH   1.82479E+00 sec ( 79 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    2.30256E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 2352 triangles generated, 1067 internal nodes
+Info    : Meshing surface 18 (Parametric surface, MeshAdapt)
+Debug   : Recovering 4 model edges
+Debug   : Recovering 74 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 18
+Debug   : Computing mesh size field at mesh nodes 74
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.246/   0.700 maxL    3.286/   1.400 -- Small/Large/Total (    48/   105/   703):    249 splits,    266 swaps,     63 collapses,    638 moves
+Debug   :  iter   2 minL    0.442/   0.700 maxL    1.373/   1.400 -- Small/Large/Total (    34/     0/   859):    121 splits,     60 swaps,     69 collapses,    608 moves
+Debug   :  iter   4 minL    0.508/   0.700 maxL    1.359/   1.400 -- Small/Large/Total (    48/     0/   846):      1 splits,      1 swaps,      2 collapses,     95 moves
+Debug   :  iter   3 minL    0.460/   0.700 maxL    1.452/   1.400 -- Small/Large/Total (    17/     1/   847):      2 splits,      3 swaps,      6 collapses,    202 moves
+Debug   :  iter   4 minL    0.460/   0.700 maxL    1.373/   1.400 -- Small/Large/Total (    20/     0/   853):      2 splits,      2 swaps,      0 collapses,    111 moves
+Debug   :  iter   5 minL    0.460/   0.700 maxL    1.373/   1.400 -- Small/Large/Total (    20/     0/   853):      0 splits,      0 swaps,      0 collapses,     35 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     2.16100E-03 sec (  0 %)
+Debug   :  CPU SPLIT    1.58868E-01 sec (  4 %) 
+Debug   :  CPU COLLAPS  3.13758E-01 sec (  9 %) 
+Debug   :  CPU SMOOTH   3.14096E+00 sec ( 87 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    3.61575E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.460/   0.700 maxL    1.373/   1.400 -- Small/Large/Total (    20/     0/   853):      0 splits,      0 swaps,      0 collapses,     25 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.47000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    7.03010E-02 sec ( 11 %) 
+Debug   :  CPU COLLAPS  3.53860E-02 sec (  6 %) 
+Debug   :  CPU SMOOTH   5.21489E-01 sec ( 83 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    6.27523E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 544 triangles generated, 236 internal nodes
+Info    : Meshing surface 19 (Parametric surface, MeshAdapt)
+Debug   : Recovering 6 model edges
+Debug   : Recovering 60 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 19
+Debug   : Computing mesh size field at mesh nodes 60
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.579/   0.700 maxL    1.413/   1.400 -- Small/Large/Total (     9/     1/   249):     79 splits,     40 swaps,     35 collapses,    195 moves
+Debug   :  iter   2 minL    0.615/   0.700 maxL    1.328/   1.400 -- Small/Large/Total (    11/     0/   249):      1 splits,      2 swaps,      1 collapses,     63 moves
+Debug   :  iter   3 minL    0.615/   0.700 maxL    1.328/   1.400 -- Small/Large/Total (     9/     0/   249):      0 splits,      0 swaps,      0 collapses,     39 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.30000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    8.88700E-03 sec ( 13 %) 
+Debug   :  CPU COLLAPS  1.61640E-02 sec ( 23 %) 
+Debug   :  CPU SMOOTH   4.45520E-02 sec ( 64 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    6.99330E-02 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.612/   0.700 maxL    1.328/   1.400 -- Small/Large/Total (     9/     0/   249):      0 splits,      0 swaps,      0 collapses,     23 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     8.00000E-05 sec (  0 %)
+Debug   :  CPU SPLIT    4.60500E-03 sec ( 26 %) 
+Debug   :  CPU COLLAPS  2.28900E-03 sec ( 13 %) 
+Debug   :  CPU SMOOTH   1.08730E-02 sec ( 61 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.78470E-02 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 146 triangles generated, 44 internal nodes
+Info    : Tetrahedrizing 13514 nodes...
+Info    : Done tetrahedrizing 13522 nodes (Wall 0.242041s, CPU 0.2289s)
+Debug   : Points have been tetrahedralized
+Info    : Reconstructing mesh...
+Info    :  - Creating surface mesh
+Info    :  - Identifying boundary edges
+Debug   :   27024 (40536) subfaces (segments)
+Info    :  - Recovering boundary
+Debug   : Statistics:
+Debug   :   Input points: 13522
+Debug   :   Input facets: 19
+Debug   :   Input segments: 0
+Debug   :  Mesh points: 13522
+Debug   :   Mesh tetrahedra: 57017
+Debug   :   Mesh faces: 127546
+Debug   :   Mesh faces on facets: 27024
+Debug   :   Mesh edges on segments: 40536
+Debug   : Writing to GRegion...
+Info    : Done reconstructing mesh (Wall 0.655411s, CPU 0.520139s)
+Debug   : start with a non classified tet
+Debug   : Found 57017 tets with 19 faces (Wall 0.0535926s, CPU 0.053499s)
+Info    : Found volume 1
+Debug   : All 57017 tets were connected
+Info    : It. 0 - 0 nodes created - worst tet radius 55.4794 (nodes removed 0 0)
+Info    : It. 500 - 500 nodes created - worst tet radius 2.72682 (nodes removed 0 0)
+Info    : It. 1000 - 1000 nodes created - worst tet radius 2.24317 (nodes removed 0 0)
+Info    : It. 1500 - 1500 nodes created - worst tet radius 2.04484 (nodes removed 0 0)
+Info    : It. 2000 - 2000 nodes created - worst tet radius 1.85397 (nodes removed 0 0)
+Info    : It. 2500 - 2500 nodes created - worst tet radius 1.7395 (nodes removed 0 0)
+Info    : It. 3000 - 3000 nodes created - worst tet radius 1.65055 (nodes removed 0 0)
+Info    : It. 3500 - 3500 nodes created - worst tet radius 1.57695 (nodes removed 0 0)
+Info    : It. 4000 - 4000 nodes created - worst tet radius 1.51816 (nodes removed 0 0)
+Info    : It. 4500 - 4500 nodes created - worst tet radius 1.46508 (nodes removed 0 0)
+Info    : It. 5000 - 5000 nodes created - worst tet radius 1.42115 (nodes removed 0 0)
+Info    : It. 5500 - 5500 nodes created - worst tet radius 1.37854 (nodes removed 0 0)
+Info    : It. 6000 - 6000 nodes created - worst tet radius 1.34449 (nodes removed 0 0)
+Info    : It. 6500 - 6500 nodes created - worst tet radius 1.31217 (nodes removed 0 0)
+Info    : It. 7000 - 7000 nodes created - worst tet radius 1.28166 (nodes removed 0 0)
+Info    : It. 7500 - 7500 nodes created - worst tet radius 1.25545 (nodes removed 0 0)
+Info    : It. 8000 - 8000 nodes created - worst tet radius 1.23061 (nodes removed 0 0)
+Debug   :  iter   5 minL    0.508/   0.700 maxL    1.359/   1.400 -- Small/Large/Total (    48/     0/   846):      0 splits,      0 swaps,      0 collapses,     60 moves
+Info    : It. 8500 - 8500 nodes created - worst tet radius 1.21032 (nodes removed 0 0)
+Info    : It. 9000 - 9000 nodes created - worst tet radius 1.18998 (nodes removed 0 0)
+Info    : It. 9500 - 9500 nodes created - worst tet radius 1.17011 (nodes removed 0 0)
+Info    : It. 10000 - 10000 nodes created - worst tet radius 1.15273 (nodes removed 0 0)
+Info    : It. 10500 - 10500 nodes created - worst tet radius 1.13675 (nodes removed 0 0)
+Info    : It. 11000 - 11000 nodes created - worst tet radius 1.12123 (nodes removed 0 0)
+Info    : It. 11500 - 11500 nodes created - worst tet radius 1.10708 (nodes removed 0 0)
+Info    : It. 12000 - 12000 nodes created - worst tet radius 1.09248 (nodes removed 0 0)
+Info    : It. 12500 - 12500 nodes created - worst tet radius 1.08019 (nodes removed 0 0)
+Info    : It. 13000 - 13000 nodes created - worst tet radius 1.06754 (nodes removed 0 0)
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     2.62400E-03 sec (  0 %)
+Debug   :  CPU SPLIT    1.60371E-01 sec (  1 %) 
+Debug   :  CPU COLLAPS  3.59554E-01 sec (  1 %) 
+Debug   :  CPU SMOOTH   3.07979E+01 sec ( 98 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    3.13204E+01 sec 
+Debug   :  ---------------------------------------
+Info    : It. 13500 - 13500 nodes created - worst tet radius 1.1426 (nodes removed 0 0)
+Info    : It. 14000 - 14000 nodes created - worst tet radius 1.04332 (nodes removed 0 0)
+Info    : It. 14500 - 14500 nodes created - worst tet radius 1.03302 (nodes removed 0 0)
+Info    : It. 15000 - 15000 nodes created - worst tet radius 1.02239 (nodes removed 0 0)
+Info    : It. 15500 - 15500 nodes created - worst tet radius 1.01284 (nodes removed 0 0)
+Info    : It. 16000 - 16000 nodes created - worst tet radius 1.00352 (nodes removed 0 0)
+Info    : 3D refinement terminated (29691 nodes total):
+Info    :  - 3 Delaunay cavities modified for star shapeness
+Info    :  - 0 nodes could not be inserted
+Info    :  - 143442 tetrahedra created in 0.941673 sec. (152326 tets/s)
+Info    : 0 node relocations
+Info    : dtOptimizeMeshGRegion()() volume 1
+Info    : dtOptimizeMeshGRegion()() volume 1 : Optimize gmsh
+Info    : Optimizing volume 1
+Info    : Optimization starts (volume = 2.05253) with worst = 0.00154479 / average = 0.757155:
+Info    : 0.00 < quality < 0.10 :       358 elements
+Info    : 0.10 < quality < 0.20 :      1035 elements
+Info    : 0.20 < quality < 0.30 :      1825 elements
+Info    : 0.30 < quality < 0.40 :      2797 elements
+Info    : 0.40 < quality < 0.50 :      4672 elements
+Info    : 0.50 < quality < 0.60 :      8725 elements
+Info    : 0.60 < quality < 0.70 :     19399 elements
+Info    : 0.70 < quality < 0.80 :     35991 elements
+Info    : 0.80 < quality < 0.90 :     47027 elements
+Info    : 0.90 < quality < 1.00 :     21613 elements
+Info    : 3166 edge swaps, 83 node relocations (volume = 2.05253): worst = 0.139058 / average = 0.770368 (Wall 0.106058s, CPU 0.067236s)
+Info    : 3188 edge swaps, 86 node relocations (volume = 2.05253): worst = 0.139058 / average = 0.770452 (Wall 0.122536s, CPU 0.083676s)
+Info    : No ill-shaped tets in the mesh :-)
+Info    : 0.00 < quality < 0.10 :         0 elements
+Info    : 0.10 < quality < 0.20 :         1 elements
+Info    : 0.20 < quality < 0.30 :         6 elements
+Info    : 0.30 < quality < 0.40 :      2778 elements
+Info    : 0.40 < quality < 0.50 :      4507 elements
+Info    : 0.50 < quality < 0.60 :      8758 elements
+Info    : 0.60 < quality < 0.70 :     19356 elements
+Info    : 0.70 < quality < 0.80 :     36223 elements
+Info    : 0.80 < quality < 0.90 :     47431 elements
+Info    : 0.90 < quality < 1.00 :     21571 elements
+Info    : dtOptimizeMeshGRegion()() volume 1 : Optimize netgen
+Info    : Extract outter faces of tetrahedra
+Info    : Optimizing volume 2
+Info    : CalcLocalH: 29691 Points 140642 Elements 27024 Surface Elements 
+Info    : Remove Illegal Elements 
+Info    : 996 illegal tets 
+Info    : SplitImprove 
+Info    : badmax = 58.5979 
+Info    : 191 splits performed 
+Info    : SwapImprove  
+Info    : 160 swaps performed 
+Info    : SwapImprove2  
+Info    : 12 swaps performed 
+Info    : 489 illegal tets 
+Info    : SplitImprove 
+Info    : badmax = 1765.85 
+Info    : 110 splits performed 
+Info    : SwapImprove  
+Info    : 72 swaps performed 
+Info    : SwapImprove2  
+Info    : 28 swaps performed 
+Info    : 110 illegal tets 
+Info    : SplitImprove 
+Info    : badmax = 4885.66 
+Info    : 32 splits performed 
+Info    : SwapImprove  
+Info    : 17 swaps performed 
+Info    : SwapImprove2  
+Info    : 2 swaps performed 
+Info    : 30 illegal tets 
+Info    : SplitImprove 
+Info    : badmax = 1148.67 
+Info    : 10 splits performed 
+Info    : SwapImprove  
+Info    : 0 swaps performed 
+Info    : SwapImprove2  
+Info    : 4 swaps performed 
+Info    : 4 illegal tets 
+Info    : SplitImprove 
+Info    : badmax = 1162.67 
+Info    : 3 splits performed 
+Info    : SwapImprove  
+Info    : 0 swaps performed 
+Info    : SwapImprove2  
+Info    : 0 swaps performed 
+Info    : 0 illegal tets 
+Info    : Volume Optimization 
+Info    : CombineImprove 
+Info    : 1004 elements combined 
+Info    : ImproveMesh 
+Info    : Total badness = 195109 
+Debug   :  iter   1 minL    0.508/   0.700 maxL    1.359/   1.400 -- Small/Large/Total (    48/     0/   846):      0 splits,      0 swaps,      0 collapses,     43 moves
+Info    : Total badness = 185306 
+Info    : SplitImprove 
+Info    : badmax = 36.059 
+Info    : 1 splits performed 
+Info    : ImproveMesh 
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.62000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    7.08000E-02 sec (  1 %) 
+Debug   :  CPU COLLAPS  3.53020E-02 sec (  1 %) 
+Debug   :  CPU SMOOTH   4.64665E+00 sec ( 98 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    4.75311E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 540 triangles generated, 235 internal nodes
+Info    : Total badness = 185311 
+Info    : Meshing surface 17 (Parametric surface, MeshAdapt)
+Info    : Total badness = 183996 
+Info    : SwapImprove  
+Info    : 8037 swaps performed 
+Info    : SwapImprove2  
+Info    : 0 swaps performed 
+Info    : ImproveMesh 
+Info    : Total badness = 169901 
+Debug   : Recovering 4 model edges
+Debug   : Recovering 211 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 17
+Debug   : Computing mesh size field at mesh nodes 211
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Info    : Total badness = 166070 
+Info    : CombineImprove 
+Info    : 189 elements combined 
+Info    : ImproveMesh 
+Info    : Total badness = 164388 
+Info    : Total badness = 163934 
+Info    : SplitImprove 
+Info    : badmax = 23.7503 
+Info    : 1 splits performed 
+Info    : ImproveMesh 
+Info    : Total badness = 163938 
+Info    : Total badness = 163850 
+Info    : SwapImprove  
+Info    : 1183 swaps performed 
+Info    : SwapImprove2  
+Info    : 0 swaps performed 
+Info    : ImproveMesh 
+Info    : Total badness = 162884 
+Info    : Total badness = 162159 
+Info    : CombineImprove 
+Info    : 53 elements combined 
+Info    : ImproveMesh 
+Info    : Total badness = 161722 
+Info    : Total badness = 161618 
+Info    : SplitImprove 
+Info    : badmax = 19.5852 
+Info    : 0 splits performed 
+Info    : ImproveMesh 
+Info    : Total badness = 161618 
+Info    : Total badness = 161593 
+Info    : SwapImprove  
+Info    : 411 swaps performed 
+Info    : SwapImprove2  
+Info    : 0 swaps performed 
+Info    : ImproveMesh 
+Info    : Total badness = 161389 
+Info    : Total badness = 161135 
+Debug   :  iter   1 minL    0.361/   0.700 maxL    4.819/   1.400 -- Small/Large/Total (   162/   631/  2483):    820 splits,    736 swaps,    132 collapses,   2138 moves
+Info    : dtOptimizeMeshGRegion()() volume 1
+Info    : dtOptimizeMeshGRegion()() volume 1 : Optimize gmsh
+Info    : Optimizing volume 1
+Info    : Optimization starts (volume = 2.05253) with worst = 0.221195 / average = 0.842143:
+Info    : 0.00 < quality < 0.10 :         0 elements
+Info    : 0.10 < quality < 0.20 :         0 elements
+Info    : 0.20 < quality < 0.30 :         4 elements
+Info    : 0.30 < quality < 0.40 :        25 elements
+Info    : 0.40 < quality < 0.50 :       229 elements
+Info    : 0.50 < quality < 0.60 :      1722 elements
+Info    : 0.60 < quality < 0.70 :      8885 elements
+Info    : 0.70 < quality < 0.80 :     25797 elements
+Info    : 0.80 < quality < 0.90 :     52320 elements
+Info    : 0.90 < quality < 1.00 :     40011 elements
+Info    : 2 edge swaps, 1 node relocations (volume = 2.05253): worst = 0.276932 / average = 0.842137 (Wall 0.0235985s, CPU 0.02355s)
+Info    : No ill-shaped tets in the mesh :-)
+Info    : 0.00 < quality < 0.10 :         0 elements
+Info    : 0.10 < quality < 0.20 :         0 elements
+Info    : 0.20 < quality < 0.30 :         2 elements
+Info    : 0.30 < quality < 0.40 :        27 elements
+Info    : 0.40 < quality < 0.50 :       234 elements
+Info    : 0.50 < quality < 0.60 :      1720 elements
+Info    : 0.60 < quality < 0.70 :      8884 elements
+Info    : 0.70 < quality < 0.80 :     25794 elements
+Info    : 0.80 < quality < 0.90 :     52322 elements
+Info    : 0.90 < quality < 1.00 :     40011 elements
+Info    : dtOptimizeMeshGRegion()() volume 1 : Optimize netgen
+Debug   :  iter   2 minL    0.473/   0.700 maxL    2.110/   1.400 -- Small/Large/Total (   178/    51/  3551):    710 splits,    404 swaps,    354 collapses,   2993 moves
+Info    : Extract outter faces of tetrahedra
+Info    : Optimizing volume 2
+Info    : CalcLocalH: 28793 Points 128994 Elements 27024 Surface Elements 
+Info    : Remove Illegal Elements 
+Info    : 0 illegal tets 
+Info    : Volume Optimization 
+Info    : CombineImprove 
+Info    : 15 elements combined 
+Info    : ImproveMesh 
+Info    : Total badness = 161016 
+Debug   :  iter   3 minL    0.494/   0.700 maxL    1.604/   1.400 -- Small/Large/Total (   119/    15/  3527):     55 splits,     34 swaps,     63 collapses,    943 moves
+Info    : Total badness = 160981 
+Info    : SplitImprove 
+Info    : badmax = 13.7996 
+Info    : 0 splits performed 
+Info    : ImproveMesh 
+Info    : Total badness = 160981 
+Info    : Total badness = 160971 
+Info    : SwapImprove  
+Info    : 178 swaps performed 
+Info    : SwapImprove2  
+Info    : 0 swaps performed 
+Info    : ImproveMesh 
+Info    : Total badness = 160895 
+Info    : Total badness = 160779 
+Info    : CombineImprove 
+Info    : 10 elements combined 
+Info    : ImproveMesh 
+Info    : Total badness = 160694 
+Info    : Total badness = 160676 
+Info    : SplitImprove 
+Info    : badmax = 13.5699 
+Info    : 0 splits performed 
+Info    : ImproveMesh 
+Info    : Total badness = 160676 
+Debug   :  iter   4 minL    0.471/   0.700 maxL    1.575/   1.400 -- Small/Large/Total (   124/     8/  3539):     16 splits,     16 swaps,     12 collapses,    375 moves
+Info    : Total badness = 160672 
+Info    : SwapImprove  
+Info    : 77 swaps performed 
+Info    : SwapImprove2  
+Info    : 0 swaps performed 
+Info    : ImproveMesh 
+Info    : Total badness = 160639 
+Info    : Total badness = 160592 
+Info    : CombineImprove 
+Info    : 2 elements combined 
+Info    : ImproveMesh 
+Info    : Total badness = 160573 
+Info    : Total badness = 160568 
+Info    : SplitImprove 
+Info    : badmax = 13.5699 
+Info    : 0 splits performed 
+Info    : ImproveMesh 
+Info    : Total badness = 160568 
+Info    : Total badness = 160566 
+Info    : SwapImprove  
+Debug   :  iter   5 minL    0.471/   0.700 maxL    1.649/   1.400 -- Small/Large/Total (   111/    11/  3539):     11 splits,      7 swaps,     11 collapses,    218 moves
+Info    : 38 swaps performed 
+Info    : SwapImprove2  
+Info    : 0 swaps performed 
+Info    : ImproveMesh 
+Info    : Total badness = 160555 
+Info    : Total badness = 160533 
+Debug   :  iter   6 minL    0.471/   0.700 maxL    1.398/   1.400 -- Small/Large/Total (   109/     0/  3557):     12 splits,      6 swaps,      6 collapses,    162 moves
+Info    : dtOptimizeMeshGRegion()() volume 1
+Info    : dtOptimizeMeshGRegion()() volume 1 : Optimize gmsh
+Info    : Optimizing volume 1
+Info    : Optimization starts (volume = 2.05253) with worst = 0.307872 / average = 0.843438:
+Info    : 0.00 < quality < 0.10 :         0 elements
+Info    : 0.10 < quality < 0.20 :         0 elements
+Info    : 0.20 < quality < 0.30 :         0 elements
+Info    : 0.30 < quality < 0.40 :        21 elements
+Info    : 0.40 < quality < 0.50 :       191 elements
+Info    : 0.50 < quality < 0.60 :      1601 elements
+Info    : 0.60 < quality < 0.70 :      8652 elements
+Info    : 0.70 < quality < 0.80 :     25545 elements
+Info    : 0.80 < quality < 0.90 :     52294 elements
+Info    : 0.90 < quality < 1.00 :     40493 elements
+Info    : No ill-shaped tets in the mesh :-)
+Info    : 0.00 < quality < 0.10 :         0 elements
+Info    : 0.10 < quality < 0.20 :         0 elements
+Info    : 0.20 < quality < 0.30 :         0 elements
+Info    : 0.30 < quality < 0.40 :        21 elements
+Info    : 0.40 < quality < 0.50 :       191 elements
+Info    : 0.50 < quality < 0.60 :      1601 elements
+Info    : 0.60 < quality < 0.70 :      8652 elements
+Info    : 0.70 < quality < 0.80 :     25545 elements
+Info    : 0.80 < quality < 0.90 :     52294 elements
+Info    : 0.90 < quality < 1.00 :     40493 elements
+Info    : dtOptimizeMeshGRegion()() volume 1 : Optimize netgen
+Debug   :  iter   7 minL    0.471/   0.700 maxL    1.398/   1.400 -- Small/Large/Total (   106/     0/  3551):      0 splits,      1 swaps,      2 collapses,     78 moves
+Info    : Extract outter faces of tetrahedra
+Info    : Optimizing volume 2
+Info    : CalcLocalH: 28766 Points 128797 Elements 27024 Surface Elements 
+Info    : Remove Illegal Elements 
+Info    : 0 illegal tets 
+Info    : Volume Optimization 
+Info    : CombineImprove 
+Info    : 1 elements combined 
+Info    : ImproveMesh 
+Info    : Total badness = 160524 
+Info    : Total badness = 160521 
+Info    : SplitImprove 
+Info    : badmax = 13.5699 
+Info    : 0 splits performed 
+Info    : ImproveMesh 
+Info    : Total badness = 160521 
+Info    : Total badness = 160521 
+Info    : SwapImprove  
+Debug   :  iter   8 minL    0.471/   0.700 maxL    1.398/   1.400 -- Small/Large/Total (   108/     0/  3551):      0 splits,      0 swaps,      0 collapses,     72 moves
+Info    : 10 swaps performed 
+Info    : SwapImprove2  
+Info    : 0 swaps performed 
+Info    : ImproveMesh 
+Info    : Total badness = 160519 
+Info    : Total badness = 160514 
+Info    : CombineImprove 
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.50050E-02 sec (  0 %)
+Debug   :  CPU SPLIT    1.13395E+00 sec (  5 %) 
+Debug   :  CPU COLLAPS  2.03623E+00 sec (  9 %) 
+Debug   :  CPU SMOOTH   1.91563E+01 sec ( 86 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    2.23415E+01 sec 
+Debug   :  ---------------------------------------
+Info    : 3 elements combined 
+Info    : ImproveMesh 
+Info    : Total badness = 160490 
+Info    : Total badness = 160487 
+Info    : SplitImprove 
+Info    : badmax = 13.5699 
+Info    : 0 splits performed 
+Info    : ImproveMesh 
+Info    : Total badness = 160487 
+Info    : Total badness = 160487 
+Info    : SwapImprove  
+Info    : 9 swaps performed 
+Info    : SwapImprove2  
+Info    : 0 swaps performed 
+Info    : ImproveMesh 
+Info    : Total badness = 160486 
+Info    : Total badness = 160481 
+Info    : CombineImprove 
+Info    : 1 elements combined 
+Info    : ImproveMesh 
+Info    : Total badness = 160474 
+Info    : Total badness = 160472 
+Info    : SplitImprove 
+Info    : badmax = 13.5699 
+Info    : 0 splits performed 
+Info    : ImproveMesh 
+Info    : Total badness = 160472 
+Debug   :  iter   1 minL    0.471/   0.700 maxL    1.398/   1.400 -- Small/Large/Total (   108/     0/  3551):      0 splits,      0 swaps,      0 collapses,     40 moves
+Info    : Total badness = 160472 
+Info    : SwapImprove  
+Info    : 6 swaps performed 
+Info    : SwapImprove2  
+Info    : 0 swaps performed 
+Info    : ImproveMesh 
+Info    : Total badness = 160472 
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.67400E-03 sec (  0 %)
+Debug   :  CPU SPLIT    3.10642E-01 sec ( 14 %) 
+Debug   :  CPU COLLAPS  1.54826E-01 sec (  7 %) 
+Debug   :  CPU SMOOTH   1.72343E+00 sec ( 79 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    2.19057E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 2297 triangles generated, 1044 internal nodes
+Info    : Meshing surface 18 (Parametric surface, MeshAdapt)
+Info    : Total badness = 160468 
+Debug   : Recovering 4 model edges
+Debug   : Recovering 71 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 18
+Debug   : Computing mesh size field at mesh nodes 71
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Info    : Meshing order 2 (curvilinear off)...
+Info    : [  0%] Meshing curve 1 order 2
+Info    : [ 10%] Meshing curve 2 order 2
+Info    : [ 10%] Meshing curve 3 order 2
+Info    : [ 10%] Meshing curve 4 order 2
+Info    : [ 10%] Meshing curve 5 order 2
+Info    : [ 10%] Meshing curve 6 order 2
+Info    : [ 10%] Meshing curve 7 order 2
+Info    : [ 20%] Meshing curve 8 order 2
+Info    : [ 20%] Meshing curve 9 order 2
+Info    : [ 20%] Meshing curve 10 order 2
+Info    : [ 20%] Meshing curve 11 order 2
+Info    : [ 20%] Meshing curve 12 order 2
+Info    : [ 20%] Meshing curve 13 order 2
+Info    : [ 30%] Meshing curve 14 order 2
+Info    : [ 30%] Meshing curve 15 order 2
+Info    : [ 30%] Meshing curve 16 order 2
+Info    : [ 30%] Meshing curve 17 order 2
+Info    : [ 30%] Meshing curve 18 order 2
+Info    : [ 30%] Meshing curve 19 order 2
+Info    : [ 40%] Meshing curve 20 order 2
+Info    : [ 40%] Meshing curve 21 order 2
+Info    : [ 40%] Meshing curve 22 order 2
+Info    : [ 40%] Meshing curve 23 order 2
+Info    : [ 40%] Meshing curve 24 order 2
+Info    : [ 40%] Meshing curve 25 order 2
+Info    : [ 50%] Meshing curve 26 order 2
+Info    : [ 50%] Meshing curve 27 order 2
+Info    : [ 50%] Meshing curve 28 order 2
+Info    : [ 50%] Meshing curve 29 order 2
+Info    : [ 50%] Meshing curve 30 order 2
+Info    : [ 50%] Meshing curve 31 order 2
+Info    : [ 60%] Meshing curve 32 order 2
+Info    : [ 60%] Meshing curve 33 order 2
+Info    : [ 60%] Meshing curve 34 order 2
+Info    : [ 60%] Meshing curve 35 order 2
+Info    : [ 60%] Meshing curve 36 order 2
+Info    : [ 60%] Meshing curve 37 order 2
+Info    : [ 60%] Meshing curve 38 order 2
+Info    : [ 70%] Meshing curve 39 order 2
+Info    : [ 70%] Meshing curve 40 order 2
+Info    : [ 70%] Meshing curve 41 order 2
+Info    : [ 70%] Meshing curve 42 order 2
+Info    : [ 70%] Meshing surface 1 order 2
+Info    : [ 70%] Meshing surface 2 order 2
+Info    : [ 80%] Meshing surface 3 order 2
+Info    : [ 80%] Meshing surface 4 order 2
+Info    : [ 80%] Meshing surface 5 order 2
+Info    : [ 80%] Meshing surface 6 order 2
+Info    : [ 80%] Meshing surface 7 order 2
+Info    : [ 80%] Meshing surface 8 order 2
+Info    : [ 90%] Meshing surface 9 order 2
+Info    : [ 90%] Meshing surface 10 order 2
+Info    : [ 90%] Meshing surface 11 order 2
+Info    : [ 90%] Meshing surface 12 order 2
+Info    : [ 90%] Meshing surface 13 order 2
+Info    : [ 90%] Meshing surface 14 order 2
+Info    : [100%] Meshing surface 15 order 2
+Info    : [100%] Meshing surface 16 order 2
+Info    : [100%] Meshing surface 17 order 2
+Info    : [100%] Meshing surface 18 order 2
+Info    : [100%] Meshing surface 19 order 2
+Info    : [100%] Meshing volume 1 order 2
+Info    : Done meshing order 2 (Wall 0.788121s, CPU 0.748654s)
+Debug   : Renumbering for potentially partial mesh save
+[dtoo] mesh written: /repo/data/dataset/sobol/machine_0001/mesh.msh.part
+[sampler] machine_0001 mesh OK
+Debug   :  iter   1 minL    0.221/   0.700 maxL    4.659/   1.400 -- Small/Large/Total (    51/    95/   682):    236 splits,    265 swaps,     55 collapses,    628 moves
+Debug   :  iter   2 minL    0.360/   0.700 maxL    1.967/   1.400 -- Small/Large/Total (    59/     5/   820):    106 splits,     52 swaps,     60 collapses,    559 moves
+Debug   :  iter   3 minL    0.559/   0.700 maxL    1.397/   1.400 -- Small/Large/Total (    41/     0/   811):      9 splits,      6 swaps,     12 collapses,    243 moves
+Debug   :  iter   4 minL    0.560/   0.700 maxL    1.397/   1.400 -- Small/Large/Total (    34/     0/   805):      0 splits,      0 swaps,      2 collapses,    107 moves
+Debug   :  iter   5 minL    0.560/   0.700 maxL    1.397/   1.400 -- Small/Large/Total (    33/     0/   805):      0 splits,      0 swaps,      0 collapses,     63 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     2.20100E-03 sec (  0 %)
+Debug   :  CPU SPLIT    1.57131E-01 sec (  1 %) 
+Debug   :  CPU COLLAPS  3.39696E-01 sec (  1 %) 
+Debug   :  CPU SMOOTH   2.41985E+01 sec ( 98 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    2.46975E+01 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.560/   0.700 maxL    1.397/   1.400 -- Small/Large/Total (    33/     0/   805):      0 splits,      0 swaps,      0 collapses,     56 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.09000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    6.77150E-02 sec (  2 %) 
+Debug   :  CPU COLLAPS  3.36730E-02 sec (  1 %) 
+Debug   :  CPU SMOOTH   2.68666E+00 sec ( 96 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    2.78835E+00 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 513 triangles generated, 222 internal nodes
+Info    : Meshing surface 19 (Parametric surface, MeshAdapt)
+Debug   : Recovering 6 model edges
+Debug   : Recovering 74 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 19
+Debug   : Computing mesh size field at mesh nodes 74
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.510/   0.700 maxL    1.380/   1.400 -- Small/Large/Total (    14/     0/   340):    106 splits,     59 swaps,     41 collapses,    269 moves
+Debug   :  iter   2 minL    0.609/   0.700 maxL    1.380/   1.400 -- Small/Large/Total (    10/     0/   337):      2 splits,      1 swaps,      3 collapses,     85 moves
+Debug   :  iter   3 minL    0.609/   0.700 maxL    1.380/   1.400 -- Small/Large/Total (    10/     0/   337):      0 splits,      1 swaps,      0 collapses,     43 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     4.36000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    1.20540E-02 sec ( 12 %) 
+Debug   :  CPU COLLAPS  2.02390E-02 sec ( 20 %) 
+Debug   :  CPU SMOOTH   6.64770E-02 sec ( 67 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    9.92060E-02 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.609/   0.700 maxL    1.380/   1.400 -- Small/Large/Total (    10/     0/   337):      0 splits,      0 swaps,      0 collapses,     36 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.07000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    6.92900E-03 sec ( 28 %) 
+Debug   :  CPU COLLAPS  3.18200E-03 sec ( 13 %) 
+Debug   :  CPU SMOOTH   1.43960E-02 sec ( 58 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    2.46140E-02 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 200 triangles generated, 64 internal nodes
+Info    : Tetrahedrizing 13311 nodes...
+Info    : Done tetrahedrizing 13319 nodes (Wall 0.233347s, CPU 0.213041s)
+Debug   : Points have been tetrahedralized
+Info    : Reconstructing mesh...
+Info    :  - Creating surface mesh
+Info    :  - Identifying boundary edges
+Debug   :   26618 (39927) subfaces (segments)
+Info    :  - Recovering boundary
+Error   : PLC Error:  A segment and a facet intersect at point
+[sampler] machine_0059 export FAILED: Exception
+[sampler] yield note: 1 failures recorded in export_error.txt; a resubmit retries them, .part tearing excluded by rename-on-success
+[dtoo] machine_0059 produced no mesh (see export_error.txt)
+[dtoo] pass complete (xargs rc=123; 0 = all ok, 123 = at least one failed)
+srun: error: uc2n602: task 0: Exited with exit code 1
+[dtoo] container step rc=1 after 306s
+[dtoo] stage file      /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/stage_6879223.txt
+
+[dtoo] ================ yield summary ================
+[dtoo] wall            306s
+[dtoo] machines        63 exported, 1 failed, 0 not attempted
+[dtoo] mesh.msh        4.1G dataset total
+[dtoo] yield           63 / 64 attempted; with MISS >= 1, resubmit to finish
+[dtoo] feed these into batch_samples.slurm:
+[dtoo]   NS="2000 8000" CANDS="data/dataset/sobol/machine_00*" \
+[dtoo]       sbatch experimentell/hex3d_algohex/scripts/batch_samples.slurm
+[dtoo] ============================================
+[dtoo] keep this log:  git add experimentell/hex3d_algohex/logs && git commit -m 'cluster: dtOO export job 6879223 log'
+[dtoo] log file:       /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/batch_dtoo_export_6879223.log

@@ -105,6 +105,13 @@ todo=()
 for d in "$DS"/machine_00*; do
     [ -d "$d" ] || continue
     name=$(basename "$d")
+    # Deliberately retired machines live in the dataset's skip.txt (e.g.
+    # machine_0006, whose grid export exceeds the export watchdog): never
+    # queue them again, even if their directory reappears.
+    if [ -f "$DS/skip.txt" ] && grep -qxF "$name" "$DS/skip.txt"; then
+        echo "[dtoo] $name skipped (skip.txt)"
+        continue
+    fi
     if [ -f "$d/mesh.msh" ]; then
         echo "[dtoo] $name mesh.msh present, skipping"
         continue

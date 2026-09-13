@@ -61,3 +61,4 @@ data/dataset/*/*
 data/dataset/*/*/*
 !data/dataset/*/*/params.json
 !data/dataset/*/sampler.json
+!data/dataset/*/skip.txt

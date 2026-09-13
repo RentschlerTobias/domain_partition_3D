@@ -1,0 +1,8 @@
+# Machines deliberately absent from this dataset.
+#
+# generate_machines.py counts every name listed here towards --count, so an
+# absent machine directory does not re-open the Sobol draw (the dtOO
+# container's python3.13 has no scipy.stats). export_all_machines.sh skips
+# the same names whenever the directory still exists. One machine per line;
+# '#' starts a comment.
+machine_0006

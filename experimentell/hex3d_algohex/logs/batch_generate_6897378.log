@@ -1,7 +1,107 @@
-[batch] host uc2n655.localdomain, job 6897328
+[gen] host uc2n720.localdomain, job 6897378
+[gen] NS='2000 8000' PAR=32 PARALLEL=32 OMP_NUM_THREADS=1 GROW=1
+[gen] python for draws: /home/st/st_us-042020/st_ac136362/venvs/hydroflow/bin/python
+[gen] ================ round 1 (14387s to walltime) ================
+[gen] growing the machine set
+eigenfrequencies not found at /pfs/work9/workspace/scratch/eigenfrequencies (set EIGENFREQUENCIES_ROOT)
+[gen] draw failed -- refill disabled, sampling the pending queue
+[gen] ---------------- round 1: dtOO meshes ----------------
+[dtoo] host uc2n720.localdomain, job 6897378, 1 cores, parallelism 32
+[dtoo] repo /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D
+[dtoo] image /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-images/dtOO.sqsh
+[dtoo] container dtOO already unpacked, skipping
+[dtoo] preflight ok
+[dtoo] rootfs lock free
+[dtoo] lock probe rc=0 (0 free, 1 busy, 124 stuck)
+[dtoo] container step starting at 2026-09-13T08:25:07+02:00
+[dtoo] container env ready, exporting
+[dtoo] progress log: /repo/experimentell/hex3d_algohex/logs/export_progress_6897378.log (parallel=32)
+[dtoo] case source: /dtOO/build/test/tistos
+[dtoo] machine_0001 mesh.msh present, skipping
+[dtoo] machine_0002 mesh.msh present, skipping
+[dtoo] machine_0003 mesh.msh present, skipping
+[dtoo] machine_0004 mesh.msh present, skipping
+[dtoo] machine_0005 mesh.msh present, skipping
+[dtoo] machine_0007 mesh.msh present, skipping
+[dtoo] machine_0008 mesh.msh present, skipping
+[dtoo] machine_0009 mesh.msh present, skipping
+[dtoo] machine_0010 mesh.msh present, skipping
+[dtoo] machine_0011 mesh.msh present, skipping
+[dtoo] machine_0012 mesh.msh present, skipping
+[dtoo] machine_0013 mesh.msh present, skipping
+[dtoo] machine_0014 mesh.msh present, skipping
+[dtoo] machine_0015 mesh.msh present, skipping
+[dtoo] machine_0016 mesh.msh present, skipping
+[dtoo] machine_0017 mesh.msh present, skipping
+[dtoo] machine_0018 mesh.msh present, skipping
+[dtoo] machine_0019 mesh.msh present, skipping
+[dtoo] machine_0020 mesh.msh present, skipping
+[dtoo] machine_0021 mesh.msh present, skipping
+[dtoo] machine_0022 mesh.msh present, skipping
+[dtoo] machine_0023 mesh.msh present, skipping
+[dtoo] machine_0024 mesh.msh present, skipping
+[dtoo] machine_0025 mesh.msh present, skipping
+[dtoo] machine_0026 mesh.msh present, skipping
+[dtoo] machine_0027 mesh.msh present, skipping
+[dtoo] machine_0028 mesh.msh present, skipping
+[dtoo] machine_0029 mesh.msh present, skipping
+[dtoo] machine_0030 mesh.msh present, skipping
+[dtoo] machine_0031 mesh.msh present, skipping
+[dtoo] machine_0032 mesh.msh present, skipping
+[dtoo] machine_0033 mesh.msh present, skipping
+[dtoo] machine_0034 mesh.msh present, skipping
+[dtoo] machine_0035 mesh.msh present, skipping
+[dtoo] machine_0036 mesh.msh present, skipping
+[dtoo] machine_0037 mesh.msh present, skipping
+[dtoo] machine_0038 mesh.msh present, skipping
+[dtoo] machine_0039 mesh.msh present, skipping
+[dtoo] machine_0040 mesh.msh present, skipping
+[dtoo] machine_0041 mesh.msh present, skipping
+[dtoo] machine_0042 mesh.msh present, skipping
+[dtoo] machine_0043 mesh.msh present, skipping
+[dtoo] machine_0044 mesh.msh present, skipping
+[dtoo] machine_0045 mesh.msh present, skipping
+[dtoo] machine_0046 mesh.msh present, skipping
+[dtoo] machine_0047 mesh.msh present, skipping
+[dtoo] machine_0048 mesh.msh present, skipping
+[dtoo] machine_0049 mesh.msh present, skipping
+[dtoo] machine_0050 mesh.msh present, skipping
+[dtoo] machine_0051 mesh.msh present, skipping
+[dtoo] machine_0052 mesh.msh present, skipping
+[dtoo] machine_0053 mesh.msh present, skipping
+[dtoo] machine_0054 mesh.msh present, skipping
+[dtoo] machine_0055 mesh.msh present, skipping
+[dtoo] machine_0056 mesh.msh present, skipping
+[dtoo] machine_0057 mesh.msh present, skipping
+[dtoo] machine_0058 mesh.msh present, skipping
+[dtoo] machine_0059 mesh.msh present, skipping
+[dtoo] machine_0060 mesh.msh present, skipping
+[dtoo] machine_0061 mesh.msh present, skipping
+[dtoo] machine_0062 mesh.msh present, skipping
+[dtoo] machine_0063 mesh.msh present, skipping
+[dtoo] machine_0064 mesh.msh present, skipping
+[dtoo] pending: 0 machines, parallel=32
+[dtoo] pass complete (xargs rc=0; 0 = all ok, 123 = at least one failed)
+[dtoo] container step rc=0 after 2s
+[dtoo] stage file      /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/stage_6897378.txt
+
+[dtoo] ================ yield summary ================
+[dtoo] wall            2s
+[dtoo] machines        63 exported, 0 failed, 0 not attempted
+[dtoo] mesh.msh        6.6G dataset total
+[dtoo] yield           63 / 63 attempted; with MISS >= 1, resubmit to finish
+[dtoo] feed these into batch_samples.slurm:
+[dtoo]   NS="2000 8000" CANDS="data/dataset/sobol/machine_*" \
+[dtoo]       sbatch experimentell/hex3d_algohex/scripts/batch_samples.slurm
+[dtoo] ============================================
+[dtoo] keep this log:  git add experimentell/hex3d_algohex/logs && git commit -m 'cluster: dtOO export job 6897378 log'
+[dtoo] log file:       /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/batch_dtoo_export_6897378.log
+[gen] round 1: dtOO rc=0
+[gen] ---------------- round 1: hex samples ----------------
+[batch] host uc2n720.localdomain, job 6897378
 [batch] 64 cores, 131072 MB
 [batch] concurrency 32   (memory allows 52, cores allow 32)
-[batch] walltime left 14357s: no new samples in the last 1500s, snapshot 120s before the end
+[batch] walltime left 14380s: no new samples in the last 1500s, snapshot 120s before the end
 [batch] 126 samples queued:
           output/hex3d_algohex/batch/machine_0001/machine_0001_tet.vtk 2000 output/hex3d_algohex/batch/machine_0001_n2000 data/dataset/sobol/machine_0001/params.json
           output/hex3d_algohex/batch/machine_0001/machine_0001_tet.vtk 8000 output/hex3d_algohex/batch/machine_0001_n8000 data/dataset/sobol/machine_0001/params.json
@@ -130,165 +230,143 @@
           output/hex3d_algohex/batch/machine_0064/machine_0064_tet.vtk 2000 output/hex3d_algohex/batch/machine_0064_n2000 data/dataset/sobol/machine_0064/params.json
           output/hex3d_algohex/batch/machine_0064/machine_0064_tet.vtk 8000 output/hex3d_algohex/batch/machine_0064_n8000 data/dataset/sobol/machine_0064/params.json
 [batch] history         output/hex3d_algohex/batch/sample_history.tsv
-[machine_0004_n2000] already done, skipping
 [machine_0002_n8000] already done, skipping
-[machine_0012_n2000] already done, skipping
-[machine_0011_n8000] already done, skipping
-[machine_0012_n8000] already done, skipping
-[machine_0004_n8000] already done, skipping
-[machine_0008_n2000] already done, skipping
-[machine_0010_n2000] already done, skipping
-[machine_0015_n8000] already done, skipping
 [machine_0001_n2000] already done, skipping
-[machine_0007_n8000] already done, skipping
-[machine_0005_n2000] already done, skipping
-[machine_0003_n2000] already done, skipping
-[machine_0011_n2000] already done, skipping
-[machine_0013_n8000] already done, skipping
-[machine_0002_n2000] already done, skipping
-[machine_0003_n8000] already done, skipping
-[machine_0007_n2000] already done, skipping
-[machine_0005_n8000] already done, skipping
-[machine_0009_n8000] already done, skipping
-[machine_0014_n8000] already done, skipping
-[machine_0008_n8000] already done, skipping
-[machine_0017_n2000] already done, skipping
-[machine_0015_n2000] already done, skipping
-[machine_0017_n8000] already done, skipping
-[machine_0016_n2000] already done, skipping
 [machine_0001_n8000] already done, skipping
-[machine_0014_n2000] already done, skipping
-[machine_0018_n2000] already done, skipping
-[machine_0013_n2000] already done, skipping
-[machine_0021_n8000] already done, skipping
-[machine_0016_n8000] already done, skipping
-[machine_0010_n8000] already done, skipping
+[machine_0003_n2000] already done, skipping
+[machine_0002_n2000] already done, skipping
+[machine_0004_n2000] already done, skipping
+[machine_0003_n8000] already done, skipping
+[machine_0004_n8000] already done, skipping
+[machine_0005_n2000] already done, skipping
+[machine_0005_n8000] already done, skipping
+[machine_0007_n2000] already done, skipping
+[machine_0007_n8000] already done, skipping
+[machine_0008_n2000] already done, skipping
+[machine_0008_n8000] already done, skipping
 [machine_0009_n2000] already done, skipping
-[machine_0019_n8000] already done, skipping
-[machine_0024_n2000] already done, skipping
-[machine_0022_n2000] already done, skipping
-[machine_0026_n2000] already done, skipping
-[machine_0023_n8000] already done, skipping
-[machine_0027_n2000] already done, skipping
-[machine_0019_n2000] already done, skipping
-[machine_0021_n2000] already done, skipping
-[machine_0023_n2000] already done, skipping
-[machine_0028_n8000] already done, skipping
-[machine_0027_n8000] already done, skipping
-[machine_0020_n8000] already done, skipping
-[machine_0028_n2000] already done, skipping
+[machine_0009_n8000] already done, skipping
+[machine_0010_n2000] already done, skipping
+[machine_0010_n8000] already done, skipping
+[machine_0011_n8000] already done, skipping
+[machine_0012_n2000] already done, skipping
+[machine_0013_n2000] already done, skipping
+[machine_0012_n8000] already done, skipping
+[machine_0013_n8000] already done, skipping
+[machine_0014_n2000] already done, skipping
+[machine_0014_n8000] already done, skipping
+[machine_0015_n2000] already done, skipping
+[machine_0016_n2000] already done, skipping
+[machine_0015_n8000] already done, skipping
+[machine_0017_n2000] already done, skipping
+[machine_0016_n8000] already done, skipping
+[machine_0017_n8000] already done, skipping
+[machine_0018_n2000] already done, skipping
 [machine_0018_n8000] already done, skipping
-[machine_0022_n8000] already done, skipping
-[machine_0026_n8000] already done, skipping
-[machine_0030_n8000] already done, skipping
-[machine_0024_n8000] already done, skipping
+[machine_0011_n2000] already done, skipping
+[machine_0019_n8000] already done, skipping
+[machine_0020_n8000] already done, skipping
+[machine_0019_n2000] already done, skipping
 [machine_0020_n2000] already done, skipping
+[machine_0021_n2000] already done, skipping
+[machine_0021_n8000] already done, skipping
+[machine_0022_n2000] already done, skipping
+[machine_0022_n8000] already done, skipping
+[machine_0023_n2000] already done, skipping
+[machine_0023_n8000] already done, skipping
+[machine_0024_n2000] already done, skipping
+[machine_0024_n8000] already done, skipping
 [machine_0025_n8000] already done, skipping
-[machine_0032_n2000] already done, skipping
-[machine_0031_n2000] already done, skipping
-[machine_0033_n8000] already done, skipping
-[machine_0037_n2000] already done, skipping
-[machine_0029_n8000] already done, skipping
-[machine_0037_n8000] already done, skipping
-[machine_0033_n2000] already done, skipping
 [machine_0025_n2000] already done, skipping
-[machine_0038_n2000] already done, skipping
-[machine_0036_n8000] already done, skipping
-[machine_0039_n2000] start  tet=machine_0039_tet.vtk n=2000 h=0.05
+[machine_0026_n8000] already done, skipping
+[machine_0026_n2000] already done, skipping
+[machine_0027_n2000] already done, skipping
+[machine_0027_n8000] already done, skipping
+[machine_0028_n2000] already done, skipping
+[machine_0028_n8000] already done, skipping
 [machine_0029_n2000] already done, skipping
-[machine_0038_n8000] already done, skipping
-[machine_0032_n8000] already done, skipping
+[machine_0029_n8000] already done, skipping
 [machine_0030_n2000] already done, skipping
-[machine_0035_n2000] already done, skipping
-[machine_0042_n2000] already done, skipping
-[machine_0034_n2000] already done, skipping
-[machine_0035_n8000] already done, skipping
-[machine_0034_n8000] already done, skipping
-[machine_0045_n8000] already done, skipping
-[mon] 07:50:28 load=43.01 45.08 56.02 run=53 hm_threads=0 memMB=21380
-[machine_0043_n2000] already done, skipping
-[machine_0036_n2000] already done, skipping
-[machine_0045_n2000] already done, skipping
+[machine_0031_n2000] already done, skipping
+[machine_0030_n8000] already done, skipping
+[machine_0032_n2000] already done, skipping
 [machine_0031_n8000] already done, skipping
-[machine_0044_n2000] already done, skipping
-[machine_0040_n2000] already done, skipping
-[machine_0043_n8000] already done, skipping
-[machine_0041_n8000] already done, skipping
-[machine_0051_n2000] already done, skipping
-[machine_0042_n8000] already done, skipping
+[machine_0032_n8000] already done, skipping
+[machine_0033_n2000] already done, skipping
+[machine_0033_n8000] already done, skipping
+[machine_0034_n2000] already done, skipping
+[machine_0034_n8000] already done, skipping
+[machine_0035_n2000] already done, skipping
+[machine_0036_n2000] already done, skipping
+[machine_0035_n8000] already done, skipping
+[machine_0036_n8000] already done, skipping
+[machine_0037_n2000] already done, skipping
+[machine_0038_n2000] already done, skipping
+[machine_0037_n8000] already done, skipping
 [machine_0039_n8000] already done, skipping
-[machine_0041_n2000] already done, skipping
-[machine_0046_n8000] already done, skipping
-[machine_0046_n2000] already done, skipping
-[machine_0048_n2000] already done, skipping
-[machine_0044_n8000] already done, skipping
-[machine_0048_n8000] already done, skipping
+[machine_0038_n8000] already done, skipping
+[machine_0040_n2000] already done, skipping
 [machine_0040_n8000] already done, skipping
-[machine_0054_n2000] already done, skipping
-[machine_0050_n2000] already done, skipping
+[machine_0041_n8000] already done, skipping
+[machine_0041_n2000] already done, skipping
+[machine_0042_n8000] already done, skipping
+[machine_0042_n2000] already done, skipping
+[machine_0039_n2000] start  tet=machine_0039_tet.vtk n=2000 h=0.05
+[machine_0043_n2000] already done, skipping
+[machine_0043_n8000] already done, skipping
+[machine_0044_n8000] already done, skipping
+[machine_0044_n2000] already done, skipping
+[machine_0045_n2000] already done, skipping
+[machine_0045_n8000] already done, skipping
+[machine_0046_n2000] already done, skipping
+[mon] 08:25:11 load=47.34 54.98 64.99 run=6 hm_threads=0 memMB=19720
+[machine_0046_n8000] already done, skipping
 [machine_0047_n8000] already done, skipping
-[machine_0050_n8000] already done, skipping
+[machine_0048_n2000] already done, skipping
+[machine_0048_n8000] already done, skipping
+[machine_0047_n2000] already done, skipping
 [machine_0049_n2000] already done, skipping
+[machine_0050_n2000] already done, skipping
+[machine_0050_n8000] already done, skipping
+[machine_0051_n2000] already done, skipping
 [machine_0052_n2000] already done, skipping
-[machine_0055_n2000] already done, skipping
 [machine_0052_n8000] already done, skipping
 [machine_0051_n8000] already done, skipping
-[machine_0058_n2000] already done, skipping
-[machine_0049_n8000] already done, skipping
 [machine_0053_n2000] already done, skipping
 [machine_0053_n8000] already done, skipping
-[machine_0057_n8000] already done, skipping
-[machine_0058_n8000] already done, skipping
-[machine_0057_n2000] already done, skipping
-[machine_0059_n2000] already done, skipping
-[machine_0047_n2000] already done, skipping
-[machine_0061_n8000] already done, skipping
-[machine_0055_n8000] already done, skipping
-[machine_0061_n2000] already done, skipping
-[machine_0056_n8000] already done, skipping
-[machine_0063_n2000] start  tet=machine_0063_tet.vtk n=2000 h=0.05
-[machine_0063_n8000] start  tet=machine_0063_tet.vtk n=8000 h=0.05
+[machine_0054_n2000] already done, skipping
 [machine_0054_n8000] already done, skipping
-[machine_0059_n8000] already done, skipping
+[machine_0055_n2000] already done, skipping
+[machine_0055_n8000] already done, skipping
 [machine_0056_n2000] already done, skipping
-[machine_0064_n8000] already done, skipping
-[machine_0064_n2000] already done, skipping
-[machine_0062_n8000] already done, skipping
-[machine_0060_n8000] already done, skipping
+[machine_0057_n2000] already done, skipping
+[machine_0049_n8000] already done, skipping
+[machine_0057_n8000] already done, skipping
+[machine_0056_n8000] already done, skipping
+[machine_0058_n2000] already done, skipping
+[machine_0058_n8000] already done, skipping
+[machine_0059_n8000] already done, skipping
+[machine_0059_n2000] already done, skipping
 [machine_0060_n2000] already done, skipping
+[machine_0060_n8000] already done, skipping
+[machine_0061_n2000] already done, skipping
 [machine_0062_n2000] already done, skipping
-[mon] 07:51:28 load=43.78 44.81 55.23 run=47 hm_threads=3 memMB=21794
-[mon] 07:52:29 load=43.73 44.53 54.47 run=48 hm_threads=3 memMB=21592
-[mon] 07:53:29 load=46.40 45.15 54.06 run=49 hm_threads=3 memMB=21805
-[mon] 07:54:29 load=47.69 45.75 53.70 run=49 hm_threads=3 memMB=23094
-[mon] 07:55:29 load=47.96 46.17 53.35 run=49 hm_threads=3 memMB=26523
-[mon] 07:56:29 load=46.72 46.24 52.93 run=49 hm_threads=3 memMB=26659
-[mon] 07:57:29 load=47.71 46.61 52.63 run=49 hm_threads=3 memMB=27004
-[mon] 07:58:29 load=48.14 46.95 52.37 run=49 hm_threads=3 memMB=26197
-[mon] 07:59:29 load=48.18 47.19 52.11 run=49 hm_threads=3 memMB=25715
-[mon] 08:00:29 load=47.55 47.23 51.81 run=40 hm_threads=3 memMB=25835
-[mon] 08:01:30 load=45.90 46.68 51.33 run=49 hm_threads=3 memMB=26324
-[mon] 08:02:30 load=47.66 47.05 51.16 run=49 hm_threads=3 memMB=26559
-[mon] 08:03:30 load=48.45 47.42 51.02 run=49 hm_threads=3 memMB=26525
-[mon] 08:04:30 load=48.20 47.53 50.83 run=48 hm_threads=3 memMB=26400
-[mon] 08:05:30 load=46.67 47.20 50.51 run=49 hm_threads=3 memMB=26125
-[mon] 08:06:30 load=47.58 47.36 50.35 run=49 hm_threads=3 memMB=26019
-[mon] 08:07:30 load=48.11 47.58 50.24 run=49 hm_threads=3 memMB=25989
-[mon] 08:08:30 load=48.46 47.77 50.12 run=49 hm_threads=3 memMB=26120
-[mon] 08:09:31 load=47.93 47.74 49.96 run=48 hm_threads=3 memMB=26020
-[mon] 08:10:31 load=48.06 47.81 49.84 run=49 hm_threads=3 memMB=25765
-[mon] 08:11:31 load=48.05 47.86 49.73 run=49 hm_threads=3 memMB=25532
-[mon] 08:12:31 load=49.08 48.17 49.71 run=49 hm_threads=3 memMB=25566
-[mon] 08:13:31 load=45.53 47.43 49.37 run=33 hm_threads=3 memMB=25273
-[mon] 08:14:31 load=44.60 46.85 49.05 run=49 hm_threads=3 memMB=25585
-[mon] 08:15:31 load=43.40 46.01 48.61 run=49 hm_threads=3 memMB=25572
-[mon] 08:16:32 load=46.35 46.39 48.58 run=51 hm_threads=3 memMB=25418
-[mon] 08:17:32 load=47.58 46.74 48.56 run=49 hm_threads=3 memMB=25356
-[mon] 08:18:32 load=47.80 46.95 48.51 run=49 hm_threads=3 memMB=25290
-[mon] 08:19:32 load=47.17 46.98 48.42 run=47 hm_threads=3 memMB=25354
-[mon] 08:20:32 load=47.71 47.18 48.40 run=48 hm_threads=2 memMB=23654
-[mon] 08:21:32 load=47.97 47.35 48.38 run=49 hm_threads=2 memMB=23657
-[mon] 08:22:32 load=47.45 47.34 48.31 run=48 hm_threads=2 memMB=23647
-[mon] 08:23:32 load=44.28 46.47 47.95 run=49 hm_threads=2 memMB=23784
-[machine_0063_n8000] OK     2030s, sample 382 KB, kept 1906 KB total [ algohex=1797s clean_blocks=226s tfi=4s export=3s total=2030s]
-[mon] 08:24:32 load=46.15 46.60 47.90 run=47 hm_threads=2 memMB=23612
+[machine_0061_n8000] already done, skipping
+[machine_0062_n8000] already done, skipping
+[machine_0063_n8000] already done, skipping
+[machine_0064_n2000] already done, skipping
+[machine_0064_n8000] already done, skipping
+[machine_0063_n2000] start  tet=machine_0063_tet.vtk n=2000 h=0.05
+[mon] 08:26:11 load=46.38 53.48 63.85 run=4 hm_threads=2 memMB=20313
+[mon] 08:27:11 load=50.99 53.04 63.03 run=4 hm_threads=2 memMB=20537
+[mon] 08:28:11 load=37.27 48.96 61.01 run=4 hm_threads=2 memMB=20302
+[mon] 08:29:11 load=44.50 48.73 60.17 run=4 hm_threads=2 memMB=21969
+[mon] 08:30:11 load=46.23 48.32 59.30 run=3 hm_threads=2 memMB=22535
+[mon] 08:31:11 load=46.10 48.03 58.53 run=4 hm_threads=2 memMB=23061
+[mon] 08:32:12 load=48.18 48.16 57.91 run=3 hm_threads=2 memMB=24229
+[mon] 08:33:12 load=43.41 46.98 56.91 run=4 hm_threads=2 memMB=21265
+[mon] 08:34:12 load=34.66 43.86 55.21 run=4 hm_threads=2 memMB=22902
+[mon] 08:35:12 load=39.55 43.19 54.25 run=5 hm_threads=2 memMB=23168
+[mon] 08:36:12 load=42.48 43.33 53.61 run=3 hm_threads=2 memMB=23271
+[mon] 08:37:12 load=51.22 45.78 53.81 run=4 hm_threads=2 memMB=22495
+[mon] 08:38:12 load=49.14 46.46 53.56 run=4 hm_threads=2 memMB=22537

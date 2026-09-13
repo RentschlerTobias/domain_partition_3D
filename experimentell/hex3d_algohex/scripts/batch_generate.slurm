@@ -110,6 +110,25 @@ else
     echo "[gen] python for draws: $PY_DRAW"
 fi
 
+# The draw imports the eigenfrequencies adapter on the HOST; the container
+# phases mount the checkout at /ef and set EIGENFREQUENCIES_ROOT themselves.
+# generate_machines.py's default guess (<repo>/../../eigenfrequencies) does
+# not exist on the cluster -- job 6897378 failed its first draw on exactly
+# that path, so resolve the real checkout here and hand it the override.
+EIG_WS="${EIG_WS:-$(ws_find eigenfreq 2>/dev/null)}"
+EF_CANDS="${EIGENFREQUENCIES_ROOT:-} $EIG_WS/eigenfrequencies $HOME/eigen/eigenfrequencies $HOME/eigenfrequencies"
+EF_ROOT=""
+for c in $EF_CANDS; do
+    [ -d "$c/src" ] && { EF_ROOT="$c"; break; }
+done
+if [ -z "$EF_ROOT" ]; then
+    echo "[gen] no eigenfrequencies checkout for the draw -- refill disabled (set EIGENFREQUENCIES_ROOT)"
+    GROW=0
+else
+    export EIGENFREQUENCIES_ROOT="$EF_ROOT"
+    echo "[gen] eigenfrequencies: $EF_ROOT"
+fi
+
 round=0
 while :; do
     LEFT="$(parse_wall "$(squeue -h -j "${SLURM_JOB_ID:-0}" -o %L 2>/dev/null || true)")"

@@ -87,16 +87,22 @@ export_one() {
         return 1
     fi
     echo "[dtoo] exporting $name $(date -Is)"
-    DTOO_CASE_DIR="$stage" python3.13 -u experimentell/hex3d_algohex/scripts/generate_machines.py --export --only "$name"
+    # dtOO drives Gmsh in-process, and Gmsh reports every meshing pass on
+    # stdout: one machine emits thousands of lines. Keep them in the machine's
+    # own log so the job log carries only status lines -- a bulk export once
+    # produced a 200k-line batch log. dtoo_build.log beside it stays dtOO's
+    # own record.
+    DTOO_CASE_DIR="$stage" python3.13 -u experimentell/hex3d_algohex/scripts/generate_machines.py --export --only "$name" > "$d/dtoo_export.log" 2>&1
     rc=$?
     if [ "$rc" -ne 0 ]; then
-        echo "[dtoo] $name FAILED rc=$rc"
+        echo "[dtoo] $name FAILED rc=$rc (see $d/dtoo_export.log)"
         return 1
     fi
     if [ ! -f "$d/mesh.msh" ]; then
         echo "[dtoo] $name produced no mesh (see export_error.txt)"
         return 1
     fi
+    echo "[dtoo] $name mesh OK"
     return 0
 }
 export -f export_one

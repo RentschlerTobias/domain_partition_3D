@@ -220,5 +220,10 @@ echo "[dtoo] ============================================"
 # eigenfrequencies' cluster/logs/<jobid>/. The yield number T14 needs is in it.
 echo "[dtoo] keep this log:  git add experimentell/hex3d_algohex/logs && git commit -m 'cluster: dtOO export job ${SLURM_JOB_ID:-manual} log'"
 echo "[dtoo] log file:       $LOG"
-# let the tee process drain before the shell exits, or the tail is lost
+# Let the tee drain before the shell exits, or the tail is lost. A bare wait
+# deadlocks here: the shell still holds the process-substitution pipe open, so
+# the tee never sees EOF -- job 6890146 idled 3.5 h on this line until the
+# walltime killed it, and the phase after it never started. Closing
+# stdout/stderr first closes the pipe, the tee exits, then wait returns.
+exec >/dev/null 2>&1
 wait

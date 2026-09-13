@@ -209,5 +209,10 @@ echo "[batch] ============================================"
 echo "[batch] Resubmit to retry only the missing ones -- sample_one.sh skips"
 echo "[batch] anything that already has a sample.npz."
 # Let the tee drain before the script exits and SLURM sees the job as done.
+# A bare wait deadlocks here: the shell holds the process-substitution pipe
+# open, the tee never sees EOF -- job 6890146 idled 3.5 h this way until the
+# walltime killed it. Closing stdout/stderr first closes the pipe, the tee
+# exits, then wait returns.
+exec >/dev/null 2>&1
 wait
 [ "$MISS" -eq 0 ]

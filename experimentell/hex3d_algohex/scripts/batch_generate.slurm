@@ -75,6 +75,9 @@ echo "[gen] phase 2 done, rc=$RC_SAMPLES"
 echo "[gen] ================ run complete ================"
 echo "[gen] dtOO rc=$RC_DTOO, samples rc=$RC_SAMPLES (0 = nothing missing)"
 echo "[gen] log: $LOG"
-# let the tee drain before SLURM sees the job as done
+# Let the tee drain before SLURM sees the job as done. A bare wait deadlocks
+# here (shell holds the process-substitution pipe open, tee never sees EOF --
+# job 6890146 idled 3.5 h on this line); closing stdout/stderr first fixes it.
+exec >/dev/null 2>&1
 wait
 [ "$RC_SAMPLES" -eq 0 ]

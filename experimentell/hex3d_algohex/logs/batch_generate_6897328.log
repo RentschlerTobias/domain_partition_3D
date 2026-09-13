@@ -1,0 +1,385 @@
+[gen] host uc2n655.localdomain, job 6897328
+[gen] NS='2000 8000' PAR=32 PARALLEL=32 OMP_NUM_THREADS=1
+[gen] ================ phase 1/2: dtOO meshes ================
+[dtoo] host uc2n655.localdomain, job 6897328, 1 cores, parallelism 32
+[dtoo] repo /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D
+[dtoo] image /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-images/dtOO.sqsh
+[dtoo] container dtOO already unpacked, skipping
+[dtoo] preflight ok
+[dtoo] rootfs lock free
+[dtoo] lock probe rc=0 (0 free, 1 busy, 124 stuck)
+[dtoo] container step starting at 2026-09-13T07:49:59+02:00
+[dtoo] container env ready, exporting
+[dtoo] progress log: /repo/experimentell/hex3d_algohex/logs/export_progress_6897328.log (parallel=32)
+[dtoo] case source: /dtOO/build/test/tistos
+[dtoo] machine_0001 mesh.msh present, skipping
+[dtoo] machine_0002 mesh.msh present, skipping
+[dtoo] machine_0003 mesh.msh present, skipping
+[dtoo] machine_0004 mesh.msh present, skipping
+[dtoo] machine_0005 mesh.msh present, skipping
+[dtoo] machine_0007 mesh.msh present, skipping
+[dtoo] machine_0008 mesh.msh present, skipping
+[dtoo] machine_0009 mesh.msh present, skipping
+[dtoo] machine_0010 mesh.msh present, skipping
+[dtoo] machine_0011 mesh.msh present, skipping
+[dtoo] machine_0012 mesh.msh present, skipping
+[dtoo] machine_0013 mesh.msh present, skipping
+[dtoo] machine_0014 mesh.msh present, skipping
+[dtoo] machine_0015 mesh.msh present, skipping
+[dtoo] machine_0016 mesh.msh present, skipping
+[dtoo] machine_0017 mesh.msh present, skipping
+[dtoo] machine_0018 mesh.msh present, skipping
+[dtoo] machine_0019 mesh.msh present, skipping
+[dtoo] machine_0020 mesh.msh present, skipping
+[dtoo] machine_0021 mesh.msh present, skipping
+[dtoo] machine_0022 mesh.msh present, skipping
+[dtoo] machine_0023 mesh.msh present, skipping
+[dtoo] machine_0024 mesh.msh present, skipping
+[dtoo] machine_0025 mesh.msh present, skipping
+[dtoo] machine_0026 mesh.msh present, skipping
+[dtoo] machine_0027 mesh.msh present, skipping
+[dtoo] machine_0028 mesh.msh present, skipping
+[dtoo] machine_0029 mesh.msh present, skipping
+[dtoo] machine_0030 mesh.msh present, skipping
+[dtoo] machine_0031 mesh.msh present, skipping
+[dtoo] machine_0032 mesh.msh present, skipping
+[dtoo] machine_0033 mesh.msh present, skipping
+[dtoo] machine_0034 mesh.msh present, skipping
+[dtoo] machine_0035 mesh.msh present, skipping
+[dtoo] machine_0036 mesh.msh present, skipping
+[dtoo] machine_0037 mesh.msh present, skipping
+[dtoo] machine_0038 mesh.msh present, skipping
+[dtoo] machine_0039 mesh.msh present, skipping
+[dtoo] machine_0040 mesh.msh present, skipping
+[dtoo] machine_0041 mesh.msh present, skipping
+[dtoo] machine_0042 mesh.msh present, skipping
+[dtoo] machine_0043 mesh.msh present, skipping
+[dtoo] machine_0044 mesh.msh present, skipping
+[dtoo] machine_0045 mesh.msh present, skipping
+[dtoo] machine_0046 mesh.msh present, skipping
+[dtoo] machine_0047 mesh.msh present, skipping
+[dtoo] machine_0048 mesh.msh present, skipping
+[dtoo] machine_0049 mesh.msh present, skipping
+[dtoo] machine_0050 mesh.msh present, skipping
+[dtoo] machine_0051 mesh.msh present, skipping
+[dtoo] machine_0052 mesh.msh present, skipping
+[dtoo] machine_0053 mesh.msh present, skipping
+[dtoo] machine_0054 mesh.msh present, skipping
+[dtoo] machine_0055 mesh.msh present, skipping
+[dtoo] machine_0056 mesh.msh present, skipping
+[dtoo] machine_0057 mesh.msh present, skipping
+[dtoo] machine_0058 mesh.msh present, skipping
+[dtoo] machine_0059 mesh.msh present, skipping
+[dtoo] machine_0060 mesh.msh present, skipping
+[dtoo] machine_0061 mesh.msh present, skipping
+[dtoo] machine_0062 mesh.msh present, skipping
+[dtoo] machine_0063 mesh.msh present, skipping
+[dtoo] machine_0064 mesh.msh present, skipping
+[dtoo] pending: 0 machines, parallel=32
+[dtoo] pass complete (xargs rc=0; 0 = all ok, 123 = at least one failed)
+[dtoo] container step rc=0 after 3s
+[dtoo] stage file      /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/stage_6897328.txt
+
+[dtoo] ================ yield summary ================
+[dtoo] wall            3s
+[dtoo] machines        63 exported, 0 failed, 0 not attempted
+[dtoo] mesh.msh        6.6G dataset total
+[dtoo] yield           63 / 63 attempted; with MISS >= 1, resubmit to finish
+[dtoo] feed these into batch_samples.slurm:
+[dtoo]   NS="2000 8000" CANDS="data/dataset/sobol/machine_00*" \
+[dtoo]       sbatch experimentell/hex3d_algohex/scripts/batch_samples.slurm
+[dtoo] ============================================
+[dtoo] keep this log:  git add experimentell/hex3d_algohex/logs && git commit -m 'cluster: dtOO export job 6897328 log'
+[dtoo] log file:       /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/batch_dtoo_export_6897328.log
+[gen] phase 1 done, rc=0
+[gen] ================ phase 2/2: hex samples ================
+[batch] host uc2n655.localdomain, job 6897328
+[batch] 64 cores, 131072 MB
+[batch] concurrency 32   (memory allows 52, cores allow 32)
+[batch] walltime left 14357s: no new samples in the last 1500s, snapshot 120s before the end
+[batch] 126 samples queued:
+          output/hex3d_algohex/batch/machine_0001/machine_0001_tet.vtk 2000 output/hex3d_algohex/batch/machine_0001_n2000 data/dataset/sobol/machine_0001/params.json
+          output/hex3d_algohex/batch/machine_0001/machine_0001_tet.vtk 8000 output/hex3d_algohex/batch/machine_0001_n8000 data/dataset/sobol/machine_0001/params.json
+          output/hex3d_algohex/batch/machine_0002/machine_0002_tet.vtk 2000 output/hex3d_algohex/batch/machine_0002_n2000 data/dataset/sobol/machine_0002/params.json
+          output/hex3d_algohex/batch/machine_0002/machine_0002_tet.vtk 8000 output/hex3d_algohex/batch/machine_0002_n8000 data/dataset/sobol/machine_0002/params.json
+          output/hex3d_algohex/batch/machine_0003/machine_0003_tet.vtk 2000 output/hex3d_algohex/batch/machine_0003_n2000 data/dataset/sobol/machine_0003/params.json
+          output/hex3d_algohex/batch/machine_0003/machine_0003_tet.vtk 8000 output/hex3d_algohex/batch/machine_0003_n8000 data/dataset/sobol/machine_0003/params.json
+          output/hex3d_algohex/batch/machine_0004/machine_0004_tet.vtk 2000 output/hex3d_algohex/batch/machine_0004_n2000 data/dataset/sobol/machine_0004/params.json
+          output/hex3d_algohex/batch/machine_0004/machine_0004_tet.vtk 8000 output/hex3d_algohex/batch/machine_0004_n8000 data/dataset/sobol/machine_0004/params.json
+          output/hex3d_algohex/batch/machine_0005/machine_0005_tet.vtk 2000 output/hex3d_algohex/batch/machine_0005_n2000 data/dataset/sobol/machine_0005/params.json
+          output/hex3d_algohex/batch/machine_0005/machine_0005_tet.vtk 8000 output/hex3d_algohex/batch/machine_0005_n8000 data/dataset/sobol/machine_0005/params.json
+          output/hex3d_algohex/batch/machine_0007/machine_0007_tet.vtk 2000 output/hex3d_algohex/batch/machine_0007_n2000 data/dataset/sobol/machine_0007/params.json
+          output/hex3d_algohex/batch/machine_0007/machine_0007_tet.vtk 8000 output/hex3d_algohex/batch/machine_0007_n8000 data/dataset/sobol/machine_0007/params.json
+          output/hex3d_algohex/batch/machine_0008/machine_0008_tet.vtk 2000 output/hex3d_algohex/batch/machine_0008_n2000 data/dataset/sobol/machine_0008/params.json
+          output/hex3d_algohex/batch/machine_0008/machine_0008_tet.vtk 8000 output/hex3d_algohex/batch/machine_0008_n8000 data/dataset/sobol/machine_0008/params.json
+          output/hex3d_algohex/batch/machine_0009/machine_0009_tet.vtk 2000 output/hex3d_algohex/batch/machine_0009_n2000 data/dataset/sobol/machine_0009/params.json
+          output/hex3d_algohex/batch/machine_0009/machine_0009_tet.vtk 8000 output/hex3d_algohex/batch/machine_0009_n8000 data/dataset/sobol/machine_0009/params.json
+          output/hex3d_algohex/batch/machine_0010/machine_0010_tet.vtk 2000 output/hex3d_algohex/batch/machine_0010_n2000 data/dataset/sobol/machine_0010/params.json
+          output/hex3d_algohex/batch/machine_0010/machine_0010_tet.vtk 8000 output/hex3d_algohex/batch/machine_0010_n8000 data/dataset/sobol/machine_0010/params.json
+          output/hex3d_algohex/batch/machine_0011/machine_0011_tet.vtk 2000 output/hex3d_algohex/batch/machine_0011_n2000 data/dataset/sobol/machine_0011/params.json
+          output/hex3d_algohex/batch/machine_0011/machine_0011_tet.vtk 8000 output/hex3d_algohex/batch/machine_0011_n8000 data/dataset/sobol/machine_0011/params.json
+          output/hex3d_algohex/batch/machine_0012/machine_0012_tet.vtk 2000 output/hex3d_algohex/batch/machine_0012_n2000 data/dataset/sobol/machine_0012/params.json
+          output/hex3d_algohex/batch/machine_0012/machine_0012_tet.vtk 8000 output/hex3d_algohex/batch/machine_0012_n8000 data/dataset/sobol/machine_0012/params.json
+          output/hex3d_algohex/batch/machine_0013/machine_0013_tet.vtk 2000 output/hex3d_algohex/batch/machine_0013_n2000 data/dataset/sobol/machine_0013/params.json
+          output/hex3d_algohex/batch/machine_0013/machine_0013_tet.vtk 8000 output/hex3d_algohex/batch/machine_0013_n8000 data/dataset/sobol/machine_0013/params.json
+          output/hex3d_algohex/batch/machine_0014/machine_0014_tet.vtk 2000 output/hex3d_algohex/batch/machine_0014_n2000 data/dataset/sobol/machine_0014/params.json
+          output/hex3d_algohex/batch/machine_0014/machine_0014_tet.vtk 8000 output/hex3d_algohex/batch/machine_0014_n8000 data/dataset/sobol/machine_0014/params.json
+          output/hex3d_algohex/batch/machine_0015/machine_0015_tet.vtk 2000 output/hex3d_algohex/batch/machine_0015_n2000 data/dataset/sobol/machine_0015/params.json
+          output/hex3d_algohex/batch/machine_0015/machine_0015_tet.vtk 8000 output/hex3d_algohex/batch/machine_0015_n8000 data/dataset/sobol/machine_0015/params.json
+          output/hex3d_algohex/batch/machine_0016/machine_0016_tet.vtk 2000 output/hex3d_algohex/batch/machine_0016_n2000 data/dataset/sobol/machine_0016/params.json
+          output/hex3d_algohex/batch/machine_0016/machine_0016_tet.vtk 8000 output/hex3d_algohex/batch/machine_0016_n8000 data/dataset/sobol/machine_0016/params.json
+          output/hex3d_algohex/batch/machine_0017/machine_0017_tet.vtk 2000 output/hex3d_algohex/batch/machine_0017_n2000 data/dataset/sobol/machine_0017/params.json
+          output/hex3d_algohex/batch/machine_0017/machine_0017_tet.vtk 8000 output/hex3d_algohex/batch/machine_0017_n8000 data/dataset/sobol/machine_0017/params.json
+          output/hex3d_algohex/batch/machine_0018/machine_0018_tet.vtk 2000 output/hex3d_algohex/batch/machine_0018_n2000 data/dataset/sobol/machine_0018/params.json
+          output/hex3d_algohex/batch/machine_0018/machine_0018_tet.vtk 8000 output/hex3d_algohex/batch/machine_0018_n8000 data/dataset/sobol/machine_0018/params.json
+          output/hex3d_algohex/batch/machine_0019/machine_0019_tet.vtk 2000 output/hex3d_algohex/batch/machine_0019_n2000 data/dataset/sobol/machine_0019/params.json
+          output/hex3d_algohex/batch/machine_0019/machine_0019_tet.vtk 8000 output/hex3d_algohex/batch/machine_0019_n8000 data/dataset/sobol/machine_0019/params.json
+          output/hex3d_algohex/batch/machine_0020/machine_0020_tet.vtk 2000 output/hex3d_algohex/batch/machine_0020_n2000 data/dataset/sobol/machine_0020/params.json
+          output/hex3d_algohex/batch/machine_0020/machine_0020_tet.vtk 8000 output/hex3d_algohex/batch/machine_0020_n8000 data/dataset/sobol/machine_0020/params.json
+          output/hex3d_algohex/batch/machine_0021/machine_0021_tet.vtk 2000 output/hex3d_algohex/batch/machine_0021_n2000 data/dataset/sobol/machine_0021/params.json
+          output/hex3d_algohex/batch/machine_0021/machine_0021_tet.vtk 8000 output/hex3d_algohex/batch/machine_0021_n8000 data/dataset/sobol/machine_0021/params.json
+          output/hex3d_algohex/batch/machine_0022/machine_0022_tet.vtk 2000 output/hex3d_algohex/batch/machine_0022_n2000 data/dataset/sobol/machine_0022/params.json
+          output/hex3d_algohex/batch/machine_0022/machine_0022_tet.vtk 8000 output/hex3d_algohex/batch/machine_0022_n8000 data/dataset/sobol/machine_0022/params.json
+          output/hex3d_algohex/batch/machine_0023/machine_0023_tet.vtk 2000 output/hex3d_algohex/batch/machine_0023_n2000 data/dataset/sobol/machine_0023/params.json
+          output/hex3d_algohex/batch/machine_0023/machine_0023_tet.vtk 8000 output/hex3d_algohex/batch/machine_0023_n8000 data/dataset/sobol/machine_0023/params.json
+          output/hex3d_algohex/batch/machine_0024/machine_0024_tet.vtk 2000 output/hex3d_algohex/batch/machine_0024_n2000 data/dataset/sobol/machine_0024/params.json
+          output/hex3d_algohex/batch/machine_0024/machine_0024_tet.vtk 8000 output/hex3d_algohex/batch/machine_0024_n8000 data/dataset/sobol/machine_0024/params.json
+          output/hex3d_algohex/batch/machine_0025/machine_0025_tet.vtk 2000 output/hex3d_algohex/batch/machine_0025_n2000 data/dataset/sobol/machine_0025/params.json
+          output/hex3d_algohex/batch/machine_0025/machine_0025_tet.vtk 8000 output/hex3d_algohex/batch/machine_0025_n8000 data/dataset/sobol/machine_0025/params.json
+          output/hex3d_algohex/batch/machine_0026/machine_0026_tet.vtk 2000 output/hex3d_algohex/batch/machine_0026_n2000 data/dataset/sobol/machine_0026/params.json
+          output/hex3d_algohex/batch/machine_0026/machine_0026_tet.vtk 8000 output/hex3d_algohex/batch/machine_0026_n8000 data/dataset/sobol/machine_0026/params.json
+          output/hex3d_algohex/batch/machine_0027/machine_0027_tet.vtk 2000 output/hex3d_algohex/batch/machine_0027_n2000 data/dataset/sobol/machine_0027/params.json
+          output/hex3d_algohex/batch/machine_0027/machine_0027_tet.vtk 8000 output/hex3d_algohex/batch/machine_0027_n8000 data/dataset/sobol/machine_0027/params.json
+          output/hex3d_algohex/batch/machine_0028/machine_0028_tet.vtk 2000 output/hex3d_algohex/batch/machine_0028_n2000 data/dataset/sobol/machine_0028/params.json
+          output/hex3d_algohex/batch/machine_0028/machine_0028_tet.vtk 8000 output/hex3d_algohex/batch/machine_0028_n8000 data/dataset/sobol/machine_0028/params.json
+          output/hex3d_algohex/batch/machine_0029/machine_0029_tet.vtk 2000 output/hex3d_algohex/batch/machine_0029_n2000 data/dataset/sobol/machine_0029/params.json
+          output/hex3d_algohex/batch/machine_0029/machine_0029_tet.vtk 8000 output/hex3d_algohex/batch/machine_0029_n8000 data/dataset/sobol/machine_0029/params.json
+          output/hex3d_algohex/batch/machine_0030/machine_0030_tet.vtk 2000 output/hex3d_algohex/batch/machine_0030_n2000 data/dataset/sobol/machine_0030/params.json
+          output/hex3d_algohex/batch/machine_0030/machine_0030_tet.vtk 8000 output/hex3d_algohex/batch/machine_0030_n8000 data/dataset/sobol/machine_0030/params.json
+          output/hex3d_algohex/batch/machine_0031/machine_0031_tet.vtk 2000 output/hex3d_algohex/batch/machine_0031_n2000 data/dataset/sobol/machine_0031/params.json
+          output/hex3d_algohex/batch/machine_0031/machine_0031_tet.vtk 8000 output/hex3d_algohex/batch/machine_0031_n8000 data/dataset/sobol/machine_0031/params.json
+          output/hex3d_algohex/batch/machine_0032/machine_0032_tet.vtk 2000 output/hex3d_algohex/batch/machine_0032_n2000 data/dataset/sobol/machine_0032/params.json
+          output/hex3d_algohex/batch/machine_0032/machine_0032_tet.vtk 8000 output/hex3d_algohex/batch/machine_0032_n8000 data/dataset/sobol/machine_0032/params.json
+          output/hex3d_algohex/batch/machine_0033/machine_0033_tet.vtk 2000 output/hex3d_algohex/batch/machine_0033_n2000 data/dataset/sobol/machine_0033/params.json
+          output/hex3d_algohex/batch/machine_0033/machine_0033_tet.vtk 8000 output/hex3d_algohex/batch/machine_0033_n8000 data/dataset/sobol/machine_0033/params.json
+          output/hex3d_algohex/batch/machine_0034/machine_0034_tet.vtk 2000 output/hex3d_algohex/batch/machine_0034_n2000 data/dataset/sobol/machine_0034/params.json
+          output/hex3d_algohex/batch/machine_0034/machine_0034_tet.vtk 8000 output/hex3d_algohex/batch/machine_0034_n8000 data/dataset/sobol/machine_0034/params.json
+          output/hex3d_algohex/batch/machine_0035/machine_0035_tet.vtk 2000 output/hex3d_algohex/batch/machine_0035_n2000 data/dataset/sobol/machine_0035/params.json
+          output/hex3d_algohex/batch/machine_0035/machine_0035_tet.vtk 8000 output/hex3d_algohex/batch/machine_0035_n8000 data/dataset/sobol/machine_0035/params.json
+          output/hex3d_algohex/batch/machine_0036/machine_0036_tet.vtk 2000 output/hex3d_algohex/batch/machine_0036_n2000 data/dataset/sobol/machine_0036/params.json
+          output/hex3d_algohex/batch/machine_0036/machine_0036_tet.vtk 8000 output/hex3d_algohex/batch/machine_0036_n8000 data/dataset/sobol/machine_0036/params.json
+          output/hex3d_algohex/batch/machine_0037/machine_0037_tet.vtk 2000 output/hex3d_algohex/batch/machine_0037_n2000 data/dataset/sobol/machine_0037/params.json
+          output/hex3d_algohex/batch/machine_0037/machine_0037_tet.vtk 8000 output/hex3d_algohex/batch/machine_0037_n8000 data/dataset/sobol/machine_0037/params.json
+          output/hex3d_algohex/batch/machine_0038/machine_0038_tet.vtk 2000 output/hex3d_algohex/batch/machine_0038_n2000 data/dataset/sobol/machine_0038/params.json
+          output/hex3d_algohex/batch/machine_0038/machine_0038_tet.vtk 8000 output/hex3d_algohex/batch/machine_0038_n8000 data/dataset/sobol/machine_0038/params.json
+          output/hex3d_algohex/batch/machine_0039/machine_0039_tet.vtk 2000 output/hex3d_algohex/batch/machine_0039_n2000 data/dataset/sobol/machine_0039/params.json
+          output/hex3d_algohex/batch/machine_0039/machine_0039_tet.vtk 8000 output/hex3d_algohex/batch/machine_0039_n8000 data/dataset/sobol/machine_0039/params.json
+          output/hex3d_algohex/batch/machine_0040/machine_0040_tet.vtk 2000 output/hex3d_algohex/batch/machine_0040_n2000 data/dataset/sobol/machine_0040/params.json
+          output/hex3d_algohex/batch/machine_0040/machine_0040_tet.vtk 8000 output/hex3d_algohex/batch/machine_0040_n8000 data/dataset/sobol/machine_0040/params.json
+          output/hex3d_algohex/batch/machine_0041/machine_0041_tet.vtk 2000 output/hex3d_algohex/batch/machine_0041_n2000 data/dataset/sobol/machine_0041/params.json
+          output/hex3d_algohex/batch/machine_0041/machine_0041_tet.vtk 8000 output/hex3d_algohex/batch/machine_0041_n8000 data/dataset/sobol/machine_0041/params.json
+          output/hex3d_algohex/batch/machine_0042/machine_0042_tet.vtk 2000 output/hex3d_algohex/batch/machine_0042_n2000 data/dataset/sobol/machine_0042/params.json
+          output/hex3d_algohex/batch/machine_0042/machine_0042_tet.vtk 8000 output/hex3d_algohex/batch/machine_0042_n8000 data/dataset/sobol/machine_0042/params.json
+          output/hex3d_algohex/batch/machine_0043/machine_0043_tet.vtk 2000 output/hex3d_algohex/batch/machine_0043_n2000 data/dataset/sobol/machine_0043/params.json
+          output/hex3d_algohex/batch/machine_0043/machine_0043_tet.vtk 8000 output/hex3d_algohex/batch/machine_0043_n8000 data/dataset/sobol/machine_0043/params.json
+          output/hex3d_algohex/batch/machine_0044/machine_0044_tet.vtk 2000 output/hex3d_algohex/batch/machine_0044_n2000 data/dataset/sobol/machine_0044/params.json
+          output/hex3d_algohex/batch/machine_0044/machine_0044_tet.vtk 8000 output/hex3d_algohex/batch/machine_0044_n8000 data/dataset/sobol/machine_0044/params.json
+          output/hex3d_algohex/batch/machine_0045/machine_0045_tet.vtk 2000 output/hex3d_algohex/batch/machine_0045_n2000 data/dataset/sobol/machine_0045/params.json
+          output/hex3d_algohex/batch/machine_0045/machine_0045_tet.vtk 8000 output/hex3d_algohex/batch/machine_0045_n8000 data/dataset/sobol/machine_0045/params.json
+          output/hex3d_algohex/batch/machine_0046/machine_0046_tet.vtk 2000 output/hex3d_algohex/batch/machine_0046_n2000 data/dataset/sobol/machine_0046/params.json
+          output/hex3d_algohex/batch/machine_0046/machine_0046_tet.vtk 8000 output/hex3d_algohex/batch/machine_0046_n8000 data/dataset/sobol/machine_0046/params.json
+          output/hex3d_algohex/batch/machine_0047/machine_0047_tet.vtk 2000 output/hex3d_algohex/batch/machine_0047_n2000 data/dataset/sobol/machine_0047/params.json
+          output/hex3d_algohex/batch/machine_0047/machine_0047_tet.vtk 8000 output/hex3d_algohex/batch/machine_0047_n8000 data/dataset/sobol/machine_0047/params.json
+          output/hex3d_algohex/batch/machine_0048/machine_0048_tet.vtk 2000 output/hex3d_algohex/batch/machine_0048_n2000 data/dataset/sobol/machine_0048/params.json
+          output/hex3d_algohex/batch/machine_0048/machine_0048_tet.vtk 8000 output/hex3d_algohex/batch/machine_0048_n8000 data/dataset/sobol/machine_0048/params.json
+          output/hex3d_algohex/batch/machine_0049/machine_0049_tet.vtk 2000 output/hex3d_algohex/batch/machine_0049_n2000 data/dataset/sobol/machine_0049/params.json
+          output/hex3d_algohex/batch/machine_0049/machine_0049_tet.vtk 8000 output/hex3d_algohex/batch/machine_0049_n8000 data/dataset/sobol/machine_0049/params.json
+          output/hex3d_algohex/batch/machine_0050/machine_0050_tet.vtk 2000 output/hex3d_algohex/batch/machine_0050_n2000 data/dataset/sobol/machine_0050/params.json
+          output/hex3d_algohex/batch/machine_0050/machine_0050_tet.vtk 8000 output/hex3d_algohex/batch/machine_0050_n8000 data/dataset/sobol/machine_0050/params.json
+          output/hex3d_algohex/batch/machine_0051/machine_0051_tet.vtk 2000 output/hex3d_algohex/batch/machine_0051_n2000 data/dataset/sobol/machine_0051/params.json
+          output/hex3d_algohex/batch/machine_0051/machine_0051_tet.vtk 8000 output/hex3d_algohex/batch/machine_0051_n8000 data/dataset/sobol/machine_0051/params.json
+          output/hex3d_algohex/batch/machine_0052/machine_0052_tet.vtk 2000 output/hex3d_algohex/batch/machine_0052_n2000 data/dataset/sobol/machine_0052/params.json
+          output/hex3d_algohex/batch/machine_0052/machine_0052_tet.vtk 8000 output/hex3d_algohex/batch/machine_0052_n8000 data/dataset/sobol/machine_0052/params.json
+          output/hex3d_algohex/batch/machine_0053/machine_0053_tet.vtk 2000 output/hex3d_algohex/batch/machine_0053_n2000 data/dataset/sobol/machine_0053/params.json
+          output/hex3d_algohex/batch/machine_0053/machine_0053_tet.vtk 8000 output/hex3d_algohex/batch/machine_0053_n8000 data/dataset/sobol/machine_0053/params.json
+          output/hex3d_algohex/batch/machine_0054/machine_0054_tet.vtk 2000 output/hex3d_algohex/batch/machine_0054_n2000 data/dataset/sobol/machine_0054/params.json
+          output/hex3d_algohex/batch/machine_0054/machine_0054_tet.vtk 8000 output/hex3d_algohex/batch/machine_0054_n8000 data/dataset/sobol/machine_0054/params.json
+          output/hex3d_algohex/batch/machine_0055/machine_0055_tet.vtk 2000 output/hex3d_algohex/batch/machine_0055_n2000 data/dataset/sobol/machine_0055/params.json
+          output/hex3d_algohex/batch/machine_0055/machine_0055_tet.vtk 8000 output/hex3d_algohex/batch/machine_0055_n8000 data/dataset/sobol/machine_0055/params.json
+          output/hex3d_algohex/batch/machine_0056/machine_0056_tet.vtk 2000 output/hex3d_algohex/batch/machine_0056_n2000 data/dataset/sobol/machine_0056/params.json
+          output/hex3d_algohex/batch/machine_0056/machine_0056_tet.vtk 8000 output/hex3d_algohex/batch/machine_0056_n8000 data/dataset/sobol/machine_0056/params.json
+          output/hex3d_algohex/batch/machine_0057/machine_0057_tet.vtk 2000 output/hex3d_algohex/batch/machine_0057_n2000 data/dataset/sobol/machine_0057/params.json
+          output/hex3d_algohex/batch/machine_0057/machine_0057_tet.vtk 8000 output/hex3d_algohex/batch/machine_0057_n8000 data/dataset/sobol/machine_0057/params.json
+          output/hex3d_algohex/batch/machine_0058/machine_0058_tet.vtk 2000 output/hex3d_algohex/batch/machine_0058_n2000 data/dataset/sobol/machine_0058/params.json
+          output/hex3d_algohex/batch/machine_0058/machine_0058_tet.vtk 8000 output/hex3d_algohex/batch/machine_0058_n8000 data/dataset/sobol/machine_0058/params.json
+          output/hex3d_algohex/batch/machine_0059/machine_0059_tet.vtk 2000 output/hex3d_algohex/batch/machine_0059_n2000 data/dataset/sobol/machine_0059/params.json
+          output/hex3d_algohex/batch/machine_0059/machine_0059_tet.vtk 8000 output/hex3d_algohex/batch/machine_0059_n8000 data/dataset/sobol/machine_0059/params.json
+          output/hex3d_algohex/batch/machine_0060/machine_0060_tet.vtk 2000 output/hex3d_algohex/batch/machine_0060_n2000 data/dataset/sobol/machine_0060/params.json
+          output/hex3d_algohex/batch/machine_0060/machine_0060_tet.vtk 8000 output/hex3d_algohex/batch/machine_0060_n8000 data/dataset/sobol/machine_0060/params.json
+          output/hex3d_algohex/batch/machine_0061/machine_0061_tet.vtk 2000 output/hex3d_algohex/batch/machine_0061_n2000 data/dataset/sobol/machine_0061/params.json
+          output/hex3d_algohex/batch/machine_0061/machine_0061_tet.vtk 8000 output/hex3d_algohex/batch/machine_0061_n8000 data/dataset/sobol/machine_0061/params.json
+          output/hex3d_algohex/batch/machine_0062/machine_0062_tet.vtk 2000 output/hex3d_algohex/batch/machine_0062_n2000 data/dataset/sobol/machine_0062/params.json
+          output/hex3d_algohex/batch/machine_0062/machine_0062_tet.vtk 8000 output/hex3d_algohex/batch/machine_0062_n8000 data/dataset/sobol/machine_0062/params.json
+          output/hex3d_algohex/batch/machine_0063/machine_0063_tet.vtk 2000 output/hex3d_algohex/batch/machine_0063_n2000 data/dataset/sobol/machine_0063/params.json
+          output/hex3d_algohex/batch/machine_0063/machine_0063_tet.vtk 8000 output/hex3d_algohex/batch/machine_0063_n8000 data/dataset/sobol/machine_0063/params.json
+          output/hex3d_algohex/batch/machine_0064/machine_0064_tet.vtk 2000 output/hex3d_algohex/batch/machine_0064_n2000 data/dataset/sobol/machine_0064/params.json
+          output/hex3d_algohex/batch/machine_0064/machine_0064_tet.vtk 8000 output/hex3d_algohex/batch/machine_0064_n8000 data/dataset/sobol/machine_0064/params.json
+[batch] history         output/hex3d_algohex/batch/sample_history.tsv
+[machine_0004_n2000] already done, skipping
+[machine_0002_n8000] already done, skipping
+[machine_0012_n2000] already done, skipping
+[machine_0011_n8000] already done, skipping
+[machine_0012_n8000] already done, skipping
+[machine_0004_n8000] already done, skipping
+[machine_0008_n2000] already done, skipping
+[machine_0010_n2000] already done, skipping
+[machine_0015_n8000] already done, skipping
+[machine_0001_n2000] already done, skipping
+[machine_0007_n8000] already done, skipping
+[machine_0005_n2000] already done, skipping
+[machine_0003_n2000] already done, skipping
+[machine_0011_n2000] already done, skipping
+[machine_0013_n8000] already done, skipping
+[machine_0002_n2000] already done, skipping
+[machine_0003_n8000] already done, skipping
+[machine_0007_n2000] already done, skipping
+[machine_0005_n8000] already done, skipping
+[machine_0009_n8000] already done, skipping
+[machine_0014_n8000] already done, skipping
+[machine_0008_n8000] already done, skipping
+[machine_0017_n2000] already done, skipping
+[machine_0015_n2000] already done, skipping
+[machine_0017_n8000] already done, skipping
+[machine_0016_n2000] already done, skipping
+[machine_0001_n8000] already done, skipping
+[machine_0014_n2000] already done, skipping
+[machine_0018_n2000] already done, skipping
+[machine_0013_n2000] already done, skipping
+[machine_0021_n8000] already done, skipping
+[machine_0016_n8000] already done, skipping
+[machine_0010_n8000] already done, skipping
+[machine_0009_n2000] already done, skipping
+[machine_0019_n8000] already done, skipping
+[machine_0024_n2000] already done, skipping
+[machine_0022_n2000] already done, skipping
+[machine_0026_n2000] already done, skipping
+[machine_0023_n8000] already done, skipping
+[machine_0027_n2000] already done, skipping
+[machine_0019_n2000] already done, skipping
+[machine_0021_n2000] already done, skipping
+[machine_0023_n2000] already done, skipping
+[machine_0028_n8000] already done, skipping
+[machine_0027_n8000] already done, skipping
+[machine_0020_n8000] already done, skipping
+[machine_0028_n2000] already done, skipping
+[machine_0018_n8000] already done, skipping
+[machine_0022_n8000] already done, skipping
+[machine_0026_n8000] already done, skipping
+[machine_0030_n8000] already done, skipping
+[machine_0024_n8000] already done, skipping
+[machine_0020_n2000] already done, skipping
+[machine_0025_n8000] already done, skipping
+[machine_0032_n2000] already done, skipping
+[machine_0031_n2000] already done, skipping
+[machine_0033_n8000] already done, skipping
+[machine_0037_n2000] already done, skipping
+[machine_0029_n8000] already done, skipping
+[machine_0037_n8000] already done, skipping
+[machine_0033_n2000] already done, skipping
+[machine_0025_n2000] already done, skipping
+[machine_0038_n2000] already done, skipping
+[machine_0036_n8000] already done, skipping
+[machine_0039_n2000] start  tet=machine_0039_tet.vtk n=2000 h=0.05
+[machine_0029_n2000] already done, skipping
+[machine_0038_n8000] already done, skipping
+[machine_0032_n8000] already done, skipping
+[machine_0030_n2000] already done, skipping
+[machine_0035_n2000] already done, skipping
+[machine_0042_n2000] already done, skipping
+[machine_0034_n2000] already done, skipping
+[machine_0035_n8000] already done, skipping
+[machine_0034_n8000] already done, skipping
+[machine_0045_n8000] already done, skipping
+[mon] 07:50:28 load=43.01 45.08 56.02 run=53 hm_threads=0 memMB=21380
+[machine_0043_n2000] already done, skipping
+[machine_0036_n2000] already done, skipping
+[machine_0045_n2000] already done, skipping
+[machine_0031_n8000] already done, skipping
+[machine_0044_n2000] already done, skipping
+[machine_0040_n2000] already done, skipping
+[machine_0043_n8000] already done, skipping
+[machine_0041_n8000] already done, skipping
+[machine_0051_n2000] already done, skipping
+[machine_0042_n8000] already done, skipping
+[machine_0039_n8000] already done, skipping
+[machine_0041_n2000] already done, skipping
+[machine_0046_n8000] already done, skipping
+[machine_0046_n2000] already done, skipping
+[machine_0048_n2000] already done, skipping
+[machine_0044_n8000] already done, skipping
+[machine_0048_n8000] already done, skipping
+[machine_0040_n8000] already done, skipping
+[machine_0054_n2000] already done, skipping
+[machine_0050_n2000] already done, skipping
+[machine_0047_n8000] already done, skipping
+[machine_0050_n8000] already done, skipping
+[machine_0049_n2000] already done, skipping
+[machine_0052_n2000] already done, skipping
+[machine_0055_n2000] already done, skipping
+[machine_0052_n8000] already done, skipping
+[machine_0051_n8000] already done, skipping
+[machine_0058_n2000] already done, skipping
+[machine_0049_n8000] already done, skipping
+[machine_0053_n2000] already done, skipping
+[machine_0053_n8000] already done, skipping
+[machine_0057_n8000] already done, skipping
+[machine_0058_n8000] already done, skipping
+[machine_0057_n2000] already done, skipping
+[machine_0059_n2000] already done, skipping
+[machine_0047_n2000] already done, skipping
+[machine_0061_n8000] already done, skipping
+[machine_0055_n8000] already done, skipping
+[machine_0061_n2000] already done, skipping
+[machine_0056_n8000] already done, skipping
+[machine_0063_n2000] start  tet=machine_0063_tet.vtk n=2000 h=0.05
+[machine_0063_n8000] start  tet=machine_0063_tet.vtk n=8000 h=0.05
+[machine_0054_n8000] already done, skipping
+[machine_0059_n8000] already done, skipping
+[machine_0056_n2000] already done, skipping
+[machine_0064_n8000] already done, skipping
+[machine_0064_n2000] already done, skipping
+[machine_0062_n8000] already done, skipping
+[machine_0060_n8000] already done, skipping
+[machine_0060_n2000] already done, skipping
+[machine_0062_n2000] already done, skipping
+[mon] 07:51:28 load=43.78 44.81 55.23 run=47 hm_threads=3 memMB=21794
+[mon] 07:52:29 load=43.73 44.53 54.47 run=48 hm_threads=3 memMB=21592
+[mon] 07:53:29 load=46.40 45.15 54.06 run=49 hm_threads=3 memMB=21805
+[mon] 07:54:29 load=47.69 45.75 53.70 run=49 hm_threads=3 memMB=23094
+[mon] 07:55:29 load=47.96 46.17 53.35 run=49 hm_threads=3 memMB=26523
+[mon] 07:56:29 load=46.72 46.24 52.93 run=49 hm_threads=3 memMB=26659
+[mon] 07:57:29 load=47.71 46.61 52.63 run=49 hm_threads=3 memMB=27004
+[mon] 07:58:29 load=48.14 46.95 52.37 run=49 hm_threads=3 memMB=26197
+[mon] 07:59:29 load=48.18 47.19 52.11 run=49 hm_threads=3 memMB=25715
+[mon] 08:00:29 load=47.55 47.23 51.81 run=40 hm_threads=3 memMB=25835
+[mon] 08:01:30 load=45.90 46.68 51.33 run=49 hm_threads=3 memMB=26324
+[mon] 08:02:30 load=47.66 47.05 51.16 run=49 hm_threads=3 memMB=26559
+[mon] 08:03:30 load=48.45 47.42 51.02 run=49 hm_threads=3 memMB=26525
+[mon] 08:04:30 load=48.20 47.53 50.83 run=48 hm_threads=3 memMB=26400
+[mon] 08:05:30 load=46.67 47.20 50.51 run=49 hm_threads=3 memMB=26125
+[mon] 08:06:30 load=47.58 47.36 50.35 run=49 hm_threads=3 memMB=26019
+[mon] 08:07:30 load=48.11 47.58 50.24 run=49 hm_threads=3 memMB=25989
+[mon] 08:08:30 load=48.46 47.77 50.12 run=49 hm_threads=3 memMB=26120
+[mon] 08:09:31 load=47.93 47.74 49.96 run=48 hm_threads=3 memMB=26020
+[mon] 08:10:31 load=48.06 47.81 49.84 run=49 hm_threads=3 memMB=25765
+[mon] 08:11:31 load=48.05 47.86 49.73 run=49 hm_threads=3 memMB=25532
+[mon] 08:12:31 load=49.08 48.17 49.71 run=49 hm_threads=3 memMB=25566
+[mon] 08:13:31 load=45.53 47.43 49.37 run=33 hm_threads=3 memMB=25273
+[mon] 08:14:31 load=44.60 46.85 49.05 run=49 hm_threads=3 memMB=25585
+[mon] 08:15:31 load=43.40 46.01 48.61 run=49 hm_threads=3 memMB=25572
+[mon] 08:16:32 load=46.35 46.39 48.58 run=51 hm_threads=3 memMB=25418
+[mon] 08:17:32 load=47.58 46.74 48.56 run=49 hm_threads=3 memMB=25356
+[mon] 08:18:32 load=47.80 46.95 48.51 run=49 hm_threads=3 memMB=25290
+[mon] 08:19:32 load=47.17 46.98 48.42 run=47 hm_threads=3 memMB=25354
+[mon] 08:20:32 load=47.71 47.18 48.40 run=48 hm_threads=2 memMB=23654
+[mon] 08:21:32 load=47.97 47.35 48.38 run=49 hm_threads=2 memMB=23657

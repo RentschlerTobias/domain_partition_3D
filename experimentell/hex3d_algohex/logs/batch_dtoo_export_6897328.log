@@ -1,0 +1,90 @@
+[dtoo] host uc2n655.localdomain, job 6897328, 1 cores, parallelism 32
+[dtoo] repo /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D
+[dtoo] image /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-images/dtOO.sqsh
+[dtoo] container dtOO already unpacked, skipping
+[dtoo] preflight ok
+[dtoo] rootfs lock free
+[dtoo] lock probe rc=0 (0 free, 1 busy, 124 stuck)
+[dtoo] container step starting at 2026-09-13T07:49:59+02:00
+[dtoo] container env ready, exporting
+[dtoo] progress log: /repo/experimentell/hex3d_algohex/logs/export_progress_6897328.log (parallel=32)
+[dtoo] case source: /dtOO/build/test/tistos
+[dtoo] machine_0001 mesh.msh present, skipping
+[dtoo] machine_0002 mesh.msh present, skipping
+[dtoo] machine_0003 mesh.msh present, skipping
+[dtoo] machine_0004 mesh.msh present, skipping
+[dtoo] machine_0005 mesh.msh present, skipping
+[dtoo] machine_0007 mesh.msh present, skipping
+[dtoo] machine_0008 mesh.msh present, skipping
+[dtoo] machine_0009 mesh.msh present, skipping
+[dtoo] machine_0010 mesh.msh present, skipping
+[dtoo] machine_0011 mesh.msh present, skipping
+[dtoo] machine_0012 mesh.msh present, skipping
+[dtoo] machine_0013 mesh.msh present, skipping
+[dtoo] machine_0014 mesh.msh present, skipping
+[dtoo] machine_0015 mesh.msh present, skipping
+[dtoo] machine_0016 mesh.msh present, skipping
+[dtoo] machine_0017 mesh.msh present, skipping
+[dtoo] machine_0018 mesh.msh present, skipping
+[dtoo] machine_0019 mesh.msh present, skipping
+[dtoo] machine_0020 mesh.msh present, skipping
+[dtoo] machine_0021 mesh.msh present, skipping
+[dtoo] machine_0022 mesh.msh present, skipping
+[dtoo] machine_0023 mesh.msh present, skipping
+[dtoo] machine_0024 mesh.msh present, skipping
+[dtoo] machine_0025 mesh.msh present, skipping
+[dtoo] machine_0026 mesh.msh present, skipping
+[dtoo] machine_0027 mesh.msh present, skipping
+[dtoo] machine_0028 mesh.msh present, skipping
+[dtoo] machine_0029 mesh.msh present, skipping
+[dtoo] machine_0030 mesh.msh present, skipping
+[dtoo] machine_0031 mesh.msh present, skipping
+[dtoo] machine_0032 mesh.msh present, skipping
+[dtoo] machine_0033 mesh.msh present, skipping
+[dtoo] machine_0034 mesh.msh present, skipping
+[dtoo] machine_0035 mesh.msh present, skipping
+[dtoo] machine_0036 mesh.msh present, skipping
+[dtoo] machine_0037 mesh.msh present, skipping
+[dtoo] machine_0038 mesh.msh present, skipping
+[dtoo] machine_0039 mesh.msh present, skipping
+[dtoo] machine_0040 mesh.msh present, skipping
+[dtoo] machine_0041 mesh.msh present, skipping
+[dtoo] machine_0042 mesh.msh present, skipping
+[dtoo] machine_0043 mesh.msh present, skipping
+[dtoo] machine_0044 mesh.msh present, skipping
+[dtoo] machine_0045 mesh.msh present, skipping
+[dtoo] machine_0046 mesh.msh present, skipping
+[dtoo] machine_0047 mesh.msh present, skipping
+[dtoo] machine_0048 mesh.msh present, skipping
+[dtoo] machine_0049 mesh.msh present, skipping
+[dtoo] machine_0050 mesh.msh present, skipping
+[dtoo] machine_0051 mesh.msh present, skipping
+[dtoo] machine_0052 mesh.msh present, skipping
+[dtoo] machine_0053 mesh.msh present, skipping
+[dtoo] machine_0054 mesh.msh present, skipping
+[dtoo] machine_0055 mesh.msh present, skipping
+[dtoo] machine_0056 mesh.msh present, skipping
+[dtoo] machine_0057 mesh.msh present, skipping
+[dtoo] machine_0058 mesh.msh present, skipping
+[dtoo] machine_0059 mesh.msh present, skipping
+[dtoo] machine_0060 mesh.msh present, skipping
+[dtoo] machine_0061 mesh.msh present, skipping
+[dtoo] machine_0062 mesh.msh present, skipping
+[dtoo] machine_0063 mesh.msh present, skipping
+[dtoo] machine_0064 mesh.msh present, skipping
+[dtoo] pending: 0 machines, parallel=32
+[dtoo] pass complete (xargs rc=0; 0 = all ok, 123 = at least one failed)
+[dtoo] container step rc=0 after 3s
+[dtoo] stage file      /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/stage_6897328.txt
+
+[dtoo] ================ yield summary ================
+[dtoo] wall            3s
+[dtoo] machines        63 exported, 0 failed, 0 not attempted
+[dtoo] mesh.msh        6.6G dataset total
+[dtoo] yield           63 / 63 attempted; with MISS >= 1, resubmit to finish
+[dtoo] feed these into batch_samples.slurm:
+[dtoo]   NS="2000 8000" CANDS="data/dataset/sobol/machine_00*" \
+[dtoo]       sbatch experimentell/hex3d_algohex/scripts/batch_samples.slurm
+[dtoo] ============================================
+[dtoo] keep this log:  git add experimentell/hex3d_algohex/logs && git commit -m 'cluster: dtOO export job 6897328 log'
+[dtoo] log file:       /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/batch_dtoo_export_6897328.log

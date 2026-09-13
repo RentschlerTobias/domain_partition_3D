@@ -191,12 +191,17 @@ echo "[batch] history         $HIST"
 
 if [ "$REPORT_AT" -gt 0 ] && [ "$(date +%s)" -lt "$REPORT_AT" ]; then
     (
-        sleep $(( REPORT_AT - $(date +%s) ))
+        # Poll in 5 s ticks: kill only reaches this subshell, so one long sleep
+        # would survive as an orphan and hold the tee pipe open -- job 6897408
+        # idled 2 h 40 min at the final wait after its samples phase that way,
+        # until it was cancelled. The whole subshell writes into the log file
+        # so no surviving tick can hold the pipe.
+        while [ "$(date +%s)" -lt "$REPORT_AT" ]; do sleep 5; done
         echo "[batch] ===== snapshot 2 min before the walltime ====="
         echo "[batch] samples ready  $(find "$OUT_ROOT" -name sample.npz 2>/dev/null | wc -l) of $TOTAL"
         echo "[batch] load           $(cut -d' ' -f1-3 /proc/loadavg)"
         echo "[batch] hm_threads     $(ps -eL -o comm= 2>/dev/null | grep -c '^HexMeshing')"
-    ) &
+    ) >> "$LOG" 2>&1 &
     REPORTER=$!
 else
     REPORTER=""
@@ -208,7 +213,8 @@ fi
 # a busy node from a stuck one -- the exact question job 6882450 left open.
 # Sample the host once a minute into this log instead: load says whether the
 # workers were doing work, hm_threads shows how many threads HexMeshing really
-# uses (i.e. whether the OMP_NUM_THREADS=1 pin reaches the container).
+# uses (i.e. whether the OMP_NUM_THREADS=1 pin reaches the container). Appends
+# straight to the file so its sleep ticks never hold the tee pipe either.
 (
     while :; do
         printf '[mon] %s load=%s run=%s hm_threads=%s memMB=%s\n' \
@@ -219,10 +225,17 @@ fi
             "$(free -m | awk '/Mem:/{print $3}')"
         sleep 60
     done
-) &
+) >> "$LOG" 2>&1 &
 MON=$!
 
 # -------------------------------------------------------------------- run it
+# Snapshot the samples that already exist: the end-of-run OK count includes
+# them (a skip costs milliseconds) and would inflate the rate -- job 6897408
+# started with 124 done and reported 141/hour for 114 new samples.
+PRE=0
+while read -r _tet _n d _rest; do
+    if [ -f "$d/sample.npz" ]; then PRE=$(( PRE + 1 )); fi
+done < "$MAN"
 t0=$(date +%s)
 # -P $P workers, one line each. --line means a whole manifest line becomes the
 # argument list, so the worker gets <tet> <n> <outdir> [params] positionally.
@@ -244,22 +257,23 @@ done < "$MAN"
 echo
 echo "[batch] ================ throughput ================"
 echo "[batch] wall            ${DT}s"
-echo "[batch] samples         $OK ok, $MISS missing, of $TOTAL"
+NEW=$(( OK - PRE ))
+echo "[batch] samples         $OK ok ($NEW new this run), $MISS missing, of $TOTAL"
 [ "$OK" -gt 0 ] && {
     echo "[batch] retained        $(du -sh "$OUT_ROOT" | cut -f1) total, $(( $(du -sk "$OUT_ROOT" | cut -f1) / OK )) KB per sample"
-    echo "[batch] measured rate   $(( OK * 3600 / (DT > 0 ? DT : 1) )) samples/hour"
-    # The measured rate is only a capacity number if the workers were actually
-    # busy. With TOTAL < P the wall time is the duration of the SLOWEST single
-    # sample and the rate says nothing about the node -- the first run of this
-    # script reported 8/hour for 3 samples on 32 slots, where the capacity was
-    # about 89/hour. Say which of the two this run measured.
-    if [ "$TOTAL" -lt "$P" ]; then
-        echo "[batch] ^^ NOT capacity: $TOTAL samples for $P slots, so the wall"
-        echo "[batch]    time is just the slowest single sample."
+    echo "[batch] measured rate   $(( NEW * 3600 / (DT > 0 ? DT : 1) )) samples/hour this run"
+    # The rate is only a capacity number if the workers were actually busy.
+    # With fewer NEW samples than P the wall time is the duration of the
+    # SLOWEST sample and the rate says nothing about the node -- the first run
+    # of this script reported 8/hour for 3 samples on 32 slots, where the
+    # capacity was about 89/hour. Say which of the two this run measured.
+    if [ "$NEW" -lt "$P" ]; then
+        echo "[batch] ^^ NOT capacity: only $NEW new samples for $P slots, so the"
+        echo "[batch]    wall time is just the slowest single sample."
         echo "[batch]    capacity would be ~$(( P * 3600 / (DT > 0 ? DT : 1) ))/hour -- UNVERIFIED,"
-        echo "[batch]    queue at least $P samples to measure it."
+        echo "[batch]    queue at least $P new samples to measure it."
     else
-        echo "[batch] ^^ saturated ($TOTAL >= $P), so this IS a capacity number."
+        echo "[batch] ^^ saturated ($NEW new >= $P), so this IS a capacity number."
     fi
 }
 [ "$MISS" -gt 0 ] && {

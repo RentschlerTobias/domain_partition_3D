@@ -383,3 +383,7 @@
 [mon] 08:19:32 load=47.17 46.98 48.42 run=47 hm_threads=3 memMB=25354
 [mon] 08:20:32 load=47.71 47.18 48.40 run=48 hm_threads=2 memMB=23654
 [mon] 08:21:32 load=47.97 47.35 48.38 run=49 hm_threads=2 memMB=23657
+[mon] 08:22:32 load=47.45 47.34 48.31 run=48 hm_threads=2 memMB=23647
+[mon] 08:23:32 load=44.28 46.47 47.95 run=49 hm_threads=2 memMB=23784
+[machine_0063_n8000] OK     2030s, sample 382 KB, kept 1906 KB total [ algohex=1797s clean_blocks=226s tfi=4s export=3s total=2030s]
+[mon] 08:24:32 load=46.15 46.60 47.90 run=47 hm_threads=2 memMB=23612

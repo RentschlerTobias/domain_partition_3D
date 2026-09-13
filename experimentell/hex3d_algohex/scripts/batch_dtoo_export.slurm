@@ -69,7 +69,7 @@ REPO="${REPO:-${SLURM_SUBMIT_DIR:-$WS/domain_partition_3D}}"
 LOGDIR="$REPO/experimentell/hex3d_algohex/logs"
 mkdir -p "$LOGDIR"
 LOG="$LOGDIR/batch_dtoo_export_${SLURM_JOB_ID:-manual}.log"
-exec > >(tee "$LOG") 2>&1
+exec > >(tee -a "$LOG") 2>&1
 WS="$(ws_find hex3d 2>/dev/null)"   # not from the env; see the leak note above
 # The eigenfrequencies checkout lives under the eigenfreq workspace (home
 # holds only symlinks into it); resolving it via ws_find keeps the ws_ naming
@@ -198,7 +198,7 @@ echo "[dtoo] stage file      $REPO/experimentell/hex3d_algohex/logs/stage_${SLUR
 # ------------------------------------------------------------------ harvest
 PF="$REPO/$DATASET"
 OK=0; MISS=0; FAIL=0
-for d in "$PF"/machine_00*; do
+for d in "$PF"/machine_*; do
     [ -d "$d" ] || continue
     if [ -f "$d/mesh.msh" ]; then OK=$(( OK + 1 ))
     elif [ -f "$d/export_error.txt" ]; then FAIL=$(( FAIL + 1 ))
@@ -211,7 +211,7 @@ echo "[dtoo] machines        $OK exported, $FAIL failed, $MISS not attempted"
 [ "$OK" -gt 0 ] && echo "[dtoo] mesh.msh        $(du -sh "$PF" | cut -f1) dataset total"
 echo "[dtoo] yield           $OK / $(( OK + FAIL )) attempted; with MISS >= 1, resubmit to finish"
 echo "[dtoo] feed these into batch_samples.slurm:"
-echo "[dtoo]   NS=\"2000 8000\" CANDS=\"$DATASET/machine_00*\" \\"
+echo "[dtoo]   NS=\"2000 8000\" CANDS=\"$DATASET/machine_*\" \\"
 echo "[dtoo]       sbatch experimentell/hex3d_algohex/scripts/batch_samples.slurm"
 echo "[dtoo] ============================================"
 [ "$MISS" -gt 0 ] && echo "[dtoo] $MISS machines have neither mesh.msh nor export_error.txt: job may have been cut before reaching them."

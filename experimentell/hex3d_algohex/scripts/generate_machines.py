@@ -99,7 +99,8 @@ def draw_points(
 
 
 def machine_dirs(root: Path) -> list[Path]:
-    return sorted(d for d in root.glob("machine_00*") if d.is_dir())
+    # machine_* (not machine_00*): refill rounds name machines machine_0100+.
+    return sorted(d for d in root.glob("machine_*") if d.is_dir())
 
 
 def skipped(root: Path) -> set[str]:
@@ -149,6 +150,12 @@ def main() -> None:
              "spawns one fresh python process per machine so dtOO SWIG state "
              "cannot accumulate (segfault risk, see dtoo_cfd_build.py)",
     )
+    p.add_argument(
+        "--grow",
+        action="store_true",
+        help="set --count to twice the sampler's count_target (refill growth; "
+             "keeps the Sobol prefix power-of-two)",
+    )
     args = p.parse_args()
 
     if not EF_SRC.is_dir():
@@ -181,6 +188,15 @@ def main() -> None:
             "labels": sorted(bounds),
             "created_by": "generate_machines.py",
         }
+
+    # Refill growth: batch_generate asks for the next round by doubling the
+    # recorded target instead of passing an arbitrary count -- Sobol balance
+    # wants power-of-two counts, and the sequence must stay ONE prefix so the
+    # existing machines keep their draws.
+    if args.grow:
+        target = state.get("count_target")
+        if target:
+            args.count = 2 * int(target)
 
     # On the cluster the --export pass runs INSIDE the dtOO container, whose
     # python3.13 provably has dtOOPythonSWIG (the smoke test) but NOT

@@ -104,6 +104,45 @@ echo "[batch] host $(hostname), job ${SLURM_JOB_ID:-none}"
 echo "[batch] $CORES cores, ${MEM_MB} MB"
 echo "[batch] concurrency $P   (memory allows $P_MEM, cores allow $P_CPU)"
 
+# ------------------------------------------------- walltime budget & drain
+# Lanes must not start work they cannot finish: at 32 lanes a sample takes
+# 893-1113 s, so the last minutes of a slot would only produce samples killed
+# at the walltime. DRAIN_SECONDS before the end every lane stops claiming work
+# (sample_one.sh checks DRAIN_DEADLINE); two minutes before the end a snapshot
+# is written into the log, because the summary below never prints when SLURM
+# kills the job at the limit (job 6890146 idled into exactly that kill).
+parse_wall() {
+    case "$1" in
+        [0-9]*-*:*)
+            d=${1%%-*}; t=${1#*-}
+            h=${t%%:*}; m=${t#*:}; m=${m%%:*}; s=${t##*:}
+            echo $(( 10#${d:-0} * 86400 + 10#${h:-0} * 3600 + 10#${m:-0} * 60 + 10#${s:-0} )) ;;
+        [0-9]*:*:*)
+            h=${1%%:*}; r=${1#*:}; m=${r%%:*}; s=${r##*:}
+            echo $(( 10#${h:-0} * 3600 + 10#${m:-0} * 60 + 10#${s:-0} )) ;;
+        [0-9]*:*)
+            # squeue prints minutes:seconds for a remaining time below one
+            # hour -- i.e. always on the 30-minute dev partition.
+            m=${1%%:*}; s=${1##*:}
+            echo $(( 10#${m:-0} * 60 + 10#${s:-0} )) ;;
+        *) echo "" ;;
+    esac
+}
+DRAIN_SECONDS="${DRAIN_SECONDS:-1500}"
+JOB_END=0; DRAIN_DEADLINE=0; REPORT_AT=0; LEFT=""
+if [ -n "${SLURM_JOB_ID:-}" ]; then
+    LEFT=$(parse_wall "$(squeue -h -j "$SLURM_JOB_ID" -o %L 2>/dev/null || true)")
+fi
+if [ -n "$LEFT" ] && [ "$LEFT" -gt 0 ]; then
+    JOB_END=$(( $(date +%s) + LEFT ))
+    DRAIN_DEADLINE=$(( JOB_END - DRAIN_SECONDS ))
+    REPORT_AT=$(( JOB_END - 120 ))
+    echo "[batch] walltime left ${LEFT}s: no new samples in the last ${DRAIN_SECONDS}s, snapshot 120s before the end"
+else
+    echo "[batch] no walltime from squeue -- drain and early snapshot disabled"
+fi
+export SAMPLE_TIMEOUT="${SAMPLE_TIMEOUT:-2400}" JOB_END DRAIN_DEADLINE
+
 # ------------------------------------------------------------------ manifest
 # One line per sample: <tet> <n> <outdir> [params]
 MAN="$OUT_ROOT/manifest.txt"
@@ -143,6 +182,26 @@ TOTAL=$(wc -l < "$MAN")
 echo "[batch] $TOTAL samples queued:"
 sed 's/^/          /' "$MAN"
 
+# ------------------------------------------------------------ state history
+# One TSV row per finished sample attempt (ok/fail/prune, per-stage seconds),
+# appended by sample_one.sh; the snapshot survives the walltime kill.
+HIST="$OUT_ROOT/sample_history.tsv"
+[ -f "$HIST" ] || printf '# ts\tmachine\tn\tstatus\tstage\trc\tstages\n' > "$HIST"
+echo "[batch] history         $HIST"
+
+if [ "$REPORT_AT" -gt 0 ] && [ "$(date +%s)" -lt "$REPORT_AT" ]; then
+    (
+        sleep $(( REPORT_AT - $(date +%s) ))
+        echo "[batch] ===== snapshot 2 min before the walltime ====="
+        echo "[batch] samples ready  $(find "$OUT_ROOT" -name sample.npz 2>/dev/null | wc -l) of $TOTAL"
+        echo "[batch] load           $(cut -d' ' -f1-3 /proc/loadavg)"
+        echo "[batch] hm_threads     $(ps -eL -o comm= 2>/dev/null | grep -c '^HexMeshing')"
+    ) &
+    REPORTER=$!
+else
+    REPORTER=""
+fi
+
 # ------------------------------------------------------------- host monitor
 # SLURM's per-job CPU accounting reports 0.00 % for these enroot payloads (job
 # 6861458 finished six samples at 0.00 %, verified on disk), so it cannot tell
@@ -171,6 +230,10 @@ xargs -a "$MAN" -P "$P" -L 1 bash "$E/scripts/sample_one.sh"
 DT=$(( $(date +%s) - t0 ))
 kill "$MON" 2>/dev/null || true
 wait "$MON" 2>/dev/null || true
+if [ -n "$REPORTER" ]; then
+    kill "$REPORTER" 2>/dev/null || true
+    wait "$REPORTER" 2>/dev/null || true
+fi
 
 # ------------------------------------------------------------------ summary
 OK=0; MISS=0

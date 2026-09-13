@@ -1,0 +1,475 @@
+[gen] host uc2n842.localdomain, job 6890146
+[gen] NS='2000 8000' PAR=32 PARALLEL=32 OMP_NUM_THREADS=1
+[gen] ================ phase 1/2: dtOO meshes ================
+[dtoo] host uc2n842.localdomain, job 6890146, 1 cores, parallelism 32
+[dtoo] repo /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D
+[dtoo] image /pfs/work9/workspace/scratch/st_ac136362-eigenfreq/enroot-images/dtOO.sqsh
+[dtoo] container dtOO already unpacked, skipping
+[dtoo] preflight ok
+[dtoo] rootfs lock free
+[dtoo] lock probe rc=0 (0 free, 1 busy, 124 stuck)
+[dtoo] container step starting at 2026-09-13T00:11:22+02:00
+[dtoo] container env ready, exporting
+[dtoo] progress log: /repo/experimentell/hex3d_algohex/logs/export_progress_6890146.log (parallel=32)
+[dtoo] case source: /dtOO/build/test/tistos
+[dtoo] machine_0001 mesh.msh present, skipping
+[dtoo] machine_0002 mesh.msh present, skipping
+[dtoo] machine_0003 mesh.msh present, skipping
+[dtoo] machine_0004 mesh.msh present, skipping
+[dtoo] machine_0005 mesh.msh present, skipping
+[dtoo] machine_0007 mesh.msh present, skipping
+[dtoo] machine_0008 mesh.msh present, skipping
+[dtoo] machine_0009 mesh.msh present, skipping
+[dtoo] machine_0010 mesh.msh present, skipping
+[dtoo] machine_0011 mesh.msh present, skipping
+[dtoo] machine_0012 mesh.msh present, skipping
+[dtoo] machine_0013 mesh.msh present, skipping
+[dtoo] machine_0014 mesh.msh present, skipping
+[dtoo] machine_0015 mesh.msh present, skipping
+[dtoo] machine_0016 mesh.msh present, skipping
+[dtoo] machine_0017 mesh.msh present, skipping
+[dtoo] machine_0018 mesh.msh present, skipping
+[dtoo] machine_0019 mesh.msh present, skipping
+[dtoo] machine_0020 mesh.msh present, skipping
+[dtoo] machine_0021 mesh.msh present, skipping
+[dtoo] machine_0022 mesh.msh present, skipping
+[dtoo] machine_0023 mesh.msh present, skipping
+[dtoo] machine_0024 mesh.msh present, skipping
+[dtoo] machine_0025 mesh.msh present, skipping
+[dtoo] machine_0026 mesh.msh present, skipping
+[dtoo] machine_0027 mesh.msh present, skipping
+[dtoo] machine_0028 mesh.msh present, skipping
+[dtoo] machine_0029 mesh.msh present, skipping
+[dtoo] machine_0030 mesh.msh present, skipping
+[dtoo] machine_0031 mesh.msh present, skipping
+[dtoo] machine_0032 mesh.msh present, skipping
+[dtoo] machine_0033 mesh.msh present, skipping
+[dtoo] machine_0034 mesh.msh present, skipping
+[dtoo] machine_0035 mesh.msh present, skipping
+[dtoo] machine_0036 mesh.msh present, skipping
+[dtoo] machine_0037 mesh.msh present, skipping
+[dtoo] machine_0038 mesh.msh present, skipping
+[dtoo] machine_0039 mesh.msh present, skipping
+[dtoo] machine_0040 mesh.msh present, skipping
+[dtoo] machine_0041 mesh.msh present, skipping
+[dtoo] machine_0042 mesh.msh present, skipping
+[dtoo] machine_0043 mesh.msh present, skipping
+[dtoo] machine_0044 mesh.msh present, skipping
+[dtoo] machine_0045 mesh.msh present, skipping
+[dtoo] machine_0046 mesh.msh present, skipping
+[dtoo] machine_0047 mesh.msh present, skipping
+[dtoo] machine_0048 mesh.msh present, skipping
+[dtoo] machine_0049 mesh.msh present, skipping
+[dtoo] machine_0050 mesh.msh present, skipping
+[dtoo] machine_0051 mesh.msh present, skipping
+[dtoo] machine_0052 mesh.msh present, skipping
+[dtoo] machine_0053 mesh.msh present, skipping
+[dtoo] machine_0054 mesh.msh present, skipping
+[dtoo] machine_0055 mesh.msh present, skipping
+[dtoo] machine_0056 mesh.msh present, skipping
+[dtoo] machine_0057 mesh.msh present, skipping
+[dtoo] machine_0058 mesh.msh present, skipping
+[dtoo] machine_0059 mesh.msh present, skipping
+[dtoo] machine_0060 mesh.msh present, skipping
+[dtoo] machine_0061 mesh.msh present, skipping
+[dtoo] machine_0062 mesh.msh present, skipping
+[dtoo] machine_0063 mesh.msh present, skipping
+[dtoo] machine_0064 mesh.msh present, skipping
+[dtoo] pending: 1 machines, parallel=32
+[dtoo] exporting machine_0006 2026-09-13T00:11:26+02:00
+[sampler] draw skipped: all 64 machines carry params.json (export pass, scipy not needed here)
+[sampler] exporting 1 meshes (dtOO, container only)
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[dtoo] applied 30 parameter overrides
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+Warning : Gmsh has aleady been initialized
+[dtoo] plugin ru_adjustDomain applied
+[dtoo] makeGrid on ru_gridGmsh ...
+Debug   : Decoded option name 'General' . 'ExpertMode' (index 0)
+Debug   : Decoded option name 'Mesh' . 'LcIntegrationPrecision' (index 0)
+Debug   : Decoded option name 'Mesh' . 'CharacteristicLengthMin' (index 0)
+Debug   : Decoded option name 'Mesh' . 'CharacteristicLengthMax' (index 0)
+Debug   : Decoded option name 'Mesh' . 'Algorithm' (index 0)
+Debug   : Decoded option name 'Mesh' . 'MeshSizeExtendFromBoundary' (index 0)
+Debug   : Decoded option name 'Mesh' . 'MeshSizeFromPoints' (index 0)
+Debug   : Could not find next curve in loop, aborting
+Debug   : Could not find next curve in loop, aborting
+Debug   : Could not find next curve in loop, aborting
+Debug   : Could not find next curve in loop, aborting
+Debug   : Could not find next curve in loop, aborting
+Debug   : Could not find next curve in loop, aborting
+Debug   : Could not find next curve in loop, aborting
+Debug   : Could not find next curve in loop, aborting
+Debug   : Could not find next curve in loop, aborting
+Debug   : Could not find next curve in loop, aborting
+Info    : Setting mesh master using transformation
+Info    : Setting curve master 2 - 4
+Info    : Setting curve master 9 - 10
+Info    : Setting curve master 11 - 12
+Info    : Setting curve master 6 - 8
+Info    : Meshing vertex 1 ( dtGmshVertex )
+Info    : Meshing vertex 4 ( dtGmshVertex )
+Info    : Meshing vertex 5 ( dtGmshVertex )
+Info    : Meshing vertex 8 ( dtGmshVertex )
+Info    : Meshing vertex 9 ( dtGmshVertex )
+Info    : Meshing vertex 10 ( dtGmshVertex )
+Info    : Meshing vertex 11 ( dtGmshVertex )
+Info    : Meshing vertex 12 ( dtGmshVertex )
+Info    : Meshing vertex 13 ( dtGmshVertex )
+Info    : Meshing vertex 14 ( dtGmshVertex )
+Info    : Meshing vertex 15 ( dtGmshVertex )
+Info    : Meshing vertex 16 ( dtGmshVertex )
+Info    : Meshing vertex 17 ( dtGmshVertex )
+Info    : Meshing vertex 18 ( dtGmshVertex )
+Info    : Meshing vertex 19 ( dtGmshVertex )
+Info    : Meshing vertex 20 ( dtGmshVertex )
+Info    : Meshing vertex 21 ( dtGmshVertex )
+Info    : Meshing vertex 22 ( dtGmshVertex )
+Info    : Meshing vertex 23 ( dtGmshVertex )
+Info    : Meshing vertex 24 ( dtGmshVertex )
+Info    : Meshing vertex 25 ( dtGmshVertex )
+Info    : Meshing vertex 26 ( dtGmshVertex )
+Info    : Meshing vertex 27 ( dtGmshVertex )
+Info    : Meshing vertex 28 ( dtGmshVertex )
+Info    : Corresponding vertex 1 (master) -> 2 (slave)
+Info    : Corresponding vertex 4 (master) -> 3 (slave)
+Info    : Corresponding vertex 5 (master) -> 6 (slave)
+Info    : Corresponding vertex 8 (master) -> 7 (slave)
+Info    : Meshing curve 1 (Unknown)
+Debug   : Meshing curve 1 (Unknown): 10 interior vertices
+Info    : Meshing curve 3 (Unknown)
+Debug   : Meshing curve 3 (Unknown): 10 interior vertices
+Info    : Meshing curve 4 (Unknown)
+Debug   : Meshing curve 4 (Unknown): 33 interior vertices
+Info    : Meshing curve 5 (Unknown)
+Debug   : Meshing curve 5 (Unknown): 39 interior vertices
+Info    : Meshing curve 7 (Unknown)
+Debug   : Meshing curve 7 (Unknown): 39 interior vertices
+Info    : Meshing curve 8 (Unknown)
+Debug   : Meshing curve 8 (Unknown): 36 interior vertices
+Info    : Meshing curve 10 ( dtMeshFreeGradingGEdge transType=3, reverse=0)
+Info    : Meshing curve 12 ( dtMeshFreeGradingGEdge transType=3, reverse=0)
+Info    : Meshing curve 13 ( dtMeshFreeGradingGEdge transType=17, reverse=0)
+Info    : Meshing curve 14 ( dtMeshFreeGradingGEdge transType=6, reverse=0)
+Info    : Meshing curve 15 ( dtMeshFreeGradingGEdge transType=18, reverse=0)
+Info    : Meshing curve 16 ( dtMeshFreeGradingGEdge transType=6, reverse=0)
+Info    : Meshing curve 17 ( dtMeshFreeGradingGEdge transType=17, reverse=0)
+Info    : Meshing curve 18 ( dtMeshFreeGradingGEdge transType=6, reverse=0)
+Info    : Meshing curve 19 ( dtMeshFreeGradingGEdge transType=18, reverse=0)
+Info    : Meshing curve 20 ( dtMeshFreeGradingGEdge transType=6, reverse=0)
+Info    : Meshing curve 21 ( dtMeshFreeGradingGEdge transType=3, reverse=0)
+Info    : Meshing curve 22 ( dtMeshFreeGradingGEdge transType=3, reverse=0)
+Info    : Meshing curve 23 ( dtMeshFreeGradingGEdge transType=3, reverse=0)
+Info    : Meshing curve 24 ( dtMeshFreeGradingGEdge transType=3, reverse=0)
+Info    : Meshing curve 25 (Unknown)
+Debug   : Meshing curve 25 (Unknown): 15 interior vertices
+Info    : Meshing curve 26 ( dtMeshFreeGradingGEdge transType=6, reverse=0)
+Info    : Meshing curve 27 (Unknown)
+Debug   : Meshing curve 27 (Unknown): 15 interior vertices
+Info    : Meshing curve 28 (Unknown)
+Debug   : Meshing curve 28 (Unknown): 15 interior vertices
+Info    : Meshing curve 29 ( dtMeshFreeGradingGEdge transType=6, reverse=0)
+Info    : Meshing curve 30 (Unknown)
+Debug   : Meshing curve 30 (Unknown): 15 interior vertices
+Info    : Meshing curve 31 ( dtMeshFreeGradingGEdge transType=3, reverse=0)
+Info    : Meshing curve 32 ( dtMeshFreeGradingGEdge transType=3, reverse=0)
+Info    : Meshing curve 33 ( dtMeshFreeGradingGEdge transType=17, reverse=0)
+Info    : Meshing curve 34 ( dtMeshFreeGradingGEdge transType=6, reverse=0)
+Info    : Meshing curve 35 ( dtMeshFreeGradingGEdge transType=18, reverse=0)
+Info    : Meshing curve 36 ( dtMeshFreeGradingGEdge transType=17, reverse=0)
+Info    : Meshing curve 37 ( dtMeshFreeGradingGEdge transType=6, reverse=0)
+Info    : Meshing curve 38 ( dtMeshFreeGradingGEdge transType=18, reverse=0)
+Info    : Meshing curve 39 ( dtMeshFreeGradingGEdge transType=3, reverse=0)
+Info    : Meshing curve 40 ( dtMeshFreeGradingGEdge transType=3, reverse=0)
+Info    : Meshing curve 41 (Unknown)
+Debug   : Meshing curve 41 (Unknown): 7 interior vertices
+Info    : Meshing curve 42 ( dtMeshFreeGradingGEdge transType=6, reverse=0)
+Info    : Meshing curve 43 (Unknown)
+Debug   : Meshing curve 43 (Unknown): 7 interior vertices
+Info    : Meshing curve 44 (Unknown)
+Debug   : Meshing curve 44 (Unknown): 7 interior vertices
+Info    : Meshing curve 45 ( dtMeshFreeGradingGEdge transType=6, reverse=0)
+Info    : Meshing curve 46 (Unknown)
+Debug   : Meshing curve 46 (Unknown): 7 interior vertices
+Info    : Meshing curve 47 ( dtMeshFreeGradingGEdge transType=3, reverse=0)
+Info    : Meshing curve 48 ( dtMeshFreeGradingGEdge transType=3, reverse=0)
+Info    : Meshing curve 49 (Unknown)
+Debug   : Meshing curve 49 (Unknown): 7 interior vertices
+Info    : Meshing curve 50 (Unknown)
+Debug   : Meshing curve 50 (Unknown): 7 interior vertices
+Info    : Meshing curve 51 (Unknown)
+Debug   : Meshing curve 51 (Unknown): 7 interior vertices
+Info    : Meshing curve 52 (Unknown)
+Debug   : Meshing curve 52 (Unknown): 7 interior vertices
+Info    : Copy mesh from edge 4 to edge 2 ( dtMesh1DOperator )
+Info    : Meshing curve 2 (Unknown) as a copy of curve 4
+Info    : Copy mesh from edge 8 to edge 6 ( dtMesh1DOperator )
+Info    : Meshing curve 6 (Unknown) as a copy of curve 8
+Info    : Copy mesh from edge 10 to edge 9 ( dtMesh1DOperator )
+Info    : Meshing curve 9 (Unknown) as a copy of curve 10
+Info    : Copy mesh from edge 12 to edge 11 ( dtMesh1DOperator )
+Info    : Meshing curve 11 (Unknown) as a copy of curve 12
+Info    : Meshing surface 3 ( dtMeshGFaceWithTransfiniteLayer )
+Info    : Meshing surface 1 (Parametric surface, MeshAdapt)
+Debug   : Recovering 1 model edges
+Debug   : Recovering 83 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 1
+Debug   : Computing mesh size field at mesh nodes 83
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.434/   0.700 maxL    4.169/   1.400 -- Small/Large/Total (    30/   293/   835):    277 splits,    391 swaps,     53 collapses,    806 moves
+Debug   :  iter   2 minL    0.537/   0.700 maxL    1.658/   1.400 -- Small/Large/Total (    47/    23/  1540):    300 splits,    110 swaps,     65 collapses,   1163 moves
+Debug   :  iter   3 minL    0.537/   0.700 maxL    1.396/   1.400 -- Small/Large/Total (    48/     0/  1591):     26 splits,     17 swaps,      9 collapses,    459 moves
+Debug   :  iter   4 minL    0.537/   0.700 maxL    1.396/   1.400 -- Small/Large/Total (    41/     0/  1585):      1 splits,      1 swaps,      3 collapses,    173 moves
+Debug   :  iter   5 minL    0.537/   0.700 maxL    1.396/   1.400 -- Small/Large/Total (    41/     0/  1585):      0 splits,      0 swaps,      0 collapses,    144 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.36700E-03 sec (  0 %)
+Debug   :  CPU SPLIT    6.59180E-02 sec (  9 %) 
+Debug   :  CPU COLLAPS  1.15540E-01 sec ( 15 %) 
+Debug   :  CPU SMOOTH   5.63837E-01 sec ( 75 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    7.48662E-01 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.537/   0.700 maxL    1.396/   1.400 -- Small/Large/Total (    41/     0/  1585):      0 splits,      0 swaps,      0 collapses,    133 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     6.05000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    3.25970E-02 sec ( 26 %) 
+Debug   :  CPU COLLAPS  1.61600E-02 sec ( 13 %) 
+Debug   :  CPU SMOOTH   7.50330E-02 sec ( 60 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.24395E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 1029 triangles generated, 474 internal nodes
+Debug   : Destroying model myModel
+Info    : Meshing surface 4 ( dtMeshGFaceWithTransfiniteLayer )
+Info    : Meshing surface 1 (Parametric surface, MeshAdapt)
+Debug   : Recovering 1 model edges
+Debug   : Recovering 83 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 1
+Debug   : Computing mesh size field at mesh nodes 83
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.531/   0.700 maxL    3.495/   1.400 -- Small/Large/Total (    22/   281/   823):    279 splits,    403 swaps,     59 collapses,    792 moves
+Debug   :  iter   2 minL    0.531/   0.700 maxL    1.690/   1.400 -- Small/Large/Total (    45/    17/  1528):    290 splits,     97 swaps,     55 collapses,   1154 moves
+Debug   :  iter   3 minL    0.531/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    39/     0/  1561):     17 splits,     14 swaps,      6 collapses,    319 moves
+Debug   :  iter   4 minL    0.531/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    36/     0/  1561):      1 splits,      1 swaps,      1 collapses,    119 moves
+Debug   :  iter   5 minL    0.531/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    36/     0/  1561):      0 splits,      0 swaps,      0 collapses,     88 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     3.31200E-03 sec (  0 %)
+Debug   :  CPU SPLIT    6.39330E-02 sec (  9 %) 
+Debug   :  CPU COLLAPS  1.11539E-01 sec ( 16 %) 
+Debug   :  CPU SMOOTH   5.19170E-01 sec ( 74 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    6.97954E-01 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.531/   0.700 maxL    1.385/   1.400 -- Small/Large/Total (    36/     0/  1561):      0 splits,      0 swaps,      0 collapses,     74 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     6.04000E-04 sec (  0 %)
+Debug   :  CPU SPLIT    3.20860E-02 sec ( 26 %) 
+Debug   :  CPU COLLAPS  1.59730E-02 sec ( 13 %) 
+Debug   :  CPU SMOOTH   7.42290E-02 sec ( 60 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.22892E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 1013 triangles generated, 466 internal nodes
+Debug   : Destroying model myModel
+Info    : Meshing surface 5 ( dtMeshGFaceWithTransfiniteLayer )
+Info    : Meshing surface 1 (Parametric surface, MeshAdapt)
+Debug   : Recovering 1 model edges
+Debug   : Recovering 103 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 1
+Debug   : Computing mesh size field at mesh nodes 103
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.563/   0.700 maxL    3.248/   1.400 -- Small/Large/Total (    19/   460/  1091):    356 splits,    567 swaps,     60 collapses,   1036 moves
+Debug   :  iter   2 minL    0.577/   0.700 maxL    1.728/   1.400 -- Small/Large/Total (    70/    22/  2192):    465 splits,    160 swaps,     98 collapses,   1701 moves
+Debug   :  iter   3 minL    0.577/   0.700 maxL    1.516/   1.400 -- Small/Large/Total (    57/     2/  2225):     24 splits,     11 swaps,     13 collapses,    482 moves
+Debug   :  iter   4 minL    0.577/   0.700 maxL    1.394/   1.400 -- Small/Large/Total (    54/     0/  2231):      3 splits,      4 swaps,      1 collapses,    222 moves
+Debug   :  iter   5 minL    0.577/   0.700 maxL    1.394/   1.400 -- Small/Large/Total (    53/     0/  2228):      0 splits,      0 swaps,      1 collapses,    147 moves
+Debug   :  iter   6 minL    0.468/   0.700 maxL    1.394/   1.400 -- Small/Large/Total (    54/     0/  2228):      0 splits,      0 swaps,      0 collapses,    109 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     5.53600E-03 sec (  1 %)
+Debug   :  CPU SPLIT    1.14926E-01 sec ( 11 %) 
+Debug   :  CPU COLLAPS  1.88648E-01 sec ( 18 %) 
+Debug   :  CPU SMOOTH   7.33266E-01 sec ( 70 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.04238E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.468/   0.700 maxL    1.394/   1.400 -- Small/Large/Total (    54/     0/  2228):      0 splits,      0 swaps,      0 collapses,     66 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     8.58000E-04 sec (  1 %)
+Debug   :  CPU SPLIT    4.68430E-02 sec ( 28 %) 
+Debug   :  CPU COLLAPS  2.33520E-02 sec ( 14 %) 
+Debug   :  CPU SMOOTH   9.87160E-02 sec ( 58 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    1.69769E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 1451 triangles generated, 675 internal nodes
+Debug   : Destroying model myModel
+Info    : Meshing surface 2 (Parametric surface, MeshAdapt)
+Debug   : Recovering 9 model edges
+Debug   : Edge 4 177 has to be recovered
+Debug   : edge 4 177 on model edge 38 cannot be recovered because it intersects 174 175 on model edge 30
+Debug   : Recovering 266 mesh edges (2 not recovered)
+Info    : :-( There are 2 intersections in the 1D mesh (curves 38 30)
+Info    : 8-| Splitting those edges and trying again - level 0
+Debug   : Recovering 9 model edges
+Debug   : Edge 4 266 has to be recovered
+Debug   : edge 4 266 on model edge 38 cannot be recovered because it intersects 174 267 on model edge 30
+Debug   : Recovering 268 mesh edges (2 not recovered)
+Info    : :-( There are 2 intersections in the 1D mesh (curves 38 30)
+Info    : 8-| Splitting those edges and trying again - level 1
+Debug   : Recovering 9 model edges
+Debug   : Edge 174 269 has to be recovered
+Debug   : Edge 4 268 has to be recovered
+Debug   : Edge 268 266 has to be recovered
+Debug   : edge 268 266 on model edge 38 cannot be recovered because it intersects 174 269 on model edge 30
+Debug   : Recovering 270 mesh edges (2 not recovered)
+Info    : :-( There are 2 intersections in the 1D mesh (curves 30 38)
+Info    : 8-| Splitting those edges and trying again - level 2
+Debug   : Recovering 9 model edges
+Debug   : Edge 174 270 has to be recovered
+Debug   : Edge 4 268 has to be recovered
+Debug   : Edge 271 266 has to be recovered
+Debug   : edge 271 266 on model edge 38 cannot be recovered because it intersects 174 270 on model edge 30
+Debug   : Recovering 272 mesh edges (2 not recovered)
+Info    : :-( There are 2 intersections in the 1D mesh (curves 30 38)
+Info    : 8-| Splitting those edges and trying again - level 3
+Debug   : Recovering 9 model edges
+Debug   : Edge 272 270 has to be recovered
+Debug   : Edge 4 268 has to be recovered
+Debug   : Edge 273 266 has to be recovered
+Debug   : edge 273 266 on model edge 38 cannot be recovered because it intersects 270 272 on model edge 30
+Debug   : Recovering 274 mesh edges (2 not recovered)
+Info    : :-( There are 2 intersections in the 1D mesh (curves 38 30)
+Info    : 8-| Splitting those edges and trying again - level 4
+Debug   : Recovering 9 model edges
+Debug   : Edge 4 268 has to be recovered
+Debug   : Edge 274 266 has to be recovered
+Debug   : edge 274 266 on model edge 38 cannot be recovered because it intersects 270 275 on model edge 30
+Debug   : Recovering 276 mesh edges (2 not recovered)
+Info    : :-( There are 2 intersections in the 1D mesh (curves 38 30)
+Info    : 8-| Splitting those edges and trying again - level 5
+Debug   : Recovering 9 model edges
+Debug   : Edge 4 268 has to be recovered
+Debug   : Edge 276 266 has to be recovered
+Debug   : edge 276 266 on model edge 38 cannot be recovered because it intersects 275 277 on model edge 30
+Debug   : Recovering 278 mesh edges (2 not recovered)
+Info    : :-( There are 2 intersections in the 1D mesh (curves 38 30)
+Info    : 8-| Splitting those edges and trying again - level 6
+Debug   : Recovering 9 model edges
+Debug   : Edge 4 268 has to be recovered
+Debug   : Edge 278 266 has to be recovered
+Debug   : edge 278 266 on model edge 38 cannot be recovered because it intersects 277 279 on model edge 30
+Debug   : Recovering 280 mesh edges (2 not recovered)
+Info    : :-( There are 2 intersections in the 1D mesh (curves 38 30)
+Info    : 8-| Splitting those edges and trying again - level 7
+Debug   : Recovering 9 model edges
+Debug   : Edge 279 281 has to be recovered
+Debug   : Edge 4 268 has to be recovered
+Debug   : Edge 278 280 has to be recovered
+Debug   : edge 278 280 on model edge 38 cannot be recovered because it intersects 279 281 on model edge 30
+Debug   : Recovering 282 mesh edges (2 not recovered)
+Info    : :-( There are 2 intersections in the 1D mesh (curves 38 30)
+Info    : 8-| Splitting those edges and trying again - level 8
+Debug   : Recovering 9 model edges
+Debug   : Edge 279 283 has to be recovered
+Debug   : edge 279 283 on model edge 30 cannot be recovered because it intersects 280 282 on model edge 38
+Debug   : Recovering 284 mesh edges (2 not recovered)
+Info    : :-( There are 2 intersections in the 1D mesh (curves 30 38)
+Info    : 8-| Splitting those edges and trying again - level 9
+Debug   : Recovering 9 model edges
+Debug   : Edge 284 283 has to be recovered
+Debug   : edge 284 283 on model edge 30 cannot be recovered because it intersects 282 285 on model edge 38
+Debug   : Recovering 286 mesh edges (2 not recovered)
+Info    : :-( There are 2 intersections in the 1D mesh (curves 38 30)
+Info    : 8-| Splitting those edges and trying again - level 10
+Debug   : Type 23 0 triangles generated, 0 internal nodes
+Info    : Meshing surface 1 (Parametric surface, MeshAdapt)
+Debug   : Recovering 9 model edges
+Debug   : Recovering 202 mesh edges (0 not recovered)
+Debug   : Boundary edges recovered for surface 1
+Debug   : Computing mesh size field at mesh nodes 202
+Debug   : Delaunizing the initial mesh
+Debug   : Starting to add internal nodes
+Debug   :  iter   1 minL    0.243/   0.700 maxL    8.579/   1.400 -- Small/Large/Total (   148/   670/  1988):    736 splits,    637 swaps,    208 collapses,   1926 moves
+Debug   :  iter   2 minL    0.270/   0.700 maxL    4.564/   1.400 -- Small/Large/Total (   159/   205/  3098):    670 splits,    648 swaps,    300 collapses,   2876 moves
+Debug   :  iter   3 minL    0.446/   0.700 maxL    1.629/   1.400 -- Small/Large/Total (    94/     5/  3401):    205 splits,    154 swaps,    104 collapses,   1612 moves
+Debug   :  iter   4 minL    0.446/   0.700 maxL    1.407/   1.400 -- Small/Large/Total (    78/     1/  3386):      5 splits,      7 swaps,     10 collapses,    430 moves
+Debug   :  iter   5 minL    0.446/   0.700 maxL    1.360/   1.400 -- Small/Large/Total (    70/     0/  3380):      1 splits,      1 swaps,      3 collapses,    238 moves
+Debug   :  iter   6 minL    0.446/   0.700 maxL    1.360/   1.400 -- Small/Large/Total (    68/     0/  3377):      0 splits,      0 swaps,      1 collapses,    185 moves
+Debug   :  iter   7 minL    0.446/   0.700 maxL    1.360/   1.400 -- Small/Large/Total (    68/     0/  3377):      0 splits,      0 swaps,      0 collapses,    159 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.09230E-02 sec (  0 %)
+Debug   :  CPU SPLIT    2.13414E-01 sec (  8 %) 
+Debug   :  CPU COLLAPS  4.17349E-01 sec ( 15 %) 
+Debug   :  CPU SMOOTH   2.19912E+00 sec ( 77 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    2.84081E+00 sec 
+Debug   :  ---------------------------------------
+Debug   :  iter   1 minL    0.446/   0.700 maxL    1.360/   1.400 -- Small/Large/Total (    68/     0/  3377):      0 splits,      0 swaps,      0 collapses,    142 moves
+Debug   :  ---------------------------------------
+Debug   :  CPU Report 
+Debug   :  ---------------------------------------
+Debug   :  CPU SWAP     1.36500E-03 sec (  0 %)
+Debug   :  CPU SPLIT    7.06100E-02 sec ( 22 %) 
+Debug   :  CPU COLLAPS  3.49870E-02 sec ( 11 %) 
+Debug   :  CPU SMOOTH   2.14954E-01 sec ( 67 %) 
+Debug   :  ---------------------------------------
+Debug   :  CPU TOTAL    3.21916E-01 sec 
+Debug   :  ---------------------------------------
+Debug   : Type 23 2184 triangles generated, 991 internal nodes
+Info    : Meshing surface 2 (Parametric surface, MeshAdapt)
+srun: forcing job termination
+srun: got SIGCONT
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+[2026-09-13T00:36:22.712] error: *** STEP 6890146.1 ON uc2n842 CANCELLED AT 2026-09-13T00:36:22 DUE to SIGNAL Killed ***
+srun: error: uc2n842: task 0: Killed
+[dtoo] container step rc=124 after 1500s
+[dtoo] step hit the 1500 s bound -- stall, not a value error
+[dtoo] stage file      /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/stage_6890146.txt
+
+[dtoo] ================ yield summary ================
+[dtoo] wall            1500s
+[dtoo] machines        63 exported, 0 failed, 1 not attempted
+[dtoo] mesh.msh        6.7G dataset total
+[dtoo] yield           63 / 63 attempted; with MISS >= 1, resubmit to finish
+[dtoo] feed these into batch_samples.slurm:
+[dtoo]   NS="2000 8000" CANDS="data/dataset/sobol/machine_00*" \
+[dtoo]       sbatch experimentell/hex3d_algohex/scripts/batch_samples.slurm
+[dtoo] ============================================
+[dtoo] 1 machines have neither mesh.msh nor export_error.txt: job may have been cut before reaching them.
+[dtoo] keep this log:  git add experimentell/hex3d_algohex/logs && git commit -m 'cluster: dtOO export job 6890146 log'
+[dtoo] log file:       /pfs/work9/workspace/scratch/st_ac136362-hex3d/domain_partition_3D/experimentell/hex3d_algohex/logs/batch_dtoo_export_6890146.log

@@ -102,7 +102,7 @@ export_one() {
 export -f export_one
 
 todo=()
-for d in "$DS"/machine_00*; do
+for d in "$DS"/machine_*; do
     [ -d "$d" ] || continue
     name=$(basename "$d")
     # Deliberately retired machines live in the dataset's skip.txt (e.g.

@@ -67,7 +67,7 @@ REPO="${REPO:-${SLURM_SUBMIT_DIR:-$WS/domain_partition_3D}}"
 LOGDIR="$REPO/experimentell/hex3d_algohex/logs"
 mkdir -p "$LOGDIR"
 LOG="$LOGDIR/batch_samples_${SLURM_JOB_ID:-manual}.log"
-exec > >(tee "$LOG") 2>&1
+exec > >(tee -a "$LOG") 2>&1
 
 PYTHON_MODULE="${PYTHON_MODULE:-devel/python/3.13.3-gnu-14.2}"
 NS="${NS:-500 2000 8000}"          # the -n values; each becomes its own sample

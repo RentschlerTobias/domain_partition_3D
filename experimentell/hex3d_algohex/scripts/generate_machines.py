@@ -102,6 +102,24 @@ def machine_dirs(root: Path) -> list[Path]:
     return sorted(d for d in root.glob("machine_00*") if d.is_dir())
 
 
+def skipped(root: Path) -> set[str]:
+    """Names listed in root/skip.txt: machines deliberately kept out of the
+    dataset. The draw-skip test in main() counts every name whose directory
+    is absent towards --count, so deleting a machine cannot re-open the full
+    Sobol draw -- that draw needs scipy.stats, which the dtOO container's
+    python3.13 does not ship. Blank lines and '#' comments are ignored.
+    """
+    skip_file = root / "skip.txt"
+    if not skip_file.exists():
+        return set()
+    names = set()
+    for line in skip_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            names.add(line)
+    return names
+
+
 def pending(dirs: list[Path], want_mesh: bool) -> list[Path]:
     """Q2: presence is the marker. --export only looks for mesh.msh; the
     params draw itself is already durable."""
@@ -171,11 +189,16 @@ def main() -> None:
     # values are durable in the filesystem itself (Q2) -- so skip it and keep
     # the container dependency down to the adapter.
     drawn = machine_dirs(root)
+    # Machines listed in skip.txt are deliberately absent: count them as known
+    # members of the draw. Without this the deleted directory would fail the
+    # length test below and re-open the full draw, which needs scipy.stats --
+    # the container's python3.13 does not ship it (see the comment above).
+    absent_skips = [s for s in skipped(root) if not (root / s).exists()]
     if not (args.export
             and (root / "sampler.json").exists()
             and drawn
             and all((d / "params.json").exists() for d in drawn)
-            and len(drawn) >= args.count):
+            and len(drawn) + len(absent_skips) >= args.count):
         points = draw_points(args.strategy, args.count, args.seed, bounds)
         new = 0
         for i, values in enumerate(points):

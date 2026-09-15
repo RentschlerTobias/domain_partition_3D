@@ -82,7 +82,7 @@ def _env_args(backend):
 
 
 def container_cmd(backend, args, image=None, cpus=None, mounts=()):
-    """One command line for either runtime. `mounts` is (host, container).
+    """One command line for any runtime. `mounts` is (host, container).
 
     The only real asymmetry is `--cpus`. Docker can cap a container directly;
     enroot cannot, because it is not a resource manager -- under SLURM that is
@@ -92,6 +92,19 @@ def container_cmd(backend, args, image=None, cpus=None, mounts=()):
     throttled in the first place.
     """
     binds = list(mounts) or [(str(REPO), WORK)]
+    if backend == "native":
+        # Inside the pipeline Apptainer image AlgoHex is built from source and
+        # HexMeshing is on PATH, so there is nothing to start: it is an
+        # ordinary subprocess. This matters beyond convenience -- an agent
+        # confined to that image must NOT be able to reach `docker` or
+        # `apptainer`, and a chain that shells out to a container runtime would
+        # hand it exactly the tool the sandbox exists to withhold.
+        if cpus:
+            raise SystemExit(
+                "[run_algohex] --cpus is docker-only; with --backend native "
+                "limit CPU outside this process (SLURM --cpus-per-task, or "
+                "taskset/systemd-run on a bare box).")
+        return [HEXMESHING_BIN, *args]
     if backend == "docker":
         cmd = ["docker", "run", "--rm", "--network=host", *_env_args(backend)]
         if cpus:
@@ -128,14 +141,20 @@ def container_cmd(backend, args, image=None, cpus=None, mounts=()):
     raise SystemExit(f"[run_algohex] unknown backend {backend!r}")
 
 
-def _work_path(p):
+def _work_path(p, backend="docker"):
     """Host path -> its path inside the container.
 
     Only the repository is mounted, at /work, so anything outside it is
     invisible to AlgoHex. Saying so here beats a `relative_to` ValueError from
     four minutes into a run, which is how this was found.
+
+    With ``backend="native"`` there is no container and therefore no
+    translation: the path is already the path AlgoHex will open. Translating it
+    anyway would invent a /work prefix that exists nowhere.
     """
     p = Path(p).resolve()
+    if backend == "native":
+        return str(p)
     try:
         rel = p.relative_to(REPO)
     except ValueError:
@@ -167,9 +186,9 @@ def run_hexmeshing(extra_args=(), tag="", in_vtk=None, prefix="T1_9",
     json_out = out_dir / f"{prefix}_hex_metrics{sfx}.json"
     log_path = out_dir / f"hexmeshing{sfx}.log"
 
-    args = ["-i", _work_path(in_vtk),
-            "-o", _work_path(out_ovm),
-            "-j", _work_path(json_out)]
+    args = ["-i", _work_path(in_vtk, backend),
+            "-o", _work_path(out_ovm, backend),
+            "-j", _work_path(json_out, backend)]
 
     # The seamless map and the post-singularity tet mesh used to be written
     # unconditionally, to make -n sweeps cheap by replaying them. That does
@@ -180,9 +199,9 @@ def run_hexmeshing(extra_args=(), tag="", in_vtk=None, prefix="T1_9",
     # wanted for the singular-graph figure (ANALYSIS_PLAN step 04).
     if checkpoints:
         args += ["--sm-out-path",
-                 _work_path(out_dir / f"{prefix}_seamless{sfx}.hexex"),
+                 _work_path(out_dir / f"{prefix}_seamless{sfx}.hexex", backend),
                  "--final-tetmesh-out-path",
-                 _work_path(out_dir / f"{prefix}_final_tet{sfx}.ovm")]
+                 _work_path(out_dir / f"{prefix}_final_tet{sfx}.ovm", backend)]
 
     cmd = container_cmd(backend, [*args, *extra_args], image=image, cpus=cpus)
     print(f"[run_algohex] backend={backend}")
@@ -218,9 +237,22 @@ def run_hexmeshing(extra_args=(), tag="", in_vtk=None, prefix="T1_9",
     return proc.returncode, out_ovm, json_out, log_path
 
 
+def resolve_backend(backend):
+    """Turn ``auto`` into a concrete backend.
+
+    ``native`` when HexMeshing is already on PATH -- which is the case inside
+    the pipeline Apptainer image, and nowhere else -- otherwise ``docker``,
+    the historical default on the 6-machine cluster.
+    """
+    if backend != "auto":
+        return backend
+    return "native" if shutil.which(HEXMESHING_BIN) else "docker"
+
+
 def check_backend(backend):
     """Fail early and with the reason, not mid-run."""
-    need = {"docker": "docker", "enroot": "enroot"}[backend]
+    need = {"docker": "docker", "enroot": "enroot",
+            "native": HEXMESHING_BIN}[backend]
     if shutil.which(need) is None:
         raise SystemExit(f"[run_algohex] backend {backend!r} needs {need!r} "
                          f"on PATH and it is not there")
@@ -237,10 +269,12 @@ if __name__ == "__main__":
     ap.add_argument("--prefix", default="T1_9",
                     help="output filename prefix; T1_9 was hard-coded while "
                          "that was the only geometry")
-    ap.add_argument("--backend", choices=("docker", "enroot"),
-                    default="docker",
-                    help="docker on the 6-machine cluster, enroot on "
-                         "bwUniCluster 3.0 (decision H)")
+    ap.add_argument("--backend", choices=("auto", "native", "docker", "enroot"),
+                    default="auto",
+                    help="native inside the pipeline Apptainer image, docker "
+                         "on the 6-machine cluster, enroot on bwUniCluster 3.0 "
+                         "(decision H). auto picks native when HexMeshing is "
+                         "already on PATH, else docker")
     ap.add_argument("--image", default=None,
                     help=f"docker tag (default {DOCKER_IMAGE}) or path to a "
                          f".sqsh (default {ENROOT_IMAGE.name})")
@@ -254,11 +288,12 @@ if __name__ == "__main__":
     ap.add_argument("rest", nargs=argparse.REMAINDER,
                     help="extra flags passed straight to HexMeshing")
     a = ap.parse_args()
-    check_backend(a.backend)
+    backend = resolve_backend(a.backend)
+    check_backend(backend)
     extra = [x for x in a.rest if x != "--"]
     rc, out_ovm, json_out, log_path = run_hexmeshing(
         extra, tag=a.tag, in_vtk=a.in_vtk, prefix=a.prefix, cpus=a.cpus,
-        backend=a.backend, image=a.image, out_dir=a.out_dir,
+        backend=backend, image=a.image, out_dir=a.out_dir,
         checkpoints=a.checkpoints)
     print(f"[run_algohex] hex mesh: {out_ovm}")
     sys.exit(rc)

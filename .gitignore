@@ -22,6 +22,14 @@ data/random_tistos/investigated/*
 !data/random_tistos/investigated/*/
 data/random_tistos/investigated/*/*
 !data/random_tistos/investigated/*/params.json
+
+# Same shape for the generated block-structure corpus: 377 MB across 1462
+# files per run (sample.npz, blocks*.vtk, per-stage logs). Only the manifest
+# is small enough and stable enough to be worth versioning; the artifacts it
+# lists belong on scratch with their checksums, not in the history, because
+# git never forgets a blob.
+data/tistos_domain_partition/*
+!data/tistos_domain_partition/manifest.txt
 graphify-out/
 html_files/
 .omo/

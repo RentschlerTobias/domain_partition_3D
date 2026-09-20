@@ -82,6 +82,27 @@ export ENROOT_TEMP_PATH="${ENROOT_TEMP_PATH:-/tmp/${USER:-$(id -un)}-enroot}"
 export ENROOT_RUNTIME_PATH="${ENROOT_RUNTIME_PATH:-/tmp/${USER:-$(id -un)}-enroot-run}"
 mkdir -p "$ENROOT_TEMP_PATH" "$ENROOT_RUNTIME_PATH"
 
+# enroot start uses the NAME form ('algohex', see run_algohex.py): the
+# container must exist unpacked under this node's ENROOT_DATA_PATH. Race-safe
+# install (private name + mv -T), mirrors batch_dtoo_export.slurm.
+CONTAINER="${CONTAINER:-algohex}"
+SQSH="${SQSH:-$WS/enroot-images/algohex.sqsh}"
+if ! enroot list 2>/dev/null | grep -qxF "$CONTAINER"; then
+    tmp_name="$CONTAINER.${SLURM_JOB_ID:-$$}"
+    echo "[batch] unpacking $SQSH -> $ENROOT_DATA_PATH/$CONTAINER"
+    enroot create --name "$tmp_name" "$SQSH" \
+        || { echo "[batch] enroot create failed: $SQSH"; exit 1; }
+    if mv -T "$ENROOT_DATA_PATH/$tmp_name" "$ENROOT_DATA_PATH/$CONTAINER" 2>/dev/null; then
+        echo "[batch] container $CONTAINER installed"
+    else
+        rm -rf "$ENROOT_DATA_PATH/$tmp_name"
+        enroot list 2>/dev/null | grep -qxF "$CONTAINER" \
+            || { echo "[batch] container install mismatch: $ENROOT_DATA_PATH/$CONTAINER"; exit 1; }
+    fi
+else
+    echo "[batch] container $CONTAINER already unpacked"
+fi
+
 cd "$REPO" || exit 1
 E=experimentell/hex3d_algohex
 mkdir -p "$OUT_ROOT"

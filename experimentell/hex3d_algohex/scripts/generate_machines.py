@@ -264,7 +264,12 @@ def main() -> None:
         print(f"[sampler] exporting {len(todo)} meshes (dtOO, container only)")
         failed: list[str] = []
         for d in todo:
-            values = json.loads((d / "params.json").read_text())
+            try:
+                values = json.loads((d / "params.json").read_text())
+            except Exception:  # noqa: BLE001 - torn/empty params.json from a killed run
+                failed.append(d.name)
+                print(f"[sampler] {d.name} export SKIPPED: corrupt params.json")
+                continue
             try:
                 # export_mesh(design_values) -> str has no output kwarg
                 # (adapter.py:35); location comes from DTOO_OUTPUT_MSH, which
@@ -293,7 +298,14 @@ def main() -> None:
         # Coverage proof: realized per-dimension span next to the bounds. The
         # point of the preview is to eyeball exactly this.
         labels = sorted(bounds)
-        vals = [json.loads((d / "params.json").read_text()) for d in machine_dirs(root)]
+        vals, bad = [], 0
+        for d in machine_dirs(root):
+            try:
+                vals.append(json.loads((d / "params.json").read_text()))
+            except Exception:  # noqa: BLE001 - killed-run leftovers, coverage ignores them
+                bad += 1
+        if bad:
+            print(f"[sampler] coverage: {bad} corrupt params.json dirs ignored")
         print(f"[sampler] coverage over {len(vals)} machines:")
         for k in labels:
             got = [v[k] for v in vals]

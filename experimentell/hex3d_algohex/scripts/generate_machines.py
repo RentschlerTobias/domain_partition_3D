@@ -203,9 +203,11 @@ def main() -> None:
         if target:
             args.count = 2 * int(target)
     elif args.grow_step:
-        base = int(state.get("count_target") or 0)
-        if not base:
-            base = len(machine_dirs(root)) + len(skipped(root))
+        # Self-heals a stale count_target (e.g. a draw killed mid-write left
+        # more machines on disk than the recorded target): re-base on what is
+        # actually present so the target keeps advancing past the backlog.
+        base = max(int(state.get("count_target") or 0),
+                   len(machine_dirs(root)) + len(skipped(root)))
         args.count = base + int(args.grow_step)
 
     # On the cluster the --export pass runs INSIDE the dtOO container, whose

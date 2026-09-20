@@ -80,6 +80,12 @@ GROW="${GROW:-1}"
 MIN_ROUND_SECONDS="${MIN_ROUND_SECONDS:-3600}"
 DRAIN_SECONDS="${DRAIN_SECONDS:-1500}"
 GROW_MAX_MACHINES="${GROW_MAX_MACHINES:-0}"
+# Default 2048/step: a plain --grow doubles the target and a doubling at
+# 198k machines draws ~64k dirs in one call -- hours of Lustre metadata ops.
+# --grow-step keeps each round's draw small enough to finish inside a round.
+GROW_STEP="${GROW_STEP:-2048}"
+GROW_ARG="--grow-step $GROW_STEP"
+[ "$GROW_STEP" -le 0 ] && GROW_ARG="--grow"
 SAMPLER_JSON="data/dataset/sobol/sampler.json"
 
 echo "[gen] host $(hostname), job ${SLURM_JOB_ID:-none}"
@@ -168,9 +174,14 @@ while :; do
             # doubles count_target in sampler.json, so two parallel grows
             # would double through each other's state.
             exec 9>"$GEN_POOL/grow.lock"
-            flock 9
+            # Do not wait forever on a sibling grow: one watts-of-Metadata starve
+            # loop (Lustre draws of 100k+ dirs) must not park the other jobs.
+            if ! flock -w "${GROW_LOCK_WAIT:-1800}" 9; then
+                echo "[gen] grow lock held too long -- sampling only this round"
+                GROW=0
+            fi
             DRAW_RC=0
-            if "$PY_DRAW" "$E/scripts/generate_machines.py" --preview --grow; then
+            if "$PY_DRAW" "$E/scripts/generate_machines.py" --preview $GROW_ARG; then
                 DREW=1
             else
                 echo "[gen] draw failed -- refill disabled, sampling the pending queue"

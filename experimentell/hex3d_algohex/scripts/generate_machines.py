@@ -156,6 +156,11 @@ def main() -> None:
         help="set --count to twice the sampler's count_target (refill growth; "
              "keeps the Sobol prefix power-of-two)",
     )
+    p.add_argument(
+        "--grow-step", type=int, metavar="N",
+        help="grow the target by exactly N machines per call; use for steady "
+             "feeder growth when a full Sobol doubling would draw >100k at once",
+    )
     args = p.parse_args()
 
     if not EF_SRC.is_dir():
@@ -197,6 +202,11 @@ def main() -> None:
         target = state.get("count_target")
         if target:
             args.count = 2 * int(target)
+    elif args.grow_step:
+        base = int(state.get("count_target") or 0)
+        if not base:
+            base = len(machine_dirs(root)) + len(skipped(root))
+        args.count = base + int(args.grow_step)
 
     # On the cluster the --export pass runs INSIDE the dtOO container, whose
     # python3.13 provably has dtOOPythonSWIG (the smoke test) but NOT

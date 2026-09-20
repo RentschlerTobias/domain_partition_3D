@@ -1,0 +1,6 @@
+[gen] host uc3n024.localdomain, job 7085491
+[gen] NS='2000' PAR=48 PARALLEL=48 OMP_NUM_THREADS=2 GROW=1
+[gen] python for draws: /home/st/st_us-042020/st_ac136362/venvs/hydroflow/bin/python
+[gen] eigenfrequencies: /home/st/st_us-042020/st_ac136362/eigenfrequencies
+[gen] ================ round 1 (14383s to walltime) ================
+[gen] growing the machine set

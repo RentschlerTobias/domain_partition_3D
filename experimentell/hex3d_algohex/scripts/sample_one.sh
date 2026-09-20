@@ -59,7 +59,7 @@ export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}"
 mkdir -p "$D" || exit 6
 
 if [ -f "$D/sample.npz" ]; then
-    echo "[$(basename "$D")] already done, skipping"
+    [ "${VERBOSE:-0}" = 1 ] && echo "[$(basename "$D")] already done, skipping"
     exit 0
 fi
 

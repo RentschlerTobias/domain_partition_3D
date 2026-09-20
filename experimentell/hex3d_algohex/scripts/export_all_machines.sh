@@ -77,7 +77,7 @@ export_one() {
     local name="$1"
     local d="$DS/$name" stage="$STAGE_ROOT/$name" rc
     if [ -f "$d/mesh.msh" ]; then
-        echo "[dtoo] $name mesh.msh present, skipping"
+        [ "${VERBOSE:-0}" = 1 ] && echo "[dtoo] $name mesh.msh present, skipping"
         return 0
     fi
     rm -rf "$stage"
@@ -108,6 +108,11 @@ export_one() {
 export -f export_one
 
 todo=()
+n_done=0 n_retired=0
+# One find pass builds the done-index; per-machine stats hit Lustre one dir
+# at a time and do not scale past 100k machines. Index is per-job evidence
+# only -- a parallel sibling may still be finishing its exports.
+done_names=$(find "$DS" -maxdepth 2 -name mesh.msh -printf '%h\n' 2>/dev/null | sed "s#^.*/##" | sort -u)
 for d in "$DS"/machine_*; do
     [ -d "$d" ] || continue
     name=$(basename "$d")
@@ -115,16 +120,20 @@ for d in "$DS"/machine_*; do
     # machine_0006, whose grid export exceeds the export watchdog): never
     # queue them again, even if their directory reappears.
     if [ -f "$DS/skip.txt" ] && grep -qxF "$name" "$DS/skip.txt"; then
-        echo "[dtoo] $name skipped (skip.txt)"
+        [ "${VERBOSE:-0}" = 1 ] && echo "[dtoo] $name skipped (skip.txt)"
+        n_retired=$((n_retired+1))
         continue
     fi
-    if [ -f "$d/mesh.msh" ]; then
-        echo "[dtoo] $name mesh.msh present, skipping"
+    if grep -qxF "$name" <<<"$done_names"; then
+        n_done=$((n_done+1))
         continue
     fi
     todo+=("$name")
 done
-echo "[dtoo] pending: ${#todo[@]} machines, parallel=$PAR"
+echo "[dtoo] done-index: $n_done present, $n_retired retired, ${#todo[@]} pending, parallel=$PAR"
+if [ "${VERBOSE:-0}" = 1 ]; then
+    printf '%s\n' "[dtoo] todo: ${todo[*]:-none}"
+fi
 
 # xargs exit codes: 0 all child runs succeeded, 123 at least one exited 1-125.
 XRC=0

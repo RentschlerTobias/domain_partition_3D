@@ -63,8 +63,16 @@ E=experimentell/hex3d_algohex
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-2}"
 export PARALLEL="${PARALLEL:-32}"   # sample phase: xargs workers
 export PAR="${PAR:-32}"             # dtOO phase: parallel exports
-export NS="${NS:-2000 8000}"
+export NS="${NS:-2000}"
 export CANDS="${CANDS:-data/dataset/sobol/machine_*}"
+
+# Shared coordination pool on $HOME: reaches every node, so several
+# batch_generate jobs can run side by side. The global lock serializes the
+# sampler draw (sampler.json doubling); per-machine claims stop two jobs from
+# sampling the same machine directory.
+GEN_POOL="${GEN_POOL:-$HOME/hex3d_pool}"
+mkdir -p "$GEN_POOL"
+export GEN_POOL
 
 # Refill controls. GROW=0 restores the old single pass; GROW_MAX_MACHINES caps
 # the machine set (0 = unbounded) for anyone who wants a bounded dataset.
@@ -156,12 +164,19 @@ while :; do
             echo "[gen] machine cap reached ($TARGET >= $GROW_MAX_MACHINES) -- sampling only"
         else
             echo "[gen] growing the machine set"
+            # Serialized across every running batch_generate job: the draw
+            # doubles count_target in sampler.json, so two parallel grows
+            # would double through each other's state.
+            exec 9>"$GEN_POOL/grow.lock"
+            flock 9
+            DRAW_RC=0
             if "$PY_DRAW" "$E/scripts/generate_machines.py" --preview --grow; then
                 DREW=1
             else
                 echo "[gen] draw failed -- refill disabled, sampling the pending queue"
                 GROW=0
             fi
+            flock -u 9
         fi
     elif [ "$GROW" = 1 ]; then
         echo "[gen] ${LEFT}s left -- sampling only, no new machines"

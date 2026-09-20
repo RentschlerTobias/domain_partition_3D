@@ -130,7 +130,11 @@ echo "[dtoo] image $SQSH"
 # ------------------------------------------------- container: unpack once ever
 # One persistent store for both pipelines, beside the image it came from, so a
 # resubmission -- or the eigenfrequencies pipeline -- never unpacks twice.
-export ENROOT_DATA_PATH="${ENROOT_DATA_PATH:-$EIG_WS/enroot-data}"
+# Per-NODE store (hostname suffix): the unpacked rootfs must not be shared by
+# concurrent nodes -- the batch_samples header carries the measurement. The
+# unpack install is race-safe (private name + mv -T), so two jobs on ONE node
+# also stay correct.
+export ENROOT_DATA_PATH="${ENROOT_DATA_PATH:-$EIG_WS/enroot-data-$(hostname -s)}"
 mkdir -p "$ENROOT_DATA_PATH"
 CONTAINER="${CONTAINER:-dtOO}"
 if ! enroot list 2>/dev/null | grep -qxF "$CONTAINER"; then

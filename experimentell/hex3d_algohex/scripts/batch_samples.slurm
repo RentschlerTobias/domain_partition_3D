@@ -77,7 +77,7 @@ OUT_ROOT="${OUT_ROOT:-output/hex3d_algohex/batch}"
 module load "$PYTHON_MODULE" 2>/dev/null || true
 export PATH="$REPO/.venv/bin:$PATH"
 export REPO
-export ENROOT_DATA_PATH="${ENROOT_DATA_PATH:-$WS/enroot-data}"
+export ENROOT_DATA_PATH="${ENROOT_DATA_PATH:-$WS/enroot-data-$(hostname -s)}"
 export ENROOT_TEMP_PATH="${ENROOT_TEMP_PATH:-/tmp/${USER:-$(id -un)}-enroot}"
 export ENROOT_RUNTIME_PATH="${ENROOT_RUNTIME_PATH:-/tmp/${USER:-$(id -un)}-enroot-run}"
 mkdir -p "$ENROOT_TEMP_PATH" "$ENROOT_RUNTIME_PATH"
@@ -145,8 +145,29 @@ export SAMPLE_TIMEOUT="${SAMPLE_TIMEOUT:-2400}" JOB_END DRAIN_DEADLINE
 
 # ------------------------------------------------------------------ manifest
 # One line per sample: <tet> <n> <outdir> [params]
+# Parallel-safe: append-only (no truncation race) and every candidate is
+# claimed atomically through the shared pool (mkdir), so several
+# batch_generate jobs never sample the same machine. A claim older than
+# CLAIM_TTL is treated as stale (crashed job) and taken over.
 MAN="$OUT_ROOT/manifest.txt"
-: > "$MAN"
+touch "$MAN"
+GEN_POOL="${GEN_POOL:-$HOME/hex3d_pool}"
+CLAIM_TTL_SECONDS="${CLAIM_TTL_SECONDS:-14400}"
+mkdir -p "$GEN_POOL/claimed"
+claim_machine() {
+    local key="$1"
+    local dir="$GEN_POOL/claimed/$key"
+    if ! mkdir "$dir" 2>/dev/null; then
+        # owned: stale only if the claim is older than the TTL
+        if [ -n "$(find "$dir" -maxdepth 0 -mmin +$(( CLAIM_TTL_SECONDS / 60 )))" ]; then
+            return 1
+        fi
+        rm -rf "$dir" 2>/dev/null
+        mkdir "$dir" 2>/dev/null || return 1
+    fi
+    date -Is > "$dir/claim"
+    return 0
+}
 
 if [ -z "$CANDS" ]; then
     # The -n sweep on the committed fixture: no geometry transfer needed, and
@@ -160,6 +181,10 @@ if [ -z "$CANDS" ]; then
 else
     for cand in $CANDS; do
         name=$(basename "$cand")
+        if ! claim_machine "$name"; then
+            echo "[batch] skip $name: claimed by another job"
+            continue
+        fi
         msh="$cand/mesh.msh"
         [ -f "$msh" ] || { echo "[batch] skip $name: no mesh.msh"; continue; }
         d0="$OUT_ROOT/$name"

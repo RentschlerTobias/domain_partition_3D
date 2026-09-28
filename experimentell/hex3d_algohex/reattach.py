@@ -387,6 +387,8 @@ def assemble(blocks_vtk, out_vtk, n_layers=1, first_height=8.9e-4,
                   f"{nc} curves")
         off += len(Pp)
     segs = np.vstack(segs) if segs else np.zeros((0, 2), np.int64)
+    # the per-part offsets index the points BEFORE the weld; P is welded
+    segs = remap[segs]
     cid = np.concatenate(cid) if len(cid) else np.zeros(0, np.int64)
 
     import export_vtk as ev

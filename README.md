@@ -4,6 +4,30 @@ Block-structured quad domain partition of cylindrical turbomachinery
 surfaces (hub/shroud). Standalone — the cross-field tools from
 `domain_partition_2D` are vendored under `dp3d/field/`.
 
+## The pipeline at a glance
+
+The 3D path that produces the training data for the block-structure
+transformer. Geometry in, minimal block structure out:
+
+| geometry | AlgoHex hex mesh | greedy cleanup: 12 blocks | greedy cleanup: 22 blocks | greedy cleanup: 75 blocks | beam search: 12 blocks |
+|---|---|---|---|---|---|
+| ![](docs/figures/hexmesh/01_geometry.png) | ![](docs/figures/hexmesh/02_algohex_hexmesh.png) | ![](docs/figures/hexmesh/03_greedy_12_blocks.png) | ![](docs/figures/hexmesh/04_greedy_22_blocks.png) | ![](docs/figures/hexmesh/05_greedy_75_blocks.png) | ![](docs/figures/hexmesh/06_beam_12_blocks.png) |
+
+One geometry (machine_0004), three greedy cleanup runs: the singularity
+graph and the raw base complex (84 blocks) are identical, but the greedy
+sheet collapse stops in a different local optimum each time — 12, 22, or
+75 blocks depending on which sheet falls first. The beam search over
+collapse orders (`experimentell/hex3d_algohex/beam_collapse.py`) reaches
+the same minimal structure from every start: 17 of 17 runs so far end at
+the same 12-block / 12-cuboid topology, 0 inverted cells, validator
+VALID. Why the greedy cleanup was the label noise — and why the beam
+search fixes it — is in
+[`docs/decisions/2026-09-28-beam-collapse-relabelling.md`](docs/decisions/2026-09-28-beam-collapse-relabelling.md).
+
+The block structures and finer machinery of the learned side live in the
+[`meshtron`](../meshtron) repo; see its "three pipelines at a glance"
+section for the Quadtron and Polytron rows.
+
 ## Pipeline
 
 1. **Extraction** (`dp3d/extraction.py`): hub/shroud surfaces from a

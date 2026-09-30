@@ -78,3 +78,10 @@ carrying essentially no signal (kNN leave-one-out from the 30 parameters,
   frame field.
 * Reported to the stack: `conditioning.py` uses `BLADE_LABEL = 5`, which is
   the hub boundary layer; the O-ring is label 7.
+
+## Follow-up (2026-09-30)
+
+A cut-set-level variant of the collapse (drop whole labeled sheets and merge
+by dual adjacency) was tested as a cheaper replacement and REJECTED: it
+cannot reach the canonical 12-block topology. See
+`docs/decisions/2026-09-30-cutset-search-not-a-collapse-substitute.md`.

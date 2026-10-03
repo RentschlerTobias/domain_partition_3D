@@ -42,7 +42,7 @@
 # the queue.
 # ---------------------------------------------------------------------------
 #SBATCH --job-name=algohex_build
-#SBATCH --output=algohex_build_%j.out
+#SBATCH --output=experimentell/hex3d_algohex/logs/algohex_build_%j.out
 #SBATCH --partition=dev_cpu_il
 #SBATCH --time=00:30:00
 #SBATCH --nodes=1

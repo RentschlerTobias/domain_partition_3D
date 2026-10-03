@@ -14,51 +14,37 @@ point for the branch as a whole.
 
 ## Resume here
 
-**Current task:** T10 — throughput. A verified sample exists ON THE CLUSTER.
-**Last verified:** 2026-09-11. T0, T1, T2, T3, T4, T5, T6 and T9 `done`.
+**Last verified:** 2026-10-03. T0–T6, T9, T10, T11 and T14 `done`; T7, T8,
+T12 `todo`; T13 `deferred`. **Current task:** relabel the dataset with the
+beam-search collapse (below) — it is not a numbered task, it follows from a
+decision taken after this plan was written.
 
-* T0 — `fixtures/blocks_core.tar.zst` (5.5 MiB) holds what cannot be
-  recomputed cheaply; 3.1 GB of provably dead `.hexex` / `final_tet` / log spew
-  deleted; the Dockerfile diff is in `external_patches/`.
-* T1 — enroot works here, including a **writable** bind mount at uid 0. The
-  `enroot-unshare` worry was a non-issue.
-* T2 — **done without a rebuild.** `algohex:portable` already existed and
-  passes T2's own gate; the coinbrew rebuild on 64 cores was never needed. Its
-  recipe is now `external_patches/Dockerfile.portable`. Read T2's status note
-  before touching this area.
-* T5 — `block_edges.py`. v11: **0.226 % median** residual over 107 edges, 3x
-  better than the 2D reference, and 16x better than a straight chord.
-* T6 — **`-n` is settled: 2000 and 8000 as the dataset pair.** The fit does
-  not collapse at four points; it costs 1.4x. Read T6's warning that the
-  residual column runs backwards before quoting any number from it.
-* T9 — `export_sample.py`, round-trip PASS on v11 and cand_001. A sample is
-  **0.42-0.45 MB** of `.npz` including the labelled surface triangulation.
-* T4 — one call site, `--backend docker|enroot`, `--out-dir` fixes the shared
-  `.ovm` path, and the useless checkpoint files are opt-in.
-* T3 — `algohex.sqsh` (2.11 GB, zstd verified) and the two backends agree:
-  **2210 of 2210 cells matched**, each congruent under a cube rotation. Read
-  T3 before comparing meshes again — file comparison is NOT a valid gate here.
+* **The dataset exists.** `scripts/generate_machines.py` draws Sobol machines
+  (T14), `scripts/batch_generate.slurm` runs the whole chain as one production
+  job on `cpu_il` — dtOO export, then `sample_one.sh` lanes, refilling the
+  queue until the walltime drain — and `scripts/batch_blocks_array.slurm`
+  shards an existing machine set over N nodes (T10). Measured: ~80–100 samples
+  per hour on one 64-core node. The batch dataset holds **739 samples**
+  (T11); meshtron trains on 683 / 78 of them after its own filtering.
+* **The labels are noisy — and the cause is fixed, not yet applied.** The
+  greedy collapse in `clean_blocks.py` gives one geometry 12, 22 or 75 blocks;
+  29 combinatorial / 113 labelled topologies over the 739 samples.
+  `beam_collapse.py` reaches the same 12-block topology in 17 of 17 runs.
+  Decision and plan:
+  [`2026-09-28-beam-collapse-relabelling.md`](../../docs/decisions/2026-09-28-beam-collapse-relabelling.md).
+  **Next:** the batch scripts call `beam_collapse.patch` instead of
+  `--collapse-rounds 5`; the existing samples are relabelled from their saved
+  `blocks.vtk` into `sample_beam.npz` beside the original, never overwriting.
+* **Rejected since:** the block-level cut-set search as a collapse substitute
+  (2026-09-30) and LE/TE feature edges as extra constraints (2026-10-03) — see
+  `../../docs/decisions/`.
+* **T7 (curved TFI) moved to meshtron**: its refill fills the cubic block
+  edges (`meshtron/geometry/curved_bridge.py`), and a learned edge network
+  predicts them for generated structures. T8 and T12 remain open; T13 stays
+  deferred.
 
-**The cluster route is done and measured.** Job 6860177 on bwUniCluster
-produced a sample with a passing round-trip in 12:25, from an AlgoHex built
-there from its pinned public commit — no Docker, no image copied from any
-machine. It reproduces the VPS reference at `-n 2000` exactly: 16 blocks, 14
-cuboids, 107 edges, fit modes 89/0/18, residual median 0.048 %, Hausdorff
-0.04475. That closes the provenance question T2 left open.
-
-Every cluster-side trap is written up in
-[`../../docs/cluster-enroot-findings.md`](../../docs/cluster-enroot-findings.md)
-— read it before touching the scripts. The two that cost the most: enroot's
-`ENROOT_RUNTIME_PATH` defaults into `/run/user/$UID`, which does not exist on a
-compute node, and `dev_cpu_il` allows only ~4 QUEUED jobs per user, which makes
-dependency chains the wrong shape at any length.
-
-T7, T8 and T12 improve the sample but block nothing; take them whenever the
-cluster is queueing. Note that T12 now has a cheap new lead: T9 reports
-`interior_faces` and the one-sided shell count on block topology, which is the
-same signature T12's failed weld produces. **T13 is new and deliberately
-deferred** until T11 runs — the embedding-optimisation idea, with the
-measurement that justifies it.
+The task sections below keep their original text; their status lines carry
+the current state.
 
 ---
 
@@ -158,7 +144,7 @@ The full picture:
    | group | apparent | why |
    |---|---|---|
    | `*.hexex`, 28 files | 1.6 GB | checkpoint reuse was measured to FAIL — `DATA_GENERATION.md`, "Checkpoint reuse does not work". AlgoHex writes the intermediate tet mesh as binary OVM and its own `-i` reader rejects it. No Python reads `.hexex`; `run_algohex.py:44` only writes it. |
-   | `*final_tet*.ovm`, 28 of 29 | 449 MB | same broken reader. `T1_9_final_tet_v11.ovm` KEPT — `ANALYSIS_PLAN.md` step 04 uses it as the singular-graph input. |
+   | `*final_tet*.ovm`, 28 of 29 | 449 MB | same broken reader. `T1_9_final_tet_v11.ovm` KEPT — `ANALYSIS_PLAN.md†` step 04 uses it as the singular-graph input. |
    | 34 top-level `*.log` | 1.1 GB | per-face AlgoHex debug spew, 6.6 M lines in the worst one. Truncated in place to head 200 + tail 2000, 8.1 MB total. The run summaries were never in them: they are the 33 untouched `*_hex_metrics*.json`, 132 KB, which is where the `RUNS.md` timings come from. |
 
    **Kept on disk, not committed:** the 243 MB of `*_hex*.ovm`. That is
@@ -664,7 +650,8 @@ richer edges, re-fitting is free and re-meshing is not.
 
 ## T7 — Curved TFI
 
-**Status:** `todo`
+**Status:** `moved` — the curved refill lives in meshtron
+(`meshtron/geometry/curved_bridge.py`), fed by the learned edge network.
 
 **Why.** `tfi.py` contains no `cubic`, `spline` or `coons`; `refill_block`
 interpolates linearly through the fine grid. `curved_refill.py` has the pieces
@@ -819,8 +806,10 @@ load-time change, not a re-run.
 
 ## T10 — SLURM batch driver
 
-**Status:** `doing` — written as ONE job with `xargs -P`, not an array. The
-shape follows from two measurements, not from taste. Untested on the cluster.
+**Status:** `done` 2026-09-20 — `batch_samples.slurm` (one job, `xargs -P`),
+`batch_blocks_array.slurm` (N shards) and `batch_generate.slurm` (the whole
+chain, refill until the drain) all ran on the cluster. Original note: written
+as ONE job with `xargs -P`, not an array.
 
 **Why.** 64 cores, not this 2-vCPU box. AlgoHex peaks around 6 GB and must not
 run concurrently beyond what memory allows — two concurrent runs are what
@@ -898,20 +887,17 @@ derivatives are deleted. `KEEP_OVM=1` for a showcase set.
 
 ## T14 — Geometry supply: dtOO via enroot, driven by eigenfrequencies' adapter
 
-**Status:** `doing` — the sampler exists:
+**Status:** `done` 2026-09-20 — the sampler, the dtOO export via enroot and
+the `--grow` refill loop run inside `batch_generate.slurm`. The sampler:
 `scripts/generate_machines.py` (decisions Q1-Q4 in
 `docs/decisions/2026-09-11-dataset-sampler-strategy.md`). Sobol, seeded,
 incremental; state in the dataset root's `sampler.json`; layout
 `data/dataset/<strategy>/machine_00NN/` with `params.json` (tracked) and
-later `mesh.msh` (gitignored, 429 MB scale). `--preview` draws and writes
-params only, verified locally against the live `design_bounds()` (64 draws,
-per-dimension realized span 0.97-0.99 of bounds); `--export` calls
-`adapter.export_mesh()` through the single eigenfrequencies import seam and
-runs only inside the dtOO container. Batch size N is still open: it follows
-from T10's throughput number and the measured dtOO yield rate, which the
-first `--export` batch measures via `export_error.txt` per failed draw.
-Still `todo`: the export batch on the cluster, then `batch_samples.slurm`
-with `CANDS="data/dataset/sobol/machine_00*"`.
+`mesh.msh` (gitignored). `--preview` draws and writes params only (verified
+against the live `design_bounds()`: 64 draws, per-dimension realized span
+0.97-0.99 of bounds); `--export` calls `adapter.export_mesh()` through the
+single eigenfrequencies import seam and runs only inside the dtOO container;
+`--grow` doubles the Sobol prefix for the refill loop.
 
 **Why.** 21 candidate geometries is not a dataset, and the 429 MB of
 `mesh.msh` are gitignored, so a fresh clone has none. Decision B left the
@@ -1052,7 +1038,8 @@ local box / VPS by rerunning `reattach.py` from the retained pair.
 
 ## T11 — Full run, and the throughput that settles the dataset size
 
-**Status:** `todo`
+**Status:** `done` — the batch dataset holds 739 samples; ~80–100 samples per
+hour on one 64-core node (`batch_generate.slurm` header).
 
 **Do.** Run the pipeline over `data/random_tistos/investigated/`, then load the
 samples from meshtron and confirm the quality fields support the filter that
@@ -1173,3 +1160,6 @@ initial embedding is what AlgoHex gave us — the polylines in `edge_polyline`.
   triangulation before fitting, using the existing
   `clean_blocks.project_to_surface`. Open as a measurement, and defined for
   boundary edges only, since interior edges have no input geometry.
+
+† Planning document removed in the 2026-10-03 docs cleanup; read it with
+`git show a583e59:experimentell/hex3d_algohex/<file>`.

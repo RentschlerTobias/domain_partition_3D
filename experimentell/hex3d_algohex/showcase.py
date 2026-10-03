@@ -340,7 +340,7 @@ def step04_singular_graph(tag="v11"):
     """The frame-field singularity graph in 3D, coloured by valence.
 
     Nothing in this branch exported this before -- it existed only as a
-    printed table -- and it is the object `FRAMEFIELD_PLAN.md` is about."""
+    printed table -- and it is the object `FRAMEFIELD_PLAN.md` (removed doc, git show a583e59:experimentell/hex3d_algohex/FRAMEFIELD_PLAN.md) is about."""
     import tet_prep as tp
     P, H = hexmesh(HEX / f"T1_9_hex_{tag}.ovm")
     topo = bc.build_topology(H)

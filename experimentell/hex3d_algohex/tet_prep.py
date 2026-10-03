@@ -1,5 +1,5 @@
 """Stage 1 (feat/algohex-3d-frame-field): T1_9 pure-tet volume + AlgoHex
-feature-tag VTK, the input to AlgoHex's ``HexMeshing`` (see PLAN.md).
+feature-tag VTK, the input to AlgoHex's ``HexMeshing`` (see PLAN.md, removed doc: git show a583e59:experimentell/hex3d_algohex/PLAN.md).
 
 The source MSH (``data/T1_9/T1_9_ru_gridGmsh.msh``) is a HYBRID volume mesh
 (tets/hexes/prisms/pyramids), not something AlgoHex can consume directly.

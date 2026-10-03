@@ -1,6 +1,6 @@
 """Acceptance checks for the block refill (tfi.refill_block / refill_complex).
 
-The fold gate of TFI_RESEARCH.md, at complex level: refilling at the counts a
+The fold gate of TFI_RESEARCH.md (removed doc, git show a583e59:experimentell/hex3d_algohex/TFI_RESEARCH.md), at complex level: refilling at the counts a
 block already has must give the boundary back to machine precision and must
 leave the mesh watertight. If that fails, no prescribed-h refill is worth
 looking at.

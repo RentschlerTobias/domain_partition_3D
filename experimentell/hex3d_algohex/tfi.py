@@ -1,6 +1,6 @@
 """Stage 7: transfinite interpolation over the hex blocks.
 
-Step 1 of the plan in `TFI_RESEARCH.md`: the trilinear Gordon-Hall map on a
+Step 1 of the plan in `TFI_RESEARCH.md` (removed doc, git show a583e59:experimentell/hex3d_algohex/TFI_RESEARCH.md): the trilinear Gordon-Hall map on a
 single block, gated by `mesh_quality.py`.
 
 The test is deliberately self-referential and therefore honest: take a block

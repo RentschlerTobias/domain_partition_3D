@@ -9,6 +9,26 @@ surfaces (hub/shroud). Standalone — the cross-field tools from
 The 3D path that produces the training data for the block-structure
 transformer. Geometry in, minimal block structure out:
 
+![The pipeline in nine steps](docs/figures/hexmesh/00_pipeline_steps.png)
+
+Top row, deterministic: (1) dtOO generates the geometry and a hybrid mesh
+(passage surface by patch, blade O-grid in magenta); (2) the O-grid is cut
+out and the boundary labelled into 7 patches, the AlgoHex input; (3)
+AlgoHex computes an octahedral frame field, one frame per tet; (4) its
+rotation defects form the singularity graph (valence 3 magenta, 5 cyan);
+(5) integrability, seamless parametrisation and HexEx give the fine hex
+mesh, which inherits that graph. Bottom row: (6) cutting along the 24
+separatrix sheets gives the raw 84-block partition; (7) the beam search
+over sheet collapses -- drop one sheet, re-cut, gate, keep the best lanes
+-- shown as three real lanes of the tree, winner 84 → 66 → 48 → 12 in
+front; (8) the minimal 12-block structure; (9) the same blocks with
+straight edges, the object the transformer learns to generate. Rendered by
+the slide deck's `render_blockgen_deck_style.py` from `vtk/22_full_series`
+(base_a).
+
+Why the beam search and not the greedy cleanup -- the same geometry, three
+greedy runs against the beam:
+
 | geometry | AlgoHex hex mesh | greedy cleanup: 12 blocks | greedy cleanup: 22 blocks | greedy cleanup: 75 blocks | beam search: 12 blocks |
 |---|---|---|---|---|---|
 | ![](docs/figures/hexmesh/01_geometry.png) | ![](docs/figures/hexmesh/02_algohex_hexmesh.png) | ![](docs/figures/hexmesh/03_greedy_12_blocks.png) | ![](docs/figures/hexmesh/04_greedy_22_blocks.png) | ![](docs/figures/hexmesh/05_greedy_75_blocks.png) | ![](docs/figures/hexmesh/06_beam_12_blocks.png) |

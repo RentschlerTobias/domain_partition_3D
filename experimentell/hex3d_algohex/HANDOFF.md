@@ -10,13 +10,14 @@ worth opening for a specific question.
 ## What this does
 
 Generates the minimal hexahedral block structure of a turbomachinery flow
-passage from a genuine 3D frame field, and exports it as one `sample.npz` per
+passage — from a mesh of our design system, design tool Object-Oriented
+(dtOO) — via a genuine 3D frame field, and exports it as one `sample.npz` per
 machine — the training data of the block-structure transformer in `meshtron`.
 
 ```
 dtOO mesh.msh ─ tet_prep_v5 ─▶ AlgoHex ─▶ fine hex mesh ─ base_complex ─▶ raw partition
   ─ sheet collapse ─▶ minimal blocks ─ block_edges / tfi ─▶ refill ─ export_sample ─▶ sample.npz
-                      (reattach / ogrid_extrude: blade O-grid + BL back on, full domain)
+                      (reattach / ogrid_extrude: blade O-grid + boundary layer back on, full domain)
 ```
 
 ## Where it stands (2026-10-03)
@@ -204,7 +205,7 @@ implementation (`mesh_quality.mixed_metrics`) over both:
 is the one metric that is worse, by design: 17 boundary-layer layers at a
 first cell height of 8.9e-4.
 
-| structure | blocks | smallest | pinch | inverted | min sJ | Hausdorff | validator |
+| structure | blocks | smallest | pinch | inverted | min scaled Jacobian | Hausdorff | validator |
 |---|---|---|---|---|---|---|---|
 | v11 (raw basis) | 16 | 224 | 2 | 0 | 0.1524 | 0.03405 | VALID |
 | v11m | 12 | 476 | 0 | 0 | 0.1524 | 0.03405 | VALID |

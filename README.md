@@ -13,28 +13,15 @@ Block structures for turbomachinery flow passages. Two routes live here:
   from a 2D cross field. Standalone; the cross-field tools of
   `domain_partition_2D` are vendored under `dp3d/field/`.
 
-Abbreviations used below:
-
-| | |
-|---|---|
-| dtOO | our parametric turbomachinery design system ([github.com/ihs-ustutt/dtOO](https://github.com/ihs-ustutt/dtOO)) |
-| CFD | computational fluid dynamics |
-| TFI | transfinite interpolation — fills a block with cells from its boundary curves and faces (Coons patches, Gordon–Hall) |
-| HexEx | hexahedral mesh extraction from an integer-grid map |
-| IGM | integer-grid map — the seamless parametrisation whose integer lines become the hex mesh |
-| MSH / STL / VTK | Gmsh mesh / triangulated surface / ParaView file formats |
-| MILP | mixed-integer linear program |
-| 4-RoSy | 4-rotational-symmetry field, i.e. a 2D cross field |
-| sJ | scaled Jacobian — cell quality, ≤ 0 means an inverted cell |
-
 ## The 3D pipeline at a glance
 
 ![The 3D pipeline in nine steps](docs/figures/hexmesh/00_pipeline_steps.png)
 
 **Top row — deterministic, nothing in it is chosen.**
 
-1. **dtOO hybrid mesh** — the design system generates the geometry and a
-   hybrid mesh: tetrahedra in the passage, boundary-layer prisms on hub and
+1. **dtOO hybrid mesh** — our parametric design system, design tool
+   Object-Oriented ([dtOO](https://github.com/ihs-ustutt/dtOO)), generates the
+   geometry and a hybrid mesh: tetrahedra in the passage, boundary-layer prisms on hub and
    shroud, the blade wrapped in a hexahedral O-grid (magenta).
 2. **Labelled input** — the O-grid is cut out and the boundary labelled into
    7 patches (inlet, outlet, 2 periodic, 2 boundary-layer interfaces, the
@@ -47,7 +34,8 @@ Abbreviations used below:
    valence 5 cyan) that chain into arcs reaching the boundary. The graph
    emerges from the field, it is not an input.
 5. **Raw hex mesh** — integrability optimisation, the seamless parametrisation
-   (IGM) and HexEx give the fine hex mesh, which inherits the singularity graph
+   as an integer-grid map (IGM) and hexahedral mesh extraction (HexEx) give
+   the fine hex mesh, which inherits the singularity graph
    exactly.
 
 **Bottom row — the only decision in the pipeline.**
@@ -89,7 +77,7 @@ shared topology.
 ## Running the 3D route
 
 Everything below lives in `experimentell/hex3d_algohex/`. One sample, end to
-end — AlgoHex, block postprocessing, TFI, export — all logs inside `<outdir>`:
+end — AlgoHex, block postprocessing, transfinite interpolation (TFI), export — all logs inside `<outdir>`:
 
 ```bash
 scripts/sample_one.sh <tet.vtk> <n> <outdir> [params.json]
@@ -142,7 +130,7 @@ Further reading, in this order:
 2. **Cylinder unwrap** (`dp3d/unwrap_surface.py`): isometric unroll to the 2D
    `(s, t)` domain (`s = r·theta`, `t = z`).
 3. **Cross field + separatrices** (`dp3d/field/`, `dp3d/partition_surface.py`):
-   4-RoSy frame field, singularity detection, streamline integration, Xiao
+   4-rotational-symmetry (4-RoSy) frame field, singularity detection, streamline integration, Xiao
    2020 merging/snapping.
 4. **Block partition** (`dp3d/tmesh.py`, `dp3d/xiao.py`):
    - `ta` — periodic seam as wall, master-slave seam symmetrisation, hanging
@@ -150,7 +138,7 @@ Further reading, in this order:
    - `tb` — like `ta`, but hanging seam junctions are continued into the
      domain.
    - `xiao` — pure Xiao 2020 baseline, no seam postprocessing, no TFI.
-5. **TFI fill** (`ta`/`tb`): conforming cell counts per edge (MILP), tanh
+5. **TFI fill** (`ta`/`tb`): conforming cell counts per edge from a mixed-integer linear program (MILP), tanh
    blade-boundary-layer clustering, Coons patches + Thomas-Middlecoff
    smoothing.
 

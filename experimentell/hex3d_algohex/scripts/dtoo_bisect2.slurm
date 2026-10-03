@@ -25,7 +25,7 @@
 # (or kill) names the culprit. Output is tee'd to logs/dtoo_bisect2_<jobid>.log,
 # committed like every other cluster log.
 #SBATCH --job-name=dtoo_bisect2
-#SBATCH --output=dtoo_bisect2_%j.out
+#SBATCH --output=experimentell/hex3d_algohex/logs/dtoo_bisect2_%j.out
 #SBATCH --partition=dev_cpu_il
 #SBATCH --time=00:30:00
 #SBATCH --nodes=1

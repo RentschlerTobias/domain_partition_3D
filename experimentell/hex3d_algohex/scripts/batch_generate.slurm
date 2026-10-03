@@ -34,7 +34,7 @@
 # and their summary blocks -- the dtOO yield and the sample throughput -- are
 # the measurements DATASET_PIPELINE.md hangs off.
 #SBATCH --job-name=hex3d_generate
-#SBATCH --output=hex3d_generate_%j.out
+#SBATCH --output=experimentell/hex3d_algohex/logs/hex3d_generate_%j.out
 #SBATCH --partition=cpu_il
 #SBATCH --time=08:00:00
 #SBATCH --nodes=1

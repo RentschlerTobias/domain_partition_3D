@@ -25,7 +25,7 @@
 # --mem 8G: AlgoHex peaks near 6 GB. Two concurrent runs OOMed a 7.7 GiB box.
 # ---------------------------------------------------------------------------
 #SBATCH --job-name=hex3d_smoke_pipe
-#SBATCH --output=hex3d_smoke_pipe_%j.out
+#SBATCH --output=experimentell/hex3d_algohex/logs/hex3d_smoke_pipe_%j.out
 #SBATCH --partition=dev_cpu_il
 #SBATCH --time=00:30:00
 #SBATCH --nodes=1

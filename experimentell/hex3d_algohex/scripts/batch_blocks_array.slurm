@@ -23,7 +23,7 @@
 # therefore points to <base>/shard<SHARD> by default; existing unpacked
 # containers are reused per shard automatically after the first run.
 #SBATCH --job-name=hex3d_blocks
-#SBATCH --output=hex3d_blocks_%a_%j.out
+#SBATCH --output=experimentell/hex3d_algohex/logs/hex3d_blocks_%a_%j.out
 #SBATCH --partition=cpu_il
 #SBATCH --time=10:00:00
 #SBATCH --nodes=1

@@ -2,7 +2,10 @@
 
 The 3D route of this repository: geometry-aligned hexahedral **block
 structures** for turbomachinery flow passages, from a genuine 3D octahedral
-frame field. Its output, one `sample.npz` per machine, is the training data of
+frame field. The input is a mesh from our design system, design tool
+Object-Oriented (dtOO); the hex mesh comes from AlgoHex, an open-source mesher
+that computes the frame field, a seamless integer-grid map (IGM) and the
+hexahedral mesh extraction (HexEx). Its output, one `sample.npz` per machine, is the training data of
 the block-structure transformer in [`meshtron`](../../../meshtron).
 
 ```
@@ -13,13 +16,6 @@ dtOO mesh.msh ─ tet_prep_v5 ─▶ labelled tet mesh ─ AlgoHex ─▶ fine h
 
 The repository README has the nine-step figure and the reasoning behind the
 beam search; this file is the working reference for the code here.
-
-Abbreviations: **dtOO** — our parametric design system; **AlgoHex** — the
-open-source hex mesher (frame field → integer-grid map → HexEx); **IGM** —
-integer-grid map, the seamless parametrisation; **HexEx** — hex extraction
-from it; **TFI** — transfinite interpolation; **OVM** — OpenVolumeMesh file;
-**sJ** — scaled Jacobian (≤ 0 = inverted cell); **ILP / MILP** — (mixed-)
-integer linear program; **BL** — boundary layer.
 
 ## Where it stands (2026-10-03)
 
@@ -96,11 +92,11 @@ before touching any of them.
 | `clean_blocks.py` | block postprocessing: exact surface labels (`SurfaceLabeller`), cavity refill, merge/split, the greedy mesh-level sheet collapse, untangling, `HexBlockValidator` |
 | `beam_collapse.py` | the global sheet collapse: beam search over collapse orders, `patch()` swaps it into `clean_blocks` |
 | `sheet_beam.py` | the block-level cut-set search — rejected as a substitute, kept as a ~10 s audit |
-| `merge_ilp.py` | optimal block merging as a weighted exact cover ILP |
+| `merge_ilp.py` | optimal block merging as a weighted exact cover integer linear program (ILP) |
 | `block_edges.py` | block edges as polylines and cubic Bézier fits |
 | `tfi.py` | block lattices, conforming division counts, 3D Gordon–Hall refill |
 | `curved_refill.py` | how much a cubic block edge buys over a linear one in the refill |
-| `reattach.py` | re-attaches the blade O-grid (verbatim) and the hub/shroud BL (extruded) |
+| `reattach.py` | re-attaches the blade O-grid (verbatim) and the hub/shroud boundary layer (extruded) |
 | `ogrid_extrude.py` | a conforming blade O-grid extruded from the core |
 | `export_sample.py` | the neutral `sample.npz`; meshtron owns the ML format |
 | `mesh_quality.py` | CFD quality metrics (OpenFOAM `checkMesh` conventions) — `MESH_QUALITY.md` |
@@ -149,9 +145,9 @@ names; they are a chronological log and were deliberately not rewritten.
 
 Rather than making the frame field resolve the thin boundary layers, they are
 cut out of the AlgoHex domain and re-attached afterwards as their own blocks.
-Conformity is not an issue: TFI regenerates each block's interior from its
+Conformity is not an issue: transfinite interpolation (TFI) regenerates each block's interior from its
 boundary curves, so the parts only have to agree at **block** level, where
-the conforming-division MILP (`dp3d/tmesh.py:743`) handles it.
+the conforming-division mixed-integer linear program (MILP, `dp3d/tmesh.py:743`) handles it.
 
 Cell census of the source MSH (measured), which settles what can be reused:
 

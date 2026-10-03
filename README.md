@@ -1,76 +1,163 @@
 # domain_partition_3D
 
-Block-structured quad domain partition of cylindrical turbomachinery
-surfaces (hub/shroud). Standalone — the cross-field tools from
-`domain_partition_2D` are vendored under `dp3d/field/`.
+Block structures for turbomachinery flow passages. Two routes live here:
 
-## The pipeline at a glance
+- **The 3D route** (`experimentell/hex3d_algohex/`) — the active one. AlgoHex
+  (an open-source hexahedral mesher, University of Bern) meshes the passage
+  with hexahedra, the singularity graph of that mesh is traced into a raw block
+  partition, and a beam search over sheet collapses reduces it to the minimal
+  block structure. Its output is the training data of the block-structure
+  transformer in [`meshtron`](../meshtron).
+- **The 2D surface route** (`dp3d/`, `domain_partition.py`) — the older one.
+  Block-structured quad partitions of the unwrapped hub and shroud surfaces,
+  from a 2D cross field. Standalone; the cross-field tools of
+  `domain_partition_2D` are vendored under `dp3d/field/`.
 
-The 3D path that produces the training data for the block-structure
-transformer. Geometry in, minimal block structure out:
+Abbreviations used below:
 
-![The pipeline in nine steps](docs/figures/hexmesh/00_pipeline_steps.png)
+| | |
+|---|---|
+| dtOO | our parametric turbomachinery design system ([github.com/ihs-ustutt/dtOO](https://github.com/ihs-ustutt/dtOO)) |
+| CFD | computational fluid dynamics |
+| TFI | transfinite interpolation — fills a block with cells from its boundary curves and faces (Coons patches, Gordon–Hall) |
+| HexEx | hexahedral mesh extraction from an integer-grid map |
+| IGM | integer-grid map — the seamless parametrisation whose integer lines become the hex mesh |
+| MSH / STL / VTK | Gmsh mesh / triangulated surface / ParaView file formats |
+| MILP | mixed-integer linear program |
+| 4-RoSy | 4-rotational-symmetry field, i.e. a 2D cross field |
+| sJ | scaled Jacobian — cell quality, ≤ 0 means an inverted cell |
 
-Top row, deterministic: (1) dtOO generates the geometry and a hybrid mesh
-(passage surface by patch, blade O-grid in magenta); (2) the O-grid is cut
-out and the boundary labelled into 7 patches, the AlgoHex input; (3)
-AlgoHex computes an octahedral frame field, one frame per tet; (4) its
-rotation defects form the singularity graph (valence 3 magenta, 5 cyan);
-(5) integrability, seamless parametrisation and HexEx give the fine hex
-mesh, which inherits that graph. Bottom row: (6) cutting along the 24
-separatrix sheets gives the raw 84-block partition; (7) the beam search
-over sheet collapses -- drop one sheet, re-cut, gate, keep the best lanes
--- shown as three real lanes of the tree, winner 84 → 66 → 48 → 12 in
-front; (8) the minimal 12-block structure; (9) the same blocks with
-straight edges, the object the transformer learns to generate. Rendered by
-the slide deck's `render_blockgen_deck_style.py` from `vtk/22_full_series`
-(base_a).
+## The 3D pipeline at a glance
 
-Why the beam search and not the greedy cleanup -- the same geometry, three
-greedy runs against the beam:
+![The 3D pipeline in nine steps](docs/figures/hexmesh/00_pipeline_steps.png)
 
-| geometry | AlgoHex hex mesh | greedy cleanup: 12 blocks | greedy cleanup: 22 blocks | greedy cleanup: 75 blocks | beam search: 12 blocks |
-|---|---|---|---|---|---|
-| ![](docs/figures/hexmesh/01_geometry.png) | ![](docs/figures/hexmesh/02_algohex_hexmesh.png) | ![](docs/figures/hexmesh/03_greedy_12_blocks.png) | ![](docs/figures/hexmesh/04_greedy_22_blocks.png) | ![](docs/figures/hexmesh/05_greedy_75_blocks.png) | ![](docs/figures/hexmesh/06_beam_12_blocks.png) |
+**Top row — deterministic, nothing in it is chosen.**
 
-One geometry (machine_0004), three greedy cleanup runs: the singularity
-graph and the raw base complex (84 blocks) are identical, but the greedy
-sheet collapse stops in a different local optimum each time — 12, 22, or
-75 blocks depending on which sheet falls first. The beam search over
-collapse orders (`experimentell/hex3d_algohex/beam_collapse.py`) reaches
-the same minimal structure from every start: 17 of 17 runs so far end at
-the same 12-block / 12-cuboid topology, 0 inverted cells, validator
-VALID. Why the greedy cleanup was the label noise — and why the beam
-search fixes it — is in
-[`docs/decisions/2026-09-28-beam-collapse-relabelling.md`](docs/decisions/2026-09-28-beam-collapse-relabelling.md).
+1. **dtOO hybrid mesh** — the design system generates the geometry and a
+   hybrid mesh: tetrahedra in the passage, boundary-layer prisms on hub and
+   shroud, the blade wrapped in a hexahedral O-grid (magenta).
+2. **Labelled input** — the O-grid is cut out and the boundary labelled into
+   7 patches (inlet, outlet, 2 periodic, 2 boundary-layer interfaces, the
+   O-grid cut face). Labels come from the mesh's own tagged 2D elements, never
+   from coordinate thresholds.
+3. **Frame field** — AlgoHex computes one octahedral frame per tetrahedron,
+   stored as a quaternion, aligned with the geometry near the walls.
+4. **Singularity graph** — a field on a twisted geometry cannot stay regular;
+   its rotation defects concentrate on singular edges (valence 3 magenta,
+   valence 5 cyan) that chain into arcs reaching the boundary. The graph
+   emerges from the field, it is not an input.
+5. **Raw hex mesh** — integrability optimisation, the seamless parametrisation
+   (IGM) and HexEx give the fine hex mesh, which inherits the singularity graph
+   exactly.
 
-The block structures and finer machinery of the learned side live in the
-[`meshtron`](../meshtron) repo; see its "three pipelines at a glance"
-section for the Quadtron and Polytron rows.
+**Bottom row — the only decision in the pipeline.**
 
-## Pipeline
+6. **Raw partition** — separatrix sheets spanned from the singular edges cut
+   the mesh into the raw block partition (base_a: 24 sheets, 84 blocks). The
+   sheets cross each other, which is why it over-segments.
+7. **Sheet collapse tree search** — a collapse drops one sheet, re-cuts and
+   checks whether the result is still a valid block structure. A beam search
+   runs many such multi-step chains in parallel and keeps the best; the
+   picture shows three real lanes of the base_a tree (winner 84 → 66 → 48 → 12
+   in front, a lane rejected for inverted cells and a dead end behind it).
+8. **Final block structure** — the minimal 12 hexahedral blocks.
+9. **The learned object** — the same structure with straight edges: what the
+   transformer in `meshtron` generates.
 
-1. **Extraction** (`dp3d/extraction.py`): hub/shroud surfaces from a
-   Gmsh 2.2 MSH volume mesh via geometric region tags (hub=1, shroud=2),
-   written as STL. Optionally (`--include-boundary`) the block-structured
-   boundary-layer quad meshes of the hex core.
-2. **Cylinder unwrap** (`dp3d/unwrap_surface.py`): isometric unroll of the
-   cylindrical 3D surface to the 2D `(s, t)` domain
-   (`s = r·theta`, `t = z`).
-3. **Cross-field + separatrices** (`dp3d/field/`, `dp3d/partition_surface.py`):
-   4-RoSy frame field, singularity detection, streamline integration,
-   Xiao 2020 merging/snapping.
+The figure is rendered from `vtk/22_full_series/base_a` by
+`render_blockgen_deck_style.py` in the SPP 2026 slide deck.
+
+## Why a beam search
+
+The singularity graph and the raw partition are identical across runs of the
+same geometry. All variability came from the collapse: the earlier greedy
+cleanup (`clean_blocks.collapse_mesh_sheets`) stops at the first local
+optimum, so one geometry (machine_0004) ended at 12, 22 or 75 blocks depending
+on which sheet fell first — label noise in the dataset. The beam search over
+collapse orders (`beam_collapse.py`) keeps the best few states per depth
+instead of one and reaches the same minimal structure from every start: 17 of
+17 runs end at 12 blocks / 12 cuboids, 0 inverted cells, validator VALID, one
+shared topology.
+
+- [`2026-09-28-beam-collapse-relabelling.md`](docs/decisions/2026-09-28-beam-collapse-relabelling.md) —
+  the finding, the decision and the measurements.
+- [`2026-09-30-cutset-search-not-a-collapse-substitute.md`](docs/decisions/2026-09-30-cutset-search-not-a-collapse-substitute.md) —
+  why a search over block-level cut sets (`sheet_beam.py`, ~10 s) is *not* a
+  substitute: it reaches 25 blocks at best, because uniting sheets lacks the
+  vertex welds of the cell-level collapse. It stays as a cheap audit tool.
+
+## Running the 3D route
+
+Everything below lives in `experimentell/hex3d_algohex/`. One sample, end to
+end — AlgoHex, block postprocessing, TFI, export — all logs inside `<outdir>`:
+
+```bash
+scripts/sample_one.sh <tet.vtk> <n> <outdir> [params.json]
+```
+
+It is idempotent (an existing `sample.npz` exits 0 at once) and its exit code
+names the failing stage (2 AlgoHex, 3 clean_blocks, 4 tfi, 5 export). `n` is
+AlgoHex's target cell count (`-n`); the dataset uses 2000 and 8000 as a pair.
+
+The beam-search collapse on an AlgoHex result (`.ovm`, OpenVolumeMesh) or on a
+saved `blocks.vtk`:
+
+```bash
+python beam_collapse.py <hex.ovm|blocks.vtk> --input-vtk <tet.vtk> \
+    --out <blocks_beam.vtk> --width 16 --depth 6 --guard struct
+```
+
+At dataset scale:
+
+- `scripts/generate_machines.py` — Sobol samples (a low-discrepancy sequence)
+  of the 30 dtOO design parameters, seeded and incremental, one `params.json`
+  and `mesh.msh` per machine.
+- `scripts/batch_samples.slurm`, `scripts/batch_generate.slurm` — many
+  `sample_one.sh` lanes per node on the cluster (enroot containers, no
+  Docker).
+
+A sample is one `sample.npz` (~0.45 MB): the block corners and hexahedra, the
+quad faces, every block edge as a polyline and as a cubic Bézier curve
+(`edge_ctrl`), the edge direction classes, the labelled surface triangulation
+and the design parameters.
+
+Further reading, in this order:
+
+| file | what it holds |
+|---|---|
+| `experimentell/hex3d_algohex/HANDOFF.md` | current state, reproduce commands, open defects, traps |
+| `experimentell/hex3d_algohex/README.md` | the stages, the AlgoHex runs v1–v18, modules |
+| `experimentell/hex3d_algohex/DATASET_PIPELINE.md` | the dataset plan, task by task |
+| `experimentell/hex3d_algohex/DATA_GENERATION.md` | how the geometries are generated (dtOO) |
+| `docs/cluster-enroot-findings.md` | every cluster-side trap |
+| `docs/decisions/` | decision logs: what was chosen, and what was rejected |
+| `docs/LITERATURE.md` | every source we lean on, by role, with status |
+
+## The 2D surface route
+
+1. **Extraction** (`dp3d/extraction.py`): hub/shroud surfaces from a Gmsh 2.2
+   MSH volume mesh via geometric region tags (hub=1, shroud=2), written as
+   STL. Optionally (`--include-boundary`) the block-structured boundary-layer
+   quad meshes of the hex core.
+2. **Cylinder unwrap** (`dp3d/unwrap_surface.py`): isometric unroll to the 2D
+   `(s, t)` domain (`s = r·theta`, `t = z`).
+3. **Cross field + separatrices** (`dp3d/field/`, `dp3d/partition_surface.py`):
+   4-RoSy frame field, singularity detection, streamline integration, Xiao
+   2020 merging/snapping.
 4. **Block partition** (`dp3d/tmesh.py`, `dp3d/xiao.py`):
-   - `ta` — Ansatz T-a: periodic seam as wall, master-slave seam
-     symmetrization, hanging T-nodes (DLR Sauer/Morsbach 2023 sec 2.7).
-   - `tb` — Ansatz T-b: like T-a, but hanging seam junctions are continued
-     into the domain.
+   - `ta` — periodic seam as wall, master-slave seam symmetrisation, hanging
+     T-nodes (DLR Sauer/Morsbach 2023 sec 2.7).
+   - `tb` — like `ta`, but hanging seam junctions are continued into the
+     domain.
    - `xiao` — pure Xiao 2020 baseline, no seam postprocessing, no TFI.
-5. **TFI fill** (ta/tb): conforming cell counts per edge (MILP), tanh
+5. **TFI fill** (`ta`/`tb`): conforming cell counts per edge (MILP), tanh
    blade-boundary-layer clustering, Coons patches + Thomas-Middlecoff
    smoothing.
 
-## Usage
+Why the 3D route replaced it: hub and shroud cross fields are topologically
+different (hub four index −1 singularities, shroud four index +1 — a real
+effect of blade twist). A per-surface 2D field with a ruled lift cannot
+represent that; a 3D field does natively.
 
 ```bash
 pip install -r requirements.txt
@@ -87,48 +174,45 @@ python domain_partition.py data/T1_9/T1_9_hub_raw.stl --method ta --plots
 ```
 
 Flags: `--part hub|shroud|both` (default hub), `--method ta tb xiao all`
-(default ta), `--plots` (showcase step series), `--include-boundary`
-(MSH input only), `--output DIR` (default `output/`).
+(default ta), `--plots` (showcase step series), `--include-boundary` (MSH input
+only), `--output DIR` (default `output/`).
 
-Outputs: `output/<part>/tmesh_metrics_<tag>.json`, `output/<part>/xiao/`
-text report + metrics, `output/extracted/` STL + boundary quad VTK. With
-`--plots` a single showcase series lands in `output/plots/`: steps 01-07
-once per part (surface, unwrap, cross-field, representatives, frame field,
-singularities, streamline integration plain + labeled), steps 08-09 per
-method plain + labeled (simplification, final blocks), steps 10-11 per
-method (TFI grid, tiled periodicity check -- ta/tb only). All steps share
-the faint triangulated background and the same (s,t) domain aspect.
+Outputs: `output/<part>/tmesh_metrics_<tag>.json`, `output/<part>/xiao/` text
+report + metrics, `output/extracted/` STL + boundary quad VTK. With `--plots`
+one showcase series lands in `output/plots/` (steps 01–07 per part, 08–11 per
+method).
 
 ## Layout
 
 ```
-domain_partition.py     CLI entry
-dp3d/                   pipeline package
+experimentell/
+  hex3d_algohex/        the 3D route: AlgoHex -> block structure -> dataset
+    scripts/            one-sample and batch drivers, cluster setup
+  gmsh_pipeline/        alternative Gmsh Algorithm-11 quad pipeline
+  3d_extrapolation/     hub master export, hub->shroud transfer, hexa blocks
+domain_partition.py     CLI entry of the 2D surface route
+dp3d/                   the 2D surface route
   field/                vendored 2D cross-field tools (torch-based)
   extraction.py         MSH -> hub/shroud STL, boundary quad blocks
   unwrap_surface.py     cylinder unwrap 3D -> 2D
-  dp_adapter.py         2D mesh -> torch_geometric Data
   partition_surface.py  periodic field, snapping, seam logic
-  tmesh_faces.py        T-mesh block extraction
-  tmesh.py              T-a/T-b pipeline + TFI
-  xiao.py               Xiao 2020 baseline
+  tmesh.py, xiao.py     T-a/T-b pipeline + TFI, Xiao 2020 baseline
   plotting.py           analysis + showcase plots
 data/T1_9/              T1_9 test case (source MSH/STL, raw surfaces)
-docs/
-  LITERATURE.md         every source we lean on, by role, with status
-  decisions/            decision logs: what was chosen, and what was rejected
-experimentell/
-  gmsh_pipeline/        alternative Gmsh Algorithm-11 quad pipeline
-  3d_extrapolation/     hub master export, hub->shroud transfer, hexa blocks
-  hex3d_algohex/        3D route: AlgoHex -> block complex -> dataset
+docs/                   decisions, literature, cluster findings, figures
+external_patches/       Dockerfile patches for the AlgoHex build
 ```
 
 ## Known issues / TODO
 
-- **Shroud partition** fails (hub runs clean); fixes pending.
+- **Dataset relabelling with the beam search** is decided but not wired in:
+  `scripts/sample_one.sh` still runs the greedy `clean_blocks.py`. The batch
+  scripts should call `beam_collapse.patch` instead of `--collapse-rounds 5`;
+  existing samples are relabelled beside the original (`sample_beam.npz`),
+  never overwritten.
+- **Shroud partition** (2D route) fails; hub runs clean.
 - **Boundary quad filter** (`--include-boundary`): the radius-percentile
   criterion also catches exterior faces that are not on the hub/shroud
   cylinder; needs a proper cylinder-distance test.
-- `experimentell/3d_extrapolation/` imports are updated to dp3d, but the
-  scripts still assume the pre-refactor `run_tmesh` defaults; revisit when
-  the shroud transfer is picked up again.
+- `experimentell/3d_extrapolation/` still assumes the pre-refactor
+  `run_tmesh` defaults.

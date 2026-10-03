@@ -28,7 +28,7 @@
 # repo at /repo and the eigenfrequencies checkout at /ef.
 # ---------------------------------------------------------------------------
 #SBATCH --job-name=dtoo_bisect
-#SBATCH --output=dtoo_bisect_%j.out
+#SBATCH --output=experimentell/hex3d_algohex/logs/dtoo_bisect_%j.out
 #SBATCH --partition=dev_cpu_il
 #SBATCH --time=00:30:00
 #SBATCH --nodes=1

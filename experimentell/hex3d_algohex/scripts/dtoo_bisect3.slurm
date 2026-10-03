@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
-#SBATCH --output=dtoo_bisect3_%j.out
+#SBATCH --output=experimentell/hex3d_algohex/logs/dtoo_bisect3_%j.out
 #
 # Bisect3 -- job 6869858 (uc2n601) sat 18+ min with ZERO file activity and no
 # container output. It was the first run with REAL two-field enroot mounts

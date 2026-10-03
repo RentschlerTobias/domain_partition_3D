@@ -70,3 +70,8 @@ data/dataset/*/*/*
 !data/dataset/*/*/params.json
 !data/dataset/*/sampler.json
 !data/dataset/*/skip.txt
+
+# Slurm job dumps (submit-time stdout) — routed into the logs dir, never committed.
+# The tee'd per-job .log files in experimentell/hex3d_algohex/logs/ ARE tracked on purpose.
+/*.out
+experimentell/hex3d_algohex/logs/*.out

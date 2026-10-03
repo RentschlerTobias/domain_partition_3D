@@ -23,7 +23,7 @@
 #   PYTHON_MODULE the system python3 is 3.9 and this needs >= 3.11
 # ---------------------------------------------------------------------------
 #SBATCH --job-name=algohex_one
-#SBATCH --output=algohex_one_%j.out
+#SBATCH --output=experimentell/hex3d_algohex/logs/algohex_one_%j.out
 #SBATCH --partition=dev_cpu_il
 #SBATCH --time=00:30:00
 #SBATCH --nodes=1

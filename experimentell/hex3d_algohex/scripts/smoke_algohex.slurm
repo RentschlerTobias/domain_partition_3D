@@ -21,7 +21,7 @@
 # same reason: these names were written without cluster access.
 # ---------------------------------------------------------------------------
 #SBATCH --job-name=algohex_smoke
-#SBATCH --output=algohex_smoke_%j.out
+#SBATCH --output=experimentell/hex3d_algohex/logs/algohex_smoke_%j.out
 #SBATCH --partition=dev_cpu_il
 #SBATCH --time=00:05:00
 #SBATCH --nodes=1

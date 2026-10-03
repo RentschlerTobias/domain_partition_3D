@@ -29,7 +29,7 @@ those in from memory — look them up.
 | **Liu & Bommes 2023, _Locally Meshable Frame Fields_** — [algohex.eu](https://www.algohex.eu/publications/locally-meshable-frame-fields/) | repairs a non-meshable octahedral field into a locally meshable one; lifts IGM success on the HexMe benchmark from 2 % to 58 % | AlgoHex's `--generate-locally-meshable-field` stage | **runs** |
 | **Lyon et al. 2016, HexEx / libHexEx** — [doi:10.1145/2897824.2925976](https://doi.org/10.1145/2897824.2925976) | robustly extracts a hex mesh from an imperfect integer-grid map | inside AlgoHex | **runs** |
 | **QGP3D** — [github.com/HendrikBrueckler/QGP3D](https://github.com/HendrikBrueckler/QGP3D), GPLv3 | quantised global parametrisation; internally builds a 3D Motorcycle Complex, so it already computes a block decomposition during quantisation | inside AlgoHex | **runs** |
-| **NeurFrame** — [arXiv:2603.12820](https://arxiv.org/html/2603.12820v1) | the pipeline shape this branch follows: octahedral field on a tet mesh → integer-grid map → robust extraction | `PLAN.md` names it as the reference architecture | **informed** |
+| **NeurFrame** — [arXiv:2603.12820](https://arxiv.org/html/2603.12820v1) | the pipeline shape this branch follows: octahedral field on a tet mesh → integer-grid map → robust extraction | `PLAN.md†` names it as the reference architecture | **informed** |
 
 Note for anyone reading AlgoHex's licence chain: AlgoHex is AGPLv3 and
 libHexEx/QGP3D are GPLv3. Fine for internal research in this repo; it
@@ -40,7 +40,7 @@ constrains redistribution, not use.
 | work | what it does | where | status |
 |---|---|---|---|
 | **Gao et al. 2015/2017** — [doi:10.1145/3130800.3130848](https://dl.acm.org/doi/10.1145/3130800.3130848) | the base complex: seed from every facet incident to a **singular** edge, expand through the **opposite facet across each regular edge** until termination; the hex groups bounded by the resulting sheets are the coarse blocks | `base_complex.py` (`singular_edges`, `sheet_faces`, `blocks_from_cut`) | **reimplemented** |
-| **Brückler, Gupta, Mandad, Campen 2022, _The 3D Motorcycle Complex for Structured Volume Decomposition_** | a principled coarse decomposition, provably finer-grained than the base complex but better-behaved | `FRAMEFIELD_PLAN.md` §2.3 | **informed** — it produces *more* blocks, not fewer, so it is relevant only if block *quality* becomes the binding problem rather than block count |
+| **Brückler, Gupta, Mandad, Campen 2022, _The 3D Motorcycle Complex for Structured Volume Decomposition_** | a principled coarse decomposition, provably finer-grained than the base complex but better-behaved | `FRAMEFIELD_PLAN.md†` §2.3 | **informed** — it produces *more* blocks, not fewer, so it is relevant only if block *quality* becomes the binding problem rather than block count |
 
 The expansion rule in Gao's construction is easy to get wrong in a way that
 still runs: stepping to the opposite face **within** a hex walks a 1D chain of
@@ -54,9 +54,9 @@ g" is: rotate twice around g. See the docstring of `base_complex.sheet_faces`.
 | work | what it does | where | status |
 |---|---|---|---|
 | **Gao et al. 2017, _Robust structure simplification for hex re-meshing_** | sheet/chord collapse with quality repair afterwards | `clean_blocks.py` (`mesh_sheets`, `collapse_sheet`, `collapse_mesh_sheets`) | **reimplemented** |
-| **Xu et al. 2021, _Singularity structure simplification via weighted ranking_** — [github.com/ohehe/HexMeshSimplification](https://github.com/ohehe/HexMeshSimplification) | ranks collapsible sheets/chords by a weighted function (valence prediction + element quality + width) instead of thickness alone; fixes thickness ranking's early-termination and closed-loop failures | `FRAMEFIELD_PLAN.md` §2.2 | **shortlist** |
-| **Duan et al. 2023, _Singularity structure simplification via integer linear program_** | plans a **global** collapse strategy by ILP instead of greedy ranking; relaxes singularity constraints; handles bad singularities by sheet **inflation**; preserves sharp features | `FRAMEFIELD_PLAN.md` §2.2, §5 | **shortlist — the most likely fix for our measured early stop** |
-| **Duan et al. 2024, _Feature-aware singularity structure optimization_** | adds alignment of singularities to feature lines, plus inflation for high-valence singularities | `FRAMEFIELD_PLAN.md` §2.2 | **shortlist** |
+| **Xu et al. 2021, _Singularity structure simplification via weighted ranking_** — [github.com/ohehe/HexMeshSimplification](https://github.com/ohehe/HexMeshSimplification) | ranks collapsible sheets/chords by a weighted function (valence prediction + element quality + width) instead of thickness alone; fixes thickness ranking's early-termination and closed-loop failures | `FRAMEFIELD_PLAN.md†` §2.2 | **shortlist** |
+| **Duan et al. 2023, _Singularity structure simplification via integer linear program_** | plans a **global** collapse strategy by ILP instead of greedy ranking; relaxes singularity constraints; handles bad singularities by sheet **inflation**; preserves sharp features | `FRAMEFIELD_PLAN.md†` §2.2, §5 | **shortlist — the most likely fix for our measured early stop** |
+| **Duan et al. 2024, _Feature-aware singularity structure optimization_** | adds alignment of singularities to feature lines, plus inflation for high-valence singularities | `FRAMEFIELD_PLAN.md†` §2.2 | **shortlist** |
 
 Two things worth carrying over from our own implementation of Gao's collapse,
 because both cost this branch real time:
@@ -93,7 +93,7 @@ repairable, structure thrown away is not.
 | **Liu et al. 2018, _Singularity-constrained octahedral fields_** | enumerates valid local configurations, generalises Hopf–Poincaré to octahedral fields, generates a field with a **prescribed** singularity graph | **informed** — the only route to actually dictating the graph; requires solving a large nonlinear mixed-integer algebraic system |
 | **Palmer, Bommes, Solomon 2020, _Algebraic representations for volumetric frame fields_** | odeco frames, SDP relaxation | **informed** — alternative field representation, no direct singularity control |
 
-The load-bearing conclusion of this section, recorded in `FRAMEFIELD_PLAN.md`:
+The load-bearing conclusion of this section, recorded in `FRAMEFIELD_PLAN.md†`:
 AlgoHex already implements the state of the art for *meshability*. It does not
 optimise for *fewness*. That gap is the opening, and section C is where it is
 addressed — not here.
@@ -136,16 +136,16 @@ which have no surface to be geodesic on. And the announced code is not out yet.
 |---|---|---|---|
 | **Coons 1967, the Coons patch** | the bilinearly blended surface patch from four boundary curves | `dp3d/tmesh.py::_coons`, `curved_refill.py::_coons` | **reimplemented** |
 | **Gordon & Hall 1973, _Transfinite element methods_** — [doi:10.1007/BF01436298](https://link.springer.com/article/10.1007/BF01436298) | transfinite interpolation: the interpolant matches the prescribed data on a whole continuum (the boundary), not at finitely many points — hence "transfinite". Defines the transfinite element as an **invertible** map | `tfi.py::tfi`, the trilinear boolean sum P1 ⊕ P2 ⊕ P3 | **reimplemented** |
-| **Perronnet, transfinite interpolation catalogue** — [ljll.fr/perronnet/transfini](https://www.ljll.fr/perronnet/transfini/transfini.html) | explicit forms for the square and the **cube** (Coons, Gordon, Hall) | `TFI_RESEARCH.md` — the 3D form was taken from here | **informed** |
-| **Allen (2008), _Towards automatic structured multiblock mesh generation using improved transfinite interpolation_** — [ResearchGate](https://www.researchgate.net/publication/229806466_Automatic_Structured_Multiblock_Mesh_Generation_Using_Robust_Transfinite_Interpolation) (full record not established in this branch, see `TFI_RESEARCH.md:114`) | improved/robust TFI for multiblock generation | `TFI_RESEARCH.md` | **informed** |
-| **Vinokur (1983), _On one-dimensional stretching functions for finite-difference calculations_** (record as cited at `TFI_RESEARCH.md:141`) | the near-wall point distribution itself | `tfi.py::clustered_fractions` | **informed** |
-| **Winslow / Thompson–Thames–Mastin**, elliptic grid generation | elliptic smoothing of a structured grid | `TFI_RESEARCH.md:102` | **informed** |
+| **Perronnet, transfinite interpolation catalogue** — [ljll.fr/perronnet/transfini](https://www.ljll.fr/perronnet/transfini/transfini.html) | explicit forms for the square and the **cube** (Coons, Gordon, Hall) | `TFI_RESEARCH.md†` — the 3D form was taken from here | **informed** |
+| **Allen (2008), _Towards automatic structured multiblock mesh generation using improved transfinite interpolation_** — [ResearchGate](https://www.researchgate.net/publication/229806466_Automatic_Structured_Multiblock_Mesh_Generation_Using_Robust_Transfinite_Interpolation) (full record not established in this branch, see `TFI_RESEARCH.md†:114`) | improved/robust TFI for multiblock generation | `TFI_RESEARCH.md†` | **informed** |
+| **Vinokur (1983), _On one-dimensional stretching functions for finite-difference calculations_** (record as cited at `TFI_RESEARCH.md†:141`) | the near-wall point distribution itself | `tfi.py::clustered_fractions` | **informed** |
+| **Winslow / Thompson–Thames–Mastin**, elliptic grid generation | elliptic smoothing of a structured grid | `TFI_RESEARCH.md†:102` | **informed** |
 | **Thomas–Middlecoff** elliptic smoothing | elliptic smoothing with control functions that preserve boundary spacing into the interior, unlike plain Winslow which relaxes towards uniform | `dp3d/tmesh.py:973` | **reimplemented** (2D route) |
-| **Elliptic grid generation with orthogonality and spacing control** — [ResearchGate](https://www.researchgate.net/publication/23582709_Elliptic_grid_generation_with_orthogonality_and_spacing_control_on_an_arbitrary_number_of_boundaries) | orthogonality and spacing control on an arbitrary number of boundaries | `TFI_RESEARCH.md` | **informed** |
-| **Zhang et al., structured mesh generation with smoothness controls** — [doi:10.1002/fld.1150](https://onlinelibrary.wiley.com/doi/10.1002/fld.1150) | smoothness controls | `TFI_RESEARCH.md` | **informed** |
-| **Ali & Tucker, _Multiblock structured mesh generation for turbomachinery flows_** — [ResearchGate](https://www.researchgate.net/publication/273258150_Multiblock_Structured_Mesh_Generation_for_Turbomachinery_Flows) | the turbomachinery-specific multiblock practice | `TFI_RESEARCH.md` | **informed** |
-| **Sauer et al. 2023 (DLR), _An optimization-based multi-block-structured grid generation method_** — [elib.dlr.de](https://elib.dlr.de/195590/1/Sauer_2023_Numerical_Meth_Engineering-An_optimization_based_multi%E2%80%90block%E2%80%90structured_grid_generation_method.pdf) | optimisation-based multiblock generation | cited in `dp3d/tmesh.py`, `TFI_RESEARCH.md:148` | **informed** |
-| **GridPro, _The art and science of meshing turbine blades_** — [blog.gridpro.com](https://blog.gridpro.com/the-art-and-science-of-meshing-turbine-blades/) | industrial practice for exactly our geometry class | `TFI_RESEARCH.md` | **informed** |
+| **Elliptic grid generation with orthogonality and spacing control** — [ResearchGate](https://www.researchgate.net/publication/23582709_Elliptic_grid_generation_with_orthogonality_and_spacing_control_on_an_arbitrary_number_of_boundaries) | orthogonality and spacing control on an arbitrary number of boundaries | `TFI_RESEARCH.md†` | **informed** |
+| **Zhang et al., structured mesh generation with smoothness controls** — [doi:10.1002/fld.1150](https://onlinelibrary.wiley.com/doi/10.1002/fld.1150) | smoothness controls | `TFI_RESEARCH.md†` | **informed** |
+| **Ali & Tucker, _Multiblock structured mesh generation for turbomachinery flows_** — [ResearchGate](https://www.researchgate.net/publication/273258150_Multiblock_Structured_Mesh_Generation_for_Turbomachinery_Flows) | the turbomachinery-specific multiblock practice | `TFI_RESEARCH.md†` | **informed** |
+| **Sauer et al. 2023 (DLR), _An optimization-based multi-block-structured grid generation method_** — [elib.dlr.de](https://elib.dlr.de/195590/1/Sauer_2023_Numerical_Meth_Engineering-An_optimization_based_multi%E2%80%90block%E2%80%90structured_grid_generation_method.pdf) | optimisation-based multiblock generation | cited in `dp3d/tmesh.py`, `TFI_RESEARCH.md†:148` | **informed** |
+| **GridPro, _The art and science of meshing turbine blades_** — [blog.gridpro.com](https://blog.gridpro.com/the-art-and-science-of-meshing-turbine-blades/) | industrial practice for exactly our geometry class | `TFI_RESEARCH.md†` | **informed** |
 | [Transfinite interpolation, overview](https://en.wikipedia.org/wiki/Transfinite_interpolation) | orientation only | | **informed** |
 
 One implementation invariant that comes from our own measurements rather than
@@ -205,7 +205,7 @@ Not literature, but the same question applies — what do we already rely on?
   (2 % → 58 % IGM success for locally meshable fields; feature-surface
   preservation only 34.6 % on average across methods). Used here as the
   reference for what "hard" means and as the format model for
-  `data/T1_9/T1_9_tet.vtk`. See `PLAN.md:27`, `:130`, `:151`. — **informed**
+  `data/T1_9/T1_9_tet.vtk`. See `PLAN.md†:27`, `:130`, `:151`. — **informed**
 
 ---
 
@@ -216,9 +216,12 @@ work, and those are worth reading before acting on an entry here.
 
 | document | what it argues |
 |---|---|
-| `experimentell/hex3d_algohex/PLAN.md` | why AlgoHex and not a hand-rolled field/IGM/extraction chain |
-| `experimentell/hex3d_algohex/FRAMEFIELD_PLAN.md` | the frame-field and simplification survey, §2.1-2.3, and why the opening is *fewness* |
-| `experimentell/hex3d_algohex/TFI_RESEARCH.md` | transfinite interpolation, from Coons and Gordon–Hall to the industrial practice |
+| `experimentell/hex3d_algohex/PLAN.md†` | why AlgoHex and not a hand-rolled field/IGM/extraction chain |
+| `experimentell/hex3d_algohex/FRAMEFIELD_PLAN.md†` | the frame-field and simplification survey, §2.1-2.3, and why the opening is *fewness* |
+| `experimentell/hex3d_algohex/TFI_RESEARCH.md†` | transfinite interpolation, from Coons and Gordon–Hall to the industrial practice |
 | `experimentell/hex3d_algohex/MESH_QUALITY.md` | the OpenFOAM metrics and our measured values |
 | `docs/decisions/2026-09-11-hex3d-dataset-pipeline.md` | the ten dataset-pipeline decisions, with the alternatives that were rejected |
 | `docs/decisions/2026-09-08-hex3d-block-structure-objective.md` | what the block structure is for, and the Coons/Gordon-Hall boundary-error numbers |
+
+† Planning document removed in the 2026-10-03 docs cleanup; read it with
+`git show a583e59:experimentell/hex3d_algohex/<file>`.

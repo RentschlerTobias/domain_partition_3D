@@ -1,180 +1,121 @@
-# hex3d_algohex — 3D frame-field hexahedral blocks for T1_9
+# hex3d_algohex — 3D frame-field block structures
 
-Branch `feat/algohex-3d-frame-field`.
-
-Generates geometry-aligned hexahedral **blocks** for the T1_9 runner passage
-via a genuine 3D octahedral frame field, as an alternative to extruding the
-2D surface partitions of `dp3d/`. Pipeline:
+The 3D route of this repository: geometry-aligned hexahedral **block
+structures** for turbomachinery flow passages, from a genuine 3D octahedral
+frame field. Its output, one `sample.npz` per machine, is the training data of
+the block-structure transformer in [`meshtron`](../../../meshtron).
 
 ```
-tet mesh + feature tags  ->  AlgoHex (frame field -> IGM -> HexEx)  ->  hex mesh
-                         ->  base complex (sheets)  ->  coarse blocks  ->  TFI
+dtOO mesh.msh ─ tet_prep_v5 ─▶ labelled tet mesh ─ AlgoHex ─▶ fine hex mesh (.ovm)
+   ─ base_complex ─▶ raw block partition ─ sheet collapse (beam) ─▶ minimal blocks
+   ─ block_edges ─▶ cubic edges ─ tfi ─▶ conforming refill ─ export_sample ─▶ sample.npz
 ```
 
-The motivation for going 3D: `experimentell/3d_extrapolation/hexa_interpolation.py:4-8`
-records that the hub and shroud cross fields are *topologically different*
-(hub four idx=−1 singularities, shroud four idx=+1 — a real effect of blade
-twist). A per-surface 2D field with a ruled lift cannot represent that, which
-is why the existing 3D lift needs a morph hack. A 3D field represents it
-natively.
+The repository README has the nine-step figure and the reasoning behind the
+beam search; this file is the working reference for the code here.
 
-> **Starting fresh? Read `HANDOFF.md` first.** It has the current state, the
-> reproduce commands, the one open defect, and the traps.
+Abbreviations: **dtOO** — our parametric design system; **AlgoHex** — the
+open-source hex mesher (frame field → integer-grid map → HexEx); **IGM** —
+integer-grid map, the seamless parametrisation; **HexEx** — hex extraction
+from it; **TFI** — transfinite interpolation; **OVM** — OpenVolumeMesh file;
+**sJ** — scaled Jacobian (≤ 0 = inverted cell); **ILP / MILP** — (mixed-)
+integer linear program; **BL** — boundary layer.
 
-**Status**: Stages 0–7 done (TFI steps 1–4). Best result: **v11 → 16 blocks, all 6-faced, 0
-inverted cells, validator VALID** (`clean_blocks.py --collapse-rounds 5
---untangle` on `T1_9_hex_v11.ovm`). Older text below still describes the v9
-path; see PROGRESS.md "Runs v10 and v11".
+## Where it stands (2026-10-03)
 
-Stages 0–5 done. A valid hex mesh, a block decomposition and its
-postprocessing (`clean_blocks.py`) exist. Two usable endpoints: **81 blocks /
-73 cuboids (90 %)** with the mesh nearly untouched, or **42 blocks / 36
-cuboids (86 %)** after a sheet collapse and untangling — half the blocks and
-**0 inverted cells, `HexBlockValidator` VALID**. TFI is next. See "What was
-learned", points 6–10.
+- **The pipeline runs at dataset scale.** Sobol-sampled machines (30 dtOO
+  parameters) → dtOO meshes → AlgoHex → blocks → `sample.npz`, as cluster jobs
+  on bwUniCluster (enroot, no Docker). The batch dataset holds 739 samples.
+- **The collapse is the open item.** The singularity graph and the raw
+  partition are stable; the greedy collapse that `sample_one.sh` still runs is
+  not (one geometry: 12, 22 or 75 blocks). `beam_collapse.py` fixes it — 17 of
+  17 runs end at the same 12-block topology — and the dataset is to be
+  relabelled with it, beside the original samples
+  ([decision](../../docs/decisions/2026-09-28-beam-collapse-relabelling.md)).
+- **Rejected on measurement:** a block-level cut-set search as a collapse
+  substitute ([decision](../../docs/decisions/2026-09-30-cutset-search-not-a-collapse-substitute.md));
+  leading/trailing-edge feature curves as extra constraints
+  ([decision](../../docs/decisions/2026-10-03-le-te-feature-edges-rejected.md)).
 
----
+`HANDOFF.md` has the state in detail, the next steps and the traps.
 
-## Quick start
+## Running it
+
+**One sample**, end to end, idempotent, all logs inside `<outdir>` (exit codes:
+2 AlgoHex, 3 clean_blocks, 4 tfi, 5 export, 7 pruned):
 
 ```bash
-PY=/root/repos/duty/quadmesh/.venv/bin/python
-
-# 1. build the AlgoHex input (reduced domain, the best-performing variant)
-$PY experimentell/hex3d_algohex/tet_prep_v5.py            # -> data/T1_9/T1_9_tet_v5.vtk
-
-# 2. run AlgoHex  (~45 min, needs the machine to itself, see "Memory" below)
-$PY experimentell/hex3d_algohex/run_algohex.py \
-      --tag v9 --in-vtk data/T1_9/T1_9_tet_v5.vtk -- -n 60000
-
-# 3. blocks from the result  (raw base complex; see "What was learned" 6 --
-#    its own surface classifier gives 48 %, not the 74 % on record)
-$PY experimentell/hex3d_algohex/block_faces.py output/hex3d_algohex/T1_9_hex_v9.ovm
-
-# 4. block-structure postprocessing: report, cleanup, validation, export
-$PY experimentell/hex3d_algohex/clean_blocks.py
-
-#    optional: mesh-level sheet collapse (Gao), ~15 min per round, halves the
-#    block count on v9; changes the hex mesh, so it is off by default
-$PY experimentell/hex3d_algohex/clean_blocks.py --collapse-rounds 5 --untangle \
-      --out output/hex3d_algohex/deliverable/T1_9_blocks_v9_gao.vtk
-$PY experimentell/hex3d_algohex/clean_blocks.py \
-      output/hex3d_algohex/cylinder_hex.ovm --no-input-vtk --out /tmp/cyl.vtk
-
-# 5. re-attach the parts cut out of the AlgoHex domain -> full-domain blocks
-$PY experimentell/hex3d_algohex/reattach.py
-
-# inspection files for ParaView
-$PY experimentell/hex3d_algohex/export_vtk.py
-$PY experimentell/hex3d_algohex/plot_stages.py
+scripts/sample_one.sh <tet.vtk> <n> <outdir> [params.json]
 ```
 
----
+**The stages by hand:**
 
-## The two usable results
+```bash
+# 1. labelled AlgoHex input from a dtOO mesh
+python tet_prep_v5.py --msh <mesh.msh> --out-dir <dir>
+# 2. AlgoHex; -n is the target cell count (dataset: 2000 and 8000)
+python run_algohex.py --backend auto --in-vtk <dir>/T1_9_tet_v5.vtk \
+    --out-dir <dir> --tag <name> -- -n 2000
+# 3. block structure: labels, cavities, validator; the greedy collapse
+python clean_blocks.py <hex.ovm> --input-vtk <tet.vtk> --collapse-rounds 5 \
+    --untangle --out <blocks.vtk>
+#    ... or the beam-search collapse instead (recommended)
+python beam_collapse.py <hex.ovm> --input-vtk <tet.vtk> --out <blocks.vtk> \
+    --width 16 --depth 6 --guard struct
+# 4. conforming refill at a prescribed cell size
+python tfi.py <blocks.vtk> --target-h 0.05 --apply-divisions --out <refill.vtk>
+# 5. the neutral sample file
+python export_sample.py <blocks.vtk> --tet <tet.vtk> --params <params.json> \
+    --target-h 0.05 --out <sample.npz> --check
+```
 
-| | **v5** (full domain) | **v9** (reduced domain) |
-|---|---|---|
-| input | `data/T1_9/T1_9_tet_v2.vtk` | `data/T1_9/T1_9_tet_v5.vtk` |
-| tets in | 71 415 | 42 218 |
-| hex cells out | 60 612 | 56 661 |
-| coverage | 100 % of 6.5253 | 99.8 % of 5.4606 |
-| **inverted cells** (scaled Jacobian ≤ 0) | 96 | **2** |
-| worst scaled Jacobian | −0.9956 | **−0.0607** |
-| mean scaled Jacobian | 0.9651 | 0.9664 |
-| non-manifold boundary edges | 0 | 0 |
-| runtime | 1 h 17 | 45 min |
-| **blocks** | 307 | **82** |
-| cuboids | 290 (94 %) | 61 (74 %, 85 % of cells) |
-| after `clean_blocks.py` | — | **81 blocks, 73 cuboids (90 %)** |
-| after `--collapse-rounds 5 --untangle` | — | **42 blocks, 36 cuboids (86 %), 0 inverted, VALID** |
+`reattach.py` puts the blade O-grid and the hub/shroud boundary layer back for
+a full-domain mesh; `ogrid_extrude.py` builds a *conforming* blade O-grid by
+extruding the core's block faces to the blade wall instead.
 
-v9 is the recommended base: 48× fewer inverted cells and a far coarser block
-structure, which is what TFI wants. v5 has the higher cuboid share.
-
-v9's domain excludes both boundary layers. They are re-attached by
-`reattach.py` (stage 6): full domain 103 157 cells in **73 blocks**.
-
----
-
-## Run ↔ input-file mapping
-
-Two independent numberings collide here — a run tag `vN` is **not** the same
-as an input file `T1_9_tet_vN.vtk`. Explicitly:
-
-| run | input file | domain | feature edges | `-n` | outcome |
-|---|---|---|---|---|---|
-| v1 | `T1_9_tet.vtk` (classifySurfaces tags) | full | 853 (427 flat) | 10000 | 95.4 % coverage |
-| v2 | `T1_9_tet.vtk` (analytic tags) | full | 496 | 10000 | SIGSEGV — dangling feature curves |
-| v3 | `T1_9_tet.vtk` (analytic, cleaned) | full | 437 | 10000 | IGM diverged (energy 3.3e48) |
-| v4 | `T1_9_tet_v1tags.vtk` | full | 853 | 60000 | 97.9 % coverage, 124 inverted |
-| **v5** | `T1_9_tet_v2.vtk` | full, original boundary | 630 | 60000 | **valid IGM, 100 % coverage** |
-| v6 | `T1_9_tet_v3.vtk` | minus blade O-grid | 646 | 60000 | aborted (stopped for memory) |
-| v7 | `T1_9_tet_v4.vtk` | minus O-grid + BL | 166 | 60000 | OOM in quantization |
-| v8 | `T1_9_tet_v4.vtk` | same as v7 | 166 | 15000 | OOM — `-n` is not the cause |
-| **v9** | `T1_9_tet_v5_diagbug.vtk` | reduced, exact labels | 550 | 60000 | **completed, 2 inverted cells** |
-| **v11** | `T1_9_tet_v5.vtk` | same domain, **labels corrected** | 534 | 60000 | **13 min, 21 inverted, no cavities — best block structure** |
-| v10 | `T1_9_tet_v6.vtk` | only the blade layer cut | 854 | 60000 | 1 h 29, 19 inverted, 198 blocks |
-| v12 | `T1_9_tet_v5.vtk` | `--full-constraints` | 534 | 60000 | 18 min, pinch unchanged, not adopted |
-| v13 | `T1_9_tet_v7.vtk` | O-grid interface re-meshed isotropically | 534 | 60000 | 19 min, 14 inverted, 84 blocks, does not collapse |
-| v14 | `T1_9_tet_v8.vtk` | cut surfaces merged, rings removed | **310** | 60000 | 25 min, **100 % cuboids** but 96 inverted |
-| v15 | `T1_9_tet_v9.vtk` | merged **and** O-grid interface re-meshed | 310 | 60000 | 30 min, 129 inverted, 120 blocks |
-| **v16** | `T1_9_tet_v10.vtk` | **only the root ring** merged, re-meshed | **422** | 60000 | 19 min, 32 inverted, **103 blocks, no pinch, VALID** |
-| v17 | `T1_9_tet_v11.vtk` | ring edges below 70° dropped, re-meshed | 499 | 60000 | 26 min, 46 inverted, 70 blocks, no pinch |
-| v18 | `T1_9_tet_v9.vtk` (`--full-constraints`) | merged, re-meshed | 310 | 60000 | 22 min, 102 inverted, **120 raw blocks** (v15: 242) |
-
-Logs and metrics per run: `output/hex3d_algohex/hexmeshing_<tag>.log`,
-`T1_9_hex_metrics_<tag>.json`.
-
----
+**At dataset scale:** `scripts/generate_machines.py` draws machines (Sobol,
+seeded, incremental, `--grow` doubles the prefix);
+`scripts/batch_generate.slurm` is one production job for the whole chain
+(dtOO export → samples, refilled until the walltime drain);
+`scripts/batch_samples.slurm` and `scripts/batch_blocks_array.slurm` sample an
+existing machine set on one or N nodes. Read
+[`../../docs/cluster-enroot-findings.md`](../../docs/cluster-enroot-findings.md)
+before touching any of them.
 
 ## Modules
 
 | file | role |
 |---|---|
-| `tet_prep.py` | Stage 1 base: topological boundary extraction from the hybrid MSH, analytic surface classification, feature graph, AlgoHex VTK writer. Shared helpers used by all later variants. |
-| `tet_prep_v2.py` | keeps the **original** boundary triangulation and meshes only the interior (full domain). Input for v5. |
-| `tet_prep_v3.py` | reduced domain: blade O-grid removed. Input for v6. |
-| `tet_prep_v5.py` | reduced domain with **exact** labels matched against the MSH's own tagged 2D elements. Input for v9. **Current best.** |
-| `run_algohex.py` | Docker wrapper for `HexMeshing`, `--tag`/`--in-vtk`, checkpoints the seamless map |
-| `ovm_io.py` | OpenVolumeMesh reader, hex VTK/MSH writers, `scaled_jacobian`, `_hex_volume` |
-| `base_complex.py` | singular edges, sheet propagation, block partition |
+| `tet_prep_v5.py` | the AlgoHex input: reduced domain (O-grid and prisms cut out), 7 surfaces labelled from the MSH's own tagged 2D elements, feature graph. `--merge-interfaces`, `--ring-kink`, `--remesh-ogrid`, `--keep-prisms` |
+| `tet_prep.py` | shared helpers of every input variant: boundary extraction, classification, AlgoHex VTK writer |
+| `tet_prep_solid.py`, `blade_volume.py` | stage 1 for a solid body (runner, blade) instead of a flow passage |
+| `run_algohex.py` | runs `HexMeshing`; `--backend auto/native/docker/enroot`, `--out-dir`, `--tag` |
+| `ovm_io.py` | OpenVolumeMesh reader, hex VTK/MSH writers, `scaled_jacobian` |
+| `base_complex.py` | singular edges, sheet propagation, block partition — purely topological |
 | `block_faces.py` | per-sheet labelling, block faces, cuboid test |
-| `clean_blocks.py` | Stage 5: block-structure postprocessing. Exact surface labels by nearest-face lookup; cavity detection and refill; block merge/split on the cut set; optional mesh-level sheet collapse (Gao); `HexBlockValidator`; before/after report |
-| `reattach.py` | Stage 6: re-attaches the removed parts — blade O-grid reused verbatim (5 ready-made cuboid blocks), hub/shroud boundary layer regenerated by radial extrusion; block edges per part |
-| `mesh_quality.py` | CFD quality metrics (OpenFOAM `checkMesh` conventions) per cell, as VTK + PNG + HTML — see `MESH_QUALITY.md` |
-| `showcase.py` | the pipeline in 11 steps, each as VTK (authoritative) + PNG (pyvista) + interactive HTML (plotly) — see `SHOWCASE.md` |
-| `export_vtk.py`, `plot_stages.py` | ParaView exports and figures (`plot_stages.py` is superseded by `showcase.py`) |
-
-`tet_prep_v4.py` does not exist — the numbering skips it because
-`T1_9_tet_v4.vtk` is produced by an ad-hoc variant of `tet_prep_v3`.
-
----
+| `clean_blocks.py` | block postprocessing: exact surface labels (`SurfaceLabeller`), cavity refill, merge/split, the greedy mesh-level sheet collapse, untangling, `HexBlockValidator` |
+| `beam_collapse.py` | the global sheet collapse: beam search over collapse orders, `patch()` swaps it into `clean_blocks` |
+| `sheet_beam.py` | the block-level cut-set search — rejected as a substitute, kept as a ~10 s audit |
+| `merge_ilp.py` | optimal block merging as a weighted exact cover ILP |
+| `block_edges.py` | block edges as polylines and cubic Bézier fits |
+| `tfi.py` | block lattices, conforming division counts, 3D Gordon–Hall refill |
+| `curved_refill.py` | how much a cubic block edge buys over a linear one in the refill |
+| `reattach.py` | re-attaches the blade O-grid (verbatim) and the hub/shroud BL (extruded) |
+| `ogrid_extrude.py` | a conforming blade O-grid extruded from the core |
+| `export_sample.py` | the neutral `sample.npz`; meshtron owns the ML format |
+| `mesh_quality.py` | CFD quality metrics (OpenFOAM `checkMesh` conventions) — `MESH_QUALITY.md` |
+| `showcase.py`, `export_vtk.py`, `plot_stages.py` | visual analysis and ParaView exports |
+| `scripts/` | `sample_one.sh`, batch and cluster drivers, `generate_machines.py`, dtOO helpers |
+| `tests/` | `test_divisions.py`, `test_refill.py` |
 
 ## Running AlgoHex
 
-The build lives in a **named Docker volume**, not in the image (the compile
-was OOM-killed repeatedly and had to be made resumable):
-
-```bash
-docker run --rm --network=host \
-  -v $PWD:/work -v algohex-build-cache:/app/build algohex-configured \
-  /app/build/Build/bin/HexMeshing -i ... -o ...
-```
-
-A self-contained image `algohex:portable` also exists with the binaries baked
-in — that is the one to export to a cluster:
-
-```bash
-docker save algohex:portable -o algohex.tar
-apptainer build algohex.sif docker-archive://algohex.tar     # bwUniCluster
-```
-
-**Memory**: this machine has 7.7 GiB. AlgoHex peaks hard during quantization;
-two concurrent runs OOM. Run them **sequentially**. `--network=host` is
-required — the default bridge network has no DNS here.
-
----
+`run_algohex.py --backend auto` picks the first available of a native build,
+enroot (`algohex.sqsh`, the cluster route) and Docker. For Docker the build
+lives in a named volume, and a self-contained `algohex:portable` image exists
+for export; its recipe is `../../external_patches/Dockerfile.portable`.
+AlgoHex peaks hard in memory during quantization — on a small machine run one
+at a time.
 
 ## Restoring the inputs a fresh clone needs
 
@@ -190,8 +131,6 @@ tar -I zstd -xf experimentell/hex3d_algohex/fixtures/blocks_core.tar.zst
 from the repo root. What is in it and what deliberately is not:
 [`fixtures/README.md`](fixtures/README.md).
 
----
-
 ## A naming note that matters
 
 The surfaces `bl_interface_hub`, `bl_interface_shroud` and `ogrid_interface`
@@ -206,7 +145,35 @@ repeatedly meant "blocks touching the O-grid cut face", which is a different
 thing one cell layer away. Older entries in `PROGRESS.md` still use the old
 names; they are a chronological log and were deliberately not rewritten.
 
----
+## Reduced-domain strategy
+
+Rather than making the frame field resolve the thin boundary layers, they are
+cut out of the AlgoHex domain and re-attached afterwards as their own blocks.
+Conformity is not an issue: TFI regenerates each block's interior from its
+boundary curves, so the parts only have to agree at **block** level, where
+the conforming-division MILP (`dp3d/tmesh.py:743`) handles it.
+
+Cell census of the source MSH (measured), which settles what can be reused:
+
+| type | count | median wall distance | role |
+|---|---|---|---|
+| prism | 121 080 | 0.0120 | boundary layer on hub + shroud |
+| hex | 44 800 | 0.047 | O-grid around the blade |
+| tet | 89 547 | 0.274 | free core |
+| pyramid | 1 792 | 0.286 | O-grid → tet transition |
+
+Faces lying exactly on the cylinders: hub 2178 triangles + 1120 quads,
+shroud 7912 triangles + 1120 quads. The quads are exactly the blade O-grid
+footprint. A further 2699 (hub) / 2996 (shroud) quads sit near the wall but
+on *other* surfaces — they are the quad **side faces** of the prism layer,
+which is why the near-wall zone looks fully quad-meshed while the cylinder
+surface itself is triangulated.
+
+**Consequence**: the blade O-grid is genuine hexahedra and can be reused as
+blocks directly. The hub/shroud boundary layer is triangular prisms, which
+are *not* hexahedral blocks, so it must be regenerated — either by tanh wall
+clustering inside the AlgoHex blocks (`dp3d/tmesh.py:811 edge_fractions`) or
+by extruding from the AlgoHex surface.
 
 ## What was learned (the non-obvious parts)
 
@@ -370,99 +337,21 @@ quantity to minimise is a *count*, an extremum or an average will happily
 report progress while the structure degrades. Use a one-sided barrier and
 rank by the count.
 
----
-
-## Reduced-domain strategy
-
-Rather than making the frame field resolve the thin boundary layers, they are
-cut out of the AlgoHex domain and re-attached afterwards as their own blocks.
-Conformity is not an issue: TFI regenerates each block's interior from its
-boundary curves, so the parts only have to agree at **block** level, where
-the conforming-division MILP (`dp3d/tmesh.py:743`) handles it.
-
-Cell census of the source MSH (measured), which settles what can be reused:
-
-| type | count | median wall distance | role |
-|---|---|---|---|
-| prism | 121 080 | 0.0120 | boundary layer on hub + shroud |
-| hex | 44 800 | 0.047 | O-grid around the blade |
-| tet | 89 547 | 0.274 | free core |
-| pyramid | 1 792 | 0.286 | O-grid → tet transition |
-
-Faces lying exactly on the cylinders: hub 2178 triangles + 1120 quads,
-shroud 7912 triangles + 1120 quads. The quads are exactly the blade O-grid
-footprint. A further 2699 (hub) / 2996 (shroud) quads sit near the wall but
-on *other* surfaces — they are the quad **side faces** of the prism layer,
-which is why the near-wall zone looks fully quad-meshed while the cylinder
-surface itself is triangulated.
-
-**Consequence**: the blade O-grid is genuine hexahedra and can be reused as
-blocks directly. The hub/shroud boundary layer is triangular prisms, which
-are *not* hexahedral blocks, so it must be regenerated — either by tanh wall
-clustering inside the AlgoHex blocks (`dp3d/tmesh.py:811 edge_fractions`) or
-by extruding from the AlgoHex surface.
-
----
-
-## Deliverables
-
-`output/hex3d_algohex/deliverable/` (all verified readable with `meshio`):
+## Documents
 
 | file | content |
 |---|---|
-| `T1_9_hexmesh_v9.{vtk,msh}` | the v9 hex mesh, 56 661 cells |
-| `T1_9_hexmesh_v9_quality.vtk` | `scaled_jacobian_x1000` — threshold < 0 shows the 2 bad cells |
-| `T1_9_blocks_v9.vtk` | `block_id`, 82 blocks |
-| `T1_9_blocks_v9_nfaces.vtk` | `n_block_faces` — threshold ≠ 6 shows the 21 non-cuboids |
-| `T1_9_v9_input_*.vtk` | the AlgoHex input: surface (`surface_id`), tets, feature graph |
-| `T1_9_hexmesh_v5.*`, `T1_9_blocks_v5.*` | same for the full-domain run |
-| `T1_9_blocks_v9_clean.{vtk,msh}` | postprocessed blocks, `block_id`, 81 blocks, cavities filled |
-| `T1_9_blocks_v9_clean_nfaces.vtk` | `n_block_faces` — threshold ≠ 6 shows the 8 non-cuboids |
-| `T1_9_blocks_v9_clean_edges.vtk` | block-edge wireframe, `block_edge_id`, 423 curves |
-| `T1_9_blocks_v9_gao.{vtk,msh}` | same after sheet collapse + untangling: 42 blocks, 54 360 cells, 0 inverted |
-| `T1_9_blocks_v9_gao_edges.vtk` | block-edge wireframe, 234 curves |
-| `T1_9_blocks_v9_full.{vtk,msh}` | **full domain**: core + blade O-grid + boundary layer, 103 157 cells, **73 blocks**, 5 inverted |
-| `T1_9_blocks_v9_full_part.vtk` | `part` — 0 = AlgoHex core, 1 = O-grid, 2 = boundary layer |
-| `T1_9_blocks_v9_full_edges.vtk` | block-edge wireframe of the full domain, 678 curves |
+| `HANDOFF.md` | **start here**: state, next steps, traps |
+| `DATASET_PIPELINE.md` | the dataset plan, task by task, with a resume block |
+| `DATA_GENERATION.md` | how the geometries are generated (dtOO), first candidates measured |
+| `RUNS.md` | every T1_9 AlgoHex run v1–v18: input, domain, runtime, outcome |
+| `PROGRESS.md`, `SESSION_*.md` | chronological logs, including every failed attempt |
+| `MESH_QUALITY.md` | the CFD quality criteria, measured on our own mesh |
+| `fixtures/README.md`, `logs/README.md` | the committed fixture archive, the batch logs |
+| `../../docs/decisions/` | decision logs: what was chosen, and what was rejected |
+| `../../docs/LITERATURE.md` | every source this repository leans on, by role, with status |
 
-The `.msh` files carry the block edges as **1D line elements** next to the
-hexes, physical tag = curve id (1-based); the hexes keep `block_id` as their
-physical tag. A solid hex mesh shows nothing of the block structure, so the
-wireframe is what makes it visible — and it is the entity the conforming
-division MILP will tag later. To regenerate it for an existing deliverable
-without rerunning the pipeline:
-
-```bash
-$PY experimentell/hex3d_algohex/clean_blocks.py --edges-only \
-      output/hex3d_algohex/deliverable/T1_9_blocks_v9_gao.vtk
-```
-| `T1_9_walls_tri_vs_quad.vtk` | `is_quad` on hub+shroud: 1 = triangle, 2 = quad |
-
-Blocks are **volumetric**, not just a surface partition: 50 540 of 60 612
-cells are purely interior, and all 27 323 sheet faces lie inside the volume.
-ParaView renders only the outer hull of an unstructured grid — use `Clip` or
-`Threshold` on `block_id` to see it.
-
----
-
-## Documents
-
-- [`../../docs/LITERATURE.md`](../../docs/LITERATURE.md) — **every source this
-  repository leans on**, grouped by role and marked with whether it *runs*, was
-  *reimplemented*, merely *informed* a decision, was *rejected* (with the
-  reason), or is on the *shortlist*
-- `PLAN.md` — original stage plan and background
-- `PROGRESS.md` — full chronological log, including failed attempts and why
-- `POSTPROCESSING_PLAN.md` — block-structure cleanup (done, stages 5–5c)
-- `MESH_QUALITY.md` — the CFD quality criteria, measured on our own mesh
-- `TFI_RESEARCH.md` — transfinite interpolation for CFD meshes, and the
-  implementation plan for the 3D stage
-- `HANDOFF.md` — **start here**: state, reproduce, open defect, traps
-- `RUNS.md` — every AlgoHex run: input, domain, runtime, outcome, and the
-  mesh/block metrics side by side
-- `SHOWCASE.md` — the 11-step visual analysis and what each metric caught
-- `ANALYSIS_PLAN.md` — the proposal `SHOWCASE.md` was built from
-- `FRAMEFIELD_PLAN.md` — proposed next stage: reducing the block count by
-  manipulating the frame field. Includes the singular-graph census, the
-  AlgoHex flags that control singular-graph optimisation, and a literature
-  review. **Not started.**
+Earlier planning documents (`PLAN.md`, `FRAMEFIELD_PLAN.md`,
+`POSTPROCESSING_PLAN.md`, `ANALYSIS_PLAN.md`, `TFI_RESEARCH.md`,
+`SHOWCASE.md`) were removed on 2026-10-03; read them with
+`git show a583e59:experimentell/hex3d_algohex/<file>`.

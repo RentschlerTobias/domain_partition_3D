@@ -196,7 +196,7 @@ def run_hexmeshing(extra_args=(), tag="", in_vtk=None, prefix="T1_9",
     # binary OVM and its own -i reader rejects it ("Checkpoint reuse does not
     # work", DATA_GENERATION.md). They cost ~45 MB and ~11 MB per run for
     # nothing -- 560 GB at 10 000 samples -- so they are opt-in now. Still
-    # wanted for the singular-graph figure (ANALYSIS_PLAN step 04).
+    # wanted for the singular-graph figure (ANALYSIS_PLAN.md step 04; removed doc, git show a583e59:experimentell/hex3d_algohex/ANALYSIS_PLAN.md).
     if checkpoints:
         args += ["--sm-out-path",
                  _work_path(out_dir / f"{prefix}_seamless{sfx}.hexex", backend),

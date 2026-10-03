@@ -1,47 +1,122 @@
 # Handoff — hex3d_algohex, state and how to continue
 
 Written for someone (or some session) starting with no context. Read this
-first, then `README.md`. `PROGRESS.md` is the chronological log — long, and
-only worth opening for a specific question.
+first, then `README.md` (the working reference: pipeline, commands, modules,
+what was learned). `PROGRESS.md` is the chronological log — long, and only
+worth opening for a specific question.
 
 ---
 
-## What this branch does
+## What this does
 
-Generates a block-structured hexahedral decomposition of the T1_9 runner
-passage via a genuine 3D frame field, as an alternative to extruding the 2D
-surface partitions in `dp3d/`.
+Generates the minimal hexahedral block structure of a turbomachinery flow
+passage from a genuine 3D frame field, and exports it as one `sample.npz` per
+machine — the training data of the block-structure transformer in `meshtron`.
 
 ```
-source MSH ──> tet_prep_v5.py ──> AlgoHex (frame field → IGM → HexEx) ──> hex mesh
-           ──> clean_blocks.py (base complex, cleanup, sheet collapse) ──> blocks
-           ──> reattach.py (blade O-grid + hub/shroud layer) ──> full domain
-           ──> tfi.py (prescribe h, solve counts, refill) ──> hex mesh
+dtOO mesh.msh ─ tet_prep_v5 ─▶ AlgoHex ─▶ fine hex mesh ─ base_complex ─▶ raw partition
+  ─ sheet collapse ─▶ minimal blocks ─ block_edges / tfi ─▶ refill ─ export_sample ─▶ sample.npz
+                      (reattach / ogrid_extrude: blade O-grid + BL back on, full domain)
 ```
 
-**`tfi.py` is a generator now.** Prescribe a cell size and it solves the
-conforming division counts and refills every block:
+## Where it stands (2026-10-03)
+
+- **Dataset generation runs.** Machines are Sobol samples of the 30 dtOO
+  design parameters (`scripts/generate_machines.py`); one production job
+  (`scripts/batch_generate.slurm`) exports their meshes with dtOO and samples
+  them on bwUniCluster with enroot, refilling its queue until the walltime
+  drain. The batch dataset holds **739 samples**.
+- **The labels are noisy, and the cause is known.** The singularity graph and
+  the raw partition are identical across runs of one geometry; the greedy
+  sheet collapse is not — machine_0004 ended at 12, 22 or 75 blocks. Over the
+  dataset: 29 combinatorial / 113 labelled topologies over 739 samples, and
+  the design parameters carry no signal about the topology.
+- **The fix is measured.** `beam_collapse.py` (beam search over collapse
+  orders, `struct` guard) ends 17 of 17 runs at 12 blocks / 12 cuboids, 0
+  inverted, VALID, one shared topology —
+  [`2026-09-28-beam-collapse-relabelling.md`](../../docs/decisions/2026-09-28-beam-collapse-relabelling.md).
+  It is **not yet wired** into `scripts/sample_one.sh`.
+- **Blade O-grid.** `ogrid_extrude.py` extrudes a *conforming* blade O-grid
+  from the core's block faces (26 blocks on the smoke sample, 0 inverted after
+  a joint TFI); `reattach.py` still reuses the dtOO O-grid verbatim.
+- **Rejected on measurement:** the block-level cut-set search as a collapse
+  substitute (25 blocks at best —
+  [decision](../../docs/decisions/2026-09-30-cutset-search-not-a-collapse-substitute.md));
+  leading/trailing-edge feature curves as extra AlgoHex constraints
+  ([decision](../../docs/decisions/2026-10-03-le-te-feature-edges-rejected.md)).
+
+## Next steps, in order
+
+1. **Relabel with the beam search.** Make the batch scripts call
+   `beam_collapse.patch` instead of `--collapse-rounds 5`, and re-run the
+   collapse for all 739 samples from the saved `blocks.vtk` + `sample.npz`
+   (no AlgoHex rerun needed), written beside the original as
+   `sample_beam.npz`, never overwriting. Estimate ~18–20 h on 6–8 cores. The
+   open question it answers: does the whole Sobol set land on one canonical
+   topology?
+2. **Track the quality cost of starting from the greedy intermediate.** On one
+   run the min scaled Jacobian was 0.03 from `blocks.vtk` against 0.33 from
+   the raw AlgoHex mesh; block corners and edges are unaffected in principle.
+3. **Put the blade back for the generated meshes too.** meshtron's inference
+   chain refills the core passage only; `ogrid_extrude.py` / `reattach.py`
+   live here and are not called from it.
+4. **The watertight check** (`tfi.check_watertight`) flags faces used by
+   three or more cells and returns the boundary-face count, but both callers
+   discard that count; a seam that comes apart shows up only there, as extra
+   boundary faces. Compare it against the boundary before the refill (see the
+   failed weld in the T1_9 section below).
+5. **Block-level T-junctions** (17 % of the corpus, measured in meshtron):
+   two blocks touching across only part of a side, which the four-corner face
+   format cannot express. Check whether the beam-relabelled structures still
+   carry them.
+6. Older items, still open: leave the O-grid projection
+   (`tfi.project_ogrid_interface`) off; wall-normal grading in the core is
+   not used (the grading comes from `reattach.py`).
+
+## Reproduce
+
+One sample, end to end (the unit the batch jobs run):
 
 ```bash
-$PY experimentell/hex3d_algohex/tfi.py \
-      output/hex3d_algohex/deliverable/T1_9_blocks_v11.vtk \
-      --target-h 0.05 --apply-divisions --out .../T1_9_blocks_v11_h0.05.vtk
-$PY experimentell/hex3d_algohex/reattach.py .../T1_9_blocks_v11_h0.05.vtk \
-      --layers 17 --out .../T1_9_blocks_v11_h0.05_full.vtk
+experimentell/hex3d_algohex/scripts/sample_one.sh <tet.vtk> <n> <outdir> [params.json]
 ```
 
-Measured on v11: core 54 460 → 49 550 cells at h = 0.05, watertight, 0
-inverted, min scaled Jacobian 0.1357; assembled 161 619 cells in 53 blocks, 0
-inverted. Against the on-disk 17-layer v11 full mesh (165 356 cells) the CFD
-metrics tie on five of seven — non-orthogonality 56 violations against 56 —
-and pick up two each on aspect ratio (2 → 4) and face flatness (3 → 5), on a
-mesh 2 % coarser. Refilling at the counts a block already has returns every
-boundary vertex to within 2.2e-15, which is the fold gate `TFI_RESEARCH.md`
-asks for.
+The beam collapse on top of it:
 
-## Where it stands
+```bash
+python experimentell/hex3d_algohex/beam_collapse.py <outdir>/hex_hex_<name>.ovm \
+    --input-vtk <tet.vtk> --out <outdir>/blocks_beam.vtk \
+    --width 16 --depth 6 --guard struct
+```
 
-**What the structure is for** was settled on 2026-09-08: it is training data
+The T1_9 v11 reference (paths as on the original VPS):
+
+```bash
+PY=/root/repos/duty/quadmesh/.venv/bin/python
+cd /root/repos/duty/quadmesh/domain_partition_3D
+systemctl start docker            # AlgoHex runs in a container
+
+$PY experimentell/hex3d_algohex/tet_prep_v5.py                 # v11 input
+$PY experimentell/hex3d_algohex/run_algohex.py --tag v11 \
+      --in-vtk data/T1_9/T1_9_tet_v5.vtk -- -n 60000           # ~13 min
+$PY experimentell/hex3d_algohex/clean_blocks.py \
+      output/hex3d_algohex/T1_9_hex_v11.ovm \
+      --collapse-rounds 5 --untangle \
+      --out output/hex3d_algohex/deliverable/T1_9_blocks_v11.vtk   # ~45 min
+$PY experimentell/hex3d_algohex/reattach.py \
+      output/hex3d_algohex/deliverable/T1_9_blocks_v11.vtk --layers 17 \
+      --out output/hex3d_algohex/deliverable/T1_9_blocks_v11_full.vtk
+$PY experimentell/hex3d_algohex/showcase.py --steps all --tag v11
+$PY experimentell/hex3d_algohex/mesh_quality.py
+```
+
+**AlgoHex runs must be sequential** — it peaks around 6 GB and this box has
+7.7. Two concurrent runs OOM (that is what killed v7 and v8).
+
+## T1_9 reference state (measured up to 2026-09-10)
+
+This is the single-geometry state the dataset route grew out of; its
+measurements still hold. **What the structure is for** was settled on 2026-09-08: it is training data
 for a transformer, filled by TFI in post-processing and then run as a CFD
 mesh, which makes **block count the primary criterion**. Reasoning and
 measurements: `docs/decisions/2026-09-08-hex3d-block-structure-objective.md`.
@@ -168,30 +243,6 @@ Deliverables in `output/hex3d_algohex/deliverable/`, per run tag:
 v11 also `_full` and `_full_part`. The `.msh` carries the block edges as 1D
 line elements (physical tag = curve id), the hexes carry `block_id`.
 
-## Reproduce
-
-```bash
-PY=/root/repos/duty/quadmesh/.venv/bin/python
-cd /root/repos/duty/quadmesh/domain_partition_3D
-systemctl start docker            # AlgoHex runs in a container
-
-$PY experimentell/hex3d_algohex/tet_prep_v5.py                 # v11 input
-$PY experimentell/hex3d_algohex/run_algohex.py --tag v11 \
-      --in-vtk data/T1_9/T1_9_tet_v5.vtk -- -n 60000           # ~13 min
-$PY experimentell/hex3d_algohex/clean_blocks.py \
-      output/hex3d_algohex/T1_9_hex_v11.ovm \
-      --collapse-rounds 5 --untangle \
-      --out output/hex3d_algohex/deliverable/T1_9_blocks_v11.vtk   # ~45 min
-$PY experimentell/hex3d_algohex/reattach.py \
-      output/hex3d_algohex/deliverable/T1_9_blocks_v11.vtk --layers 17 \
-      --out output/hex3d_algohex/deliverable/T1_9_blocks_v11_full.vtk
-$PY experimentell/hex3d_algohex/showcase.py --steps all --tag v11
-$PY experimentell/hex3d_algohex/mesh_quality.py
-```
-
-**AlgoHex runs must be sequential** — it peaks around 6 GB and this box has
-7.7. Two concurrent runs OOM (that is what killed v7 and v8).
-
 ## The pinch, and the basis question it opens
 
 Two of v11's 16 blocks touch at a **single shared edge** between two of their
@@ -262,59 +313,6 @@ as median 0.0218 because it compares CENTROIDS of differently sized quads; it
 overstates the gap by an order of magnitude and should be replaced by a
 point-to-triangle measure.
 
-## Next steps, in order
-
-1. **The O-grid projection is built and measured — leave it off.**
-   `tfi.project_ogrid_interface` (`--project-ogrid`) pulls the cut face onto
-   the O-grid block's surface per vertex before refilling. It turns a clean
-   v11 refill into 5 inverted cells, and they are not at the ring (0 of 8
-   nodes on it), so it is not a step artefact but the cost of pulling vertices
-   onto a discretisation with its own bumps. The premise was weak too: the gap
-   is median **0.00214**, not the 0.0218 that `interface_gap` reports from
-   centroid-to-centroid distances. If anyone returns to this, the lead is to
-   blend the motion smoothly instead of snapping, and to fix `interface_gap`.
-2. **Finish the v18 comparison.** The raw run is done and interesting
-   (`--full-constraints` halves the raw block count on a 310-edge input,
-   242 → 120); the block structure is not measured. `postprocess_bases.sh v18`.
-   Needs a full `clean_blocks` run — see the CPU note below.
-3. **Plateau moves in the sheet collapse.** The collapse still accepts only
-   strict improvement in (excess, blocks) and therefore stops in a local
-   optimum every time. Allowing an equal-cost round with a tabu list is the
-   cheap test of whether a locally-neutral collapse unlocks a later one;
-   `FRAMEFIELD_PLAN.md` §2.2 names the ILP version (Duan 2023) as the real fix.
-4. **Wall-normal grading in the core, if it is ever wanted.** `tfi.py` has
-   `clustered_fractions` but the complex refill does not use it: a one-sided
-   distribution is not invariant under the mirror relating two blocks' views
-   of a shared face, so clustering a direction class would tear the seam.
-   Today the grading comes from `reattach.py`, which is where the first cell
-   height is set, and the core's outer faces are interfaces, not walls.
-5. **Dataset generation** — no longer last, and now planned in detail.
-   `DATASET_PIPELINE.md` is the executable task list (T0-T12) with a "Resume
-   here" block, written so a session with no context can pick it up;
-   `docs/decisions/2026-09-11-hex3d-dataset-pipeline.md` holds the ten
-   decisions behind it and `SESSION_2026-09-11.md` the session record. Start
-   at **T0**, which is one `git push`: four commits on `data_generation` exist
-   only on this disk, and they are the only thing in the project that is not
-   reproducible.
-
-**Compute note.** This box is a 2-vCPU VPS with a fair-use CPU limit on
-SUSTAINED load. Twelve hours of two parallel `clean_blocks` runs got it
-throttled to ~10 % of its own cores (steal 90 %); ~90 minutes of sequential
-AlgoHex runs did not. Run one compute job at a time.
-
-## Modules
-
-| file | role |
-|---|---|
-| `tet_prep_v5.py` | builds the AlgoHex input. `--remesh-ogrid H`, `--merge-interfaces`, `--keep-prisms` |
-| `run_algohex.py` | Docker wrapper, `--tag` / `--in-vtk` |
-| `base_complex.py` | singular edges, sheets, block partition — **purely topological** |
-| `clean_blocks.py` | the big one: exact surface labels, cavity refill, block merge/split, mesh-level sheet collapse, untangling, `HexBlockValidator` |
-| `reattach.py` | puts the blade O-grid and the hub/shroud layer back |
-| `tfi.py` | block lattices, 3D Gordon-Hall map, conforming direction classes |
-| `mesh_quality.py` | CFD metrics with OpenFOAM limits, as VTK + PNG + HTML |
-| `showcase.py` | the pipeline in 11 steps |
-
 ## Things that will bite you
 
 **Run tags are not input file numbers.** `vN` and `T1_9_tet_vN.vtk` are
@@ -367,13 +365,11 @@ appear in the waiting command.
 
 | file | content |
 |---|---|
-| `DATASET_PIPELINE.md` | **the current work**: task list T0-T12 with resume state |
-| `SESSION_2026-09-11.md` | the dataset-pipeline grilling session |
-| `README.md` | overview, run/input mapping, "What was learned" 1-11 |
-| `RUNS.md` | every AlgoHex run v1-v11 with input, runtime, outcome |
+| `README.md` | the working reference: pipeline, commands, modules, what was learned |
+| `DATASET_PIPELINE.md` | the dataset plan, task by task, with a resume block |
+| `DATA_GENERATION.md` | how the geometries are generated (dtOO), first candidates |
+| `RUNS.md` | every T1_9 AlgoHex run with input, runtime, outcome |
 | `MESH_QUALITY.md` | the CFD criteria, measured on our own mesh |
-| `TFI_RESEARCH.md` | transfinite interpolation literature + implementation plan |
-| `SHOWCASE.md` | the 11-step visual analysis |
-| `FRAMEFIELD_PLAN.md` | proposed frame-field stage — **numbers superseded**, see its banner |
-| `POSTPROCESSING_PLAN.md`, `ANALYSIS_PLAN.md`, `PLAN.md` | earlier plans, done |
-| `PROGRESS.md` | full chronological log including every failed attempt |
+| `PROGRESS.md`, `SESSION_*.md` | chronological logs including every failed attempt |
+| `../../docs/decisions/` | every decision with its measurements and rejected options |
+| `../../docs/cluster-enroot-findings.md` | every cluster-side trap |

@@ -243,7 +243,7 @@ sweep a few values over a few geometries before committing to one.
 
 ## Checkpoint reuse does not work
 
-`run_algohex.py` and `FRAMEFIELD_PLAN.md` both state that passing
+`run_algohex.py` and `FRAMEFIELD_PLAN.md†` both state that passing
 `--hexex-in-path` with `-i` skips field generation and integrability, "86 % of
 the runtime", making `-n` sweeps cheap. It was never tested and it fails
 immediately: AlgoHex writes the intermediate tet mesh as BINARY OVM (`OVMB`
@@ -251,3 +251,6 @@ magic) via `--final-tetmesh-out-path`, and its own `-i` reader rejects that
 file with "The specified file might not be in OpenVolumeMesh format! No vertex
 section defined!". Both the original VTK and the saved OVM fail the same way.
 The `-n` runs above are therefore cold runs.
+
+† Planning document removed in the 2026-10-03 docs cleanup; read it with
+`git show a583e59:experimentell/hex3d_algohex/<file>`.

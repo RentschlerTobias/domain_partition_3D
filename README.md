@@ -1,23 +1,8 @@
 # domain_partition_3D
 
-Block structures for turbomachinery flow passages. Two routes live here:
-
-- **The 3D route** (`experimentell/hex3d_algohex/`) — the active one. AlgoHex
-  (an open-source hexahedral mesher, University of Bern) meshes the passage
-  with hexahedra, the singularity graph of that mesh is traced into a raw block
-  partition, and a beam search over sheet collapses reduces it to the minimal
-  block structure. Its output is the training data of the block-structure
-  transformer in [`meshtron`](../meshtron).
-- **The 2D surface route** (`dp3d/`, `domain_partition.py`) — the older one.
-  Block-structured quad partitions of the unwrapped hub and shroud surfaces,
-  from a 2D cross field. Standalone; the cross-field tools of
-  `domain_partition_2D` are vendored under `dp3d/field/`.
-
 ## The 3D pipeline at a glance
 
 ![The 3D pipeline in nine steps](docs/figures/hexmesh/00_pipeline_steps.png)
-
-**Top row — deterministic, nothing in it is chosen.**
 
 1. **dtOO hybrid mesh** — our parametric design system, design tool
    Object-Oriented ([dtOO](https://github.com/ihs-ustutt/dtOO)), generates the
@@ -37,8 +22,6 @@ Block structures for turbomachinery flow passages. Two routes live here:
    as an integer-grid map (IGM) and hexahedral mesh extraction (HexEx) give
    the fine hex mesh, which inherits the singularity graph
    exactly.
-
-**Bottom row — the only decision in the pipeline.**
 
 6. **Raw partition** — separatrix sheets spanned from the singular edges cut
    the mesh into the raw block partition (base_a: 24 sheets, 84 blocks). The

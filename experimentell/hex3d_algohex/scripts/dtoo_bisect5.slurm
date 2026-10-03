@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
-#SBATCH --output=dtoo_bisect5_%j.out
+#SBATCH --output=experimentell/hex3d_algohex/logs/dtoo_bisect5_%j.out
 #SBATCH --exclude=uc2n601
 
 # bisect5: is the silent container-start stall node-side state or the shared

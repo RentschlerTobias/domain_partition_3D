@@ -34,3 +34,7 @@ those are from each other (1.55).
   pinned to 0-5) gave load ~230, AlgoHex 41-91 min and beam 4-39 min. Give every sample its own
   cores (one lane per core pair).
 - `gen_mesh.py` must be copied into the dtOO case before the build; run_sample.sh does that.
+- dtOO and AlgoHex can hang forever (papaya 2026-10-12: 3 dtOO builds stuck 7-19 h, 4 AlgoHex
+  runs 2-10 h, normal max ~7 min / ~70 min). Every stage now runs under `timeout`
+  (TO_DTOO 1800 s, TO_ALGOHEX 10800 s, TO_BEAM 3600 s, others 600 s; override per env);
+  a timeout logs `TIMEOUT after <t>s` before the `FAIL <stage>` line.

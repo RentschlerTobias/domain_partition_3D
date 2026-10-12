@@ -1968,9 +1968,10 @@ def postprocess(ovm_path, input_vtk=None, names=None, sheet_frac=0.30,
           f"{ {S.surf_names.get(s, s): n for s, n in sorted(Counter(S.surf_of.values()).items())} }")
     before, _st, _p, _c = report_structure(S, "BEFORE")
 
-    med = np.median(list(Counter(S.sheet_of.values()).values()))
-    collapse_small_sheets(S, max_faces=max(1, int(sheet_frac * med)),
-                          verbose=verbose)
+    sheet_sizes = list(Counter(S.sheet_of.values()).values())
+    if sheet_sizes:   # a single block has no inner sheets (median of nothing = NaN)
+        collapse_small_sheets(S, max_faces=max(1, int(sheet_frac * np.median(sheet_sizes))),
+                              verbose=verbose)
     absorb_tiny_blocks(S, min_cells=min_cells, verbose=verbose)
     if fix_non_cuboid:
         merge_non_cuboids(S, verbose=verbose)

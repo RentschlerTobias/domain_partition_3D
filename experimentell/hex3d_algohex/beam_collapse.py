@@ -87,10 +87,23 @@ def _key(st):
     return (st["excess"], st["blocks"], -st["min_sj"])
 
 
+class RawMeshOffSurface(RuntimeError):
+    """The raw hex mesh does not match the input surface; nothing to collapse."""
+
+
 def beam_collapse(P, hexes, labeller, width=6, depth=6, guard="abs",
                   sj_floor=0.05, workers=6, guard_ref=None, verbose=True,
-                  hausdorff_tol=0.05):
+                  hausdorff_tol=0.05, max_base_hausdorff=0.15):
     base = cb._structure_stats(P, hexes, labeller)
+    # The ceiling below follows a raw Hausdorff above the tolerance. On a raw
+    # mesh that is off the surface altogether that frees every collapse: 17
+    # of 905 papaya samples (raw Hausdorff 0.26-0.50, the 862 good ones
+    # 0.025-0.064) collapsed to ONE 7-faced block, and clean_blocks then died
+    # on the median of zero sheets. Refuse such a mesh up front.
+    if max_base_hausdorff is not None and base["hausdorff"] > max_base_hausdorff:
+        raise RawMeshOffSurface(
+            f"raw hex mesh is off the input surface: Hausdorff {base['hausdorff']:.4f} "
+            f"> {max_base_hausdorff} ({base['blocks']} blocks, {base['cells']} cells)")
     bar = dict(guard_ref) if guard_ref else {"inverted": base["inverted"],
                                              "min_sj": base["min_sj"]}
     # Hausdorff ceiling: the raw value is itself an accident of the tet
@@ -144,12 +157,13 @@ def beam_collapse(P, hexes, labeller, width=6, depth=6, guard="abs",
     return P, hexes, log
 
 
-def patch(width=6, depth=6, guard="abs", sj_floor=0.05, workers=6, hausdorff_tol=0.05):
+def patch(width=6, depth=6, guard="abs", sj_floor=0.05, workers=6, hausdorff_tol=0.05,
+          max_base_hausdorff=0.15):
     def collapse(P, hexes, labeller, max_rounds=4, verbose=True, repair=None,
                  guard_ref=None):
         P, hexes, log = beam_collapse(P, hexes, labeller, width, depth, guard,
                                       sj_floor, workers, guard_ref, verbose,
-                                      hausdorff_tol)
+                                      hausdorff_tol, max_base_hausdorff)
         if repair is not None:
             P = repair(P.copy(), hexes)
         return P, hexes, log
@@ -171,8 +185,11 @@ if __name__ == "__main__":
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--hausdorff-tol", type=float, default=0.05)
     ap.add_argument("--untangle-rounds", type=int, default=6)
+    ap.add_argument("--max-raw-hausdorff", type=float, default=0.15,
+                    help="refuse a raw hex mesh farther than this from the input surface")
     a = ap.parse_args()
-    patch(a.width, a.depth, a.guard, a.sj_floor, a.workers, a.hausdorff_tol)
+    patch(a.width, a.depth, a.guard, a.sj_floor, a.workers, a.hausdorff_tol,
+          a.max_raw_hausdorff)
     if a.ovm.endswith(".vtk"):
         # start from a saved blocks.vtk (fine hex mesh AFTER the greedy
         # collapse): BlockStructure otherwise reads .ovm only. The block IDs
@@ -184,9 +201,13 @@ if __name__ == "__main__":
         _P = np.asarray(_m.points, float)
         ovm_io.read_ovm = lambda path: (_P, None, None, None)
         ovm_io.ovm_to_cells = lambda P, e, f, poly: (_H, 0)
-    S, before, after, v = cb.postprocess(
-        a.ovm, a.input_vtk, v5.NAMES, collapse_rounds=1, untangle_mesh=True,
-        untangle_rounds=a.untangle_rounds)
+    try:
+        S, before, after, v = cb.postprocess(
+            a.ovm, a.input_vtk, v5.NAMES, collapse_rounds=1, untangle_mesh=True,
+            untangle_rounds=a.untangle_rounds)
+    except RawMeshOffSurface as e:
+        print(f"[beam] REJECT: {e}")
+        sys.exit(3)
     cb.write_blocks(S, a.out)
     print("\nbefore/after:")
     for k in before:

@@ -390,12 +390,20 @@ if __name__ == "__main__":
     ap.add_argument("--out", default=None)
     ap.add_argument("--check", action="store_true",
                     help="round-trip the written file against the source")
+    ap.add_argument("--curve-postprocess", action="store_true",
+                    help="add the post_* arrays of curve_postprocess.py (continuity, exact "
+                         "feature arcs, G1 cubics); needs --tet for the labelled surface")
     a = ap.parse_args()
 
     out = a.out or str(Path(a.blocks).with_suffix("")) + "_sample.npz"
     data, quality = build(a.blocks, tet_vtk=a.tet, params_json=a.params,
                           status_json=a.status, target_h=a.target_h,
                           n=a.n, collapse_rounds=a.collapse_rounds)
+    if a.curve_postprocess:
+        if "surface_tris" not in data:
+            raise SystemExit("--curve-postprocess needs --tet (labelled surface)")
+        import curve_postprocess
+        data.update(curve_postprocess.postprocess(data))
     p = write(out, data)
     size = p.stat().st_size
     print(f"\n[export_sample] wrote {p}  ({size / 1e6:.2f} MB)")

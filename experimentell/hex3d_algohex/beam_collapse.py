@@ -157,6 +157,30 @@ def beam_collapse(P, hexes, labeller, width=6, depth=6, guard="abs",
     return P, hexes, log
 
 
+def min_patch_gap(points, tris, labels):
+    """Smallest distance between two labelled surfaces that share no vertex.
+
+    The absolute Hausdorff tolerance must stay below the narrowest gap of the
+    input, or a collapse can close it: canada guide vane, envelope 0.022 from
+    the inlet, collapsed 12 -> 5 blocks at Hausdorff 0.045 (< tol 0.05) by
+    letting the O-ring open into the inlet. Vertex-to-vertex distance, so it
+    overestimates the true gap by at most half an edge length."""
+    from scipy.spatial import cKDTree
+    labels = np.asarray(labels)
+    verts = {int(l): np.unique(tris[labels == l]) for l in np.unique(labels)}
+    best, pair = np.inf, None
+    ls = sorted(verts)
+    for i, a in enumerate(ls):
+        tree = cKDTree(points[verts[a]])
+        for b in ls[i + 1:]:
+            if np.intersect1d(verts[a], verts[b]).size:
+                continue
+            d, _ = tree.query(points[verts[b]])
+            if d.min() < best:
+                best, pair = float(d.min()), (a, b)
+    return best, pair
+
+
 def patch(width=6, depth=6, guard="abs", sj_floor=0.05, workers=6, hausdorff_tol=0.05,
           max_base_hausdorff=0.15):
     def collapse(P, hexes, labeller, max_rounds=4, verbose=True, repair=None,
@@ -187,8 +211,23 @@ if __name__ == "__main__":
     ap.add_argument("--untangle-rounds", type=int, default=6)
     ap.add_argument("--max-raw-hausdorff", type=float, default=0.15,
                     help="refuse a raw hex mesh farther than this from the input surface")
+    ap.add_argument("--gap-frac", type=float, default=0.5,
+                    help="cap the Hausdorff tolerance at this fraction of the narrowest gap "
+                         "between two labelled input surfaces that share no vertex; 0 = off")
     a = ap.parse_args()
-    patch(a.width, a.depth, a.guard, a.sj_floor, a.workers, a.hausdorff_tol,
+    tol = a.hausdorff_tol
+    if a.gap_frac > 0:
+        import meshio
+        _m = meshio.read(a.input_vtk)
+        _cd = next(iter(_m.cell_data))
+        _T = np.vstack([c.data for c in _m.cells if c.type == "triangle"])
+        _L = np.concatenate([np.asarray(d).ravel() for c, d in zip(_m.cells, _m.cell_data[_cd])
+                             if c.type == "triangle"])
+        gap, pair = min_patch_gap(np.asarray(_m.points, float), _T, _L)
+        tol = min(a.hausdorff_tol, a.gap_frac * gap)
+        print(f"[beam] narrowest gap {gap:.4f} between labels {pair} -> Hausdorff tol "
+              f"{tol:.4f} (flag {a.hausdorff_tol})")
+    patch(a.width, a.depth, a.guard, a.sj_floor, a.workers, tol,
           a.max_raw_hausdorff)
     if a.ovm.endswith(".vtk"):
         # start from a saved blocks.vtk (fine hex mesh AFTER the greedy

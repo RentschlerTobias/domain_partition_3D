@@ -92,7 +92,7 @@ def patch_dists(X, pts, tris, labels):
 
 
 def seam_polylines(pts, tris, labels):
-    """Label boundaries of the surface triangulation as polylines: list of (points [n,3], closed).
+    """Label boundaries of the surface triangulation as polylines: list of (points [n,3], closed, patch labels).
     A boundary edge separates triangles of different labels; nodes of degree != 2 split chains."""
     emap = defaultdict(set)
     for t, (a, b, c) in enumerate(tris):
@@ -130,7 +130,8 @@ def seam_polylines(pts, tris, labels):
             continue
         Q = pts[np.asarray(ch, int)]
         closed = len(ch) > 2 and ch[0] == ch[-1]
-        out.append((Q, closed))
+        labs = tuple(sorted(set().union(*(emap[(min(u, v), max(u, v))] for u, v in zip(ch[:-1], ch[1:])))))
+        out.append((Q, closed, labs))
     return out
 
 
@@ -138,8 +139,10 @@ class Seams:
     """Seam polylines interpolated by C2 cubic splines through every node, sampled densely."""
 
     def __init__(self, polylines, refine=SPLINE_REFINE):
-        self.pts, self.arclen, self.closed, self.trees, self.raw = [], [], [], [], []
-        for P, closed in polylines:
+        self.pts, self.arclen, self.closed, self.trees, self.raw, self.labels = [], [], [], [], [], []
+        for item in polylines:
+            P, closed = item[0], item[1]
+            self.labels.append(tuple(item[2]) if len(item) > 2 else ())
             if closed:
                 P = P[:-1]
             P = P[np.r_[True, np.linalg.norm(np.diff(P, axis=0), axis=1) > 1e-12]]
@@ -217,17 +220,31 @@ class Seams:
                 best = (float(d[2]), c)
         return None if best is None else best[1]
 
-    def arc(self, c, pa, pb, hint, n=ARC_POINTS):
-        """Curve c from pa to pb, n points by arclength; on a closed curve the arc whose midpoint is nearer
-        `hint`. The end points are set to pa / pb exactly."""
+    def arc(self, c, pa, pb, hint, n=ARC_POINTS, others=()):
+        """Curve c from pa to pb, n points by arclength. On a closed curve two arcs connect pa and pb: the one
+        that contains none of the curve's other corners (arclength positions `others`) is the block edge; if
+        that does not decide, the one whose midpoint is nearer `hint`. The end points are set to pa / pb."""
         s = self.arclen[c]; L = float(s[-1])
         _, t, _ = self.on_curve(c, np.stack([pa, pb]))
         ta, tb = float(t[0]), float(t[1])
-        cands = [np.linspace(ta, tb, n)]
         if self.closed[c]:
-            cands.append(np.linspace(ta, tb + L if tb < ta else tb - L, n) % L)
-        best = min(cands, key=lambda q: np.linalg.norm(self.sample(c, q[n // 2:n // 2 + 1])[0] - hint))
-        P = self.sample(c, best)
+            fwd = (tb - ta) % L
+            cands = [np.linspace(ta, ta + fwd, n), np.linspace(ta, ta - (L - fwd), n)]
+        else:
+            cands = [np.linspace(ta, tb, n)]
+
+        def n_inside(q):
+            sign = 1.0 if q[-1] >= q[0] else -1.0
+            span = abs(q[-1] - q[0])
+            cnt = 0
+            for o in others:
+                d = (o - ta) * sign
+                if self.closed[c]:
+                    d %= L
+                cnt += 1e-6 < d < span - 1e-6
+            return cnt
+        best = min(cands, key=lambda q: (n_inside(q), np.linalg.norm(self.sample(c, q[n // 2:n // 2 + 1] % L)[0] - hint)))
+        P = self.sample(c, best % L if self.closed[c] else best)
         P[0], P[-1] = pa, pb
         return P
 
@@ -388,29 +405,51 @@ def postprocess(sample, verbose=True):
             used |= {(v, e), (v, f)}
     ambiguous = {"feature": af, "2d": a2, "3d": a3}
 
-    # feature arcs: assign, move inner feature vertices onto their seam, assign again
+    # feature arcs, geometry first: every feature edge lies between two patches, and the seam curve with exactly
+    # that patch pair is its curve (among several such curves the one nearest to both ends). No distance
+    # tolerance: an edge whose patch pair has no seam is a defect of the block structure, never silently a cubic.
     V = V0.copy()
-    cur_of = {}
-    for _ in range(2):
-        for k in sorted(feat):
-            a, b = E[k]
-            hint = bezier(V[a], c1[k], c2[k], V[b], 3)[1]
-            c = seams.edge_curve(V[a], V[b], hint, EDGE_TOL * np.linalg.norm(V[b] - V[a]))
-            if c is not None:
-                cur_of[k] = c
-        for v in {int(x) for k in cur_of for x in E[k]} - corner:
-            cs = {cur_of[k] for k in cur_of if v in E[k]}
-            if len(cs) == 1:
-                V[v] = seams.on_curve(cs.pop(), V[v])[2][0]
+    by_pair = defaultdict(list)
+    for c, labs in enumerate(seams.labels):
+        by_pair[labs].append(c)
+    cur_of, failed = {}, []
+    for k in sorted(feat):
+        pair = tuple(sorted(epat[k]))
+        cands = by_pair.get(pair, [])
+        if len(pair) != 2 or not cands:
+            failed.append(int(k)); continue
+        a, b = E[k]
+        cur_of[k] = min(cands, key=lambda c: float(seams.on_curve(c, np.stack([V[a], V[b]]))[0].max()))
+    # corners onto their curves: a vertex on one feature curve onto its nearest point, a vertex where several
+    # curves meet (a corner of the block structure on the geometry) onto their common end point (seam junction)
+    for v in {int(x) for k in cur_of for x in E[k]}:
+        cs = sorted({cur_of[k] for k in cur_of if v in E[k]})
+        if len(cs) == 1 and v not in corner:
+            V[v] = seams.on_curve(cs[0], V[v])[2][0]
+            continue
+        ends = [seams.pts[c][i] for c in cs if not seams.closed[c] for i in (0, -1)]
+        if ends:
+            common = [p for p in ends if sum(np.linalg.norm(q - p) < 1e-9 for q in ends) >= min(2, len(cs))]
+            pool = common or ends
+            V[v] = min(pool, key=lambda p: np.linalg.norm(p - V[v]))
+        elif cs:
+            V[v] = seams.on_curve(cs[0], V[v])[2][0]
     # cubics follow moved corners (chord-relative), feature edges become arcs + G1 cubic
     dV = V - V0
     n1 = c1 + (2 * dV[E[:, 0]] + dV[E[:, 1]]) / 3
     n2 = c2 + (dV[E[:, 0]] + 2 * dV[E[:, 1]]) / 3
     arcs, fit_dev = {}, []
+    corners_on = defaultdict(set)
+    for k, c in cur_of.items():
+        corners_on[c] |= {int(E[k][0]), int(E[k][1])}
+    pos_on = {c: {v: float(seams.on_curve(c, V[v])[1][0]) for v in vs} for c, vs in corners_on.items()}
+    covered = defaultdict(float)
     for k, c in cur_of.items():
         a, b = E[k]
         hint = bezier(V[a], n1[k], n2[k], V[b], 3)[1]
-        P = seams.arc(c, V[a], V[b], hint)
+        others = [t for v, t in pos_on[c].items() if v not in (int(a), int(b))]
+        P = seams.arc(c, V[a], V[b], hint, others=others)
+        covered[c] += float(np.linalg.norm(np.diff(P, axis=0), axis=1).sum())
         arcs[k] = P
         T0, T1 = seams.tangent(c, V[a]), seams.tangent(c, V[b])     # exact seam tangents at the corners
         T0 = T0 if T0 @ (P[min(4, len(P) - 1)] - P[0]) >= 0 else -T0
@@ -446,6 +485,11 @@ def postprocess(sample, verbose=True):
                    for kd in KIND}
     q = {
         "feature_edges": len(feat), "feature_arcs": len(arcs), "corners": len(corner),
+        "feature_failed": failed,
+        "seam_coverage": {int(c): covered.get(c, 0.0) / max(float(seams.arclen[c][-1]), 1e-30)
+                          for c in range(len(seams)) if len(seams.labels[c]) == 2},
+        "feature_complete": bool(not failed and all(abs(covered.get(c, 0.0) / max(float(seams.arclen[c][-1]), 1e-30) - 1) < 0.02
+                                                    for c in range(len(seams)) if len(seams.labels[c]) == 2)),
         "pairs": dict(Counter(pairs.values())),
         "ambiguous": {k: sum(len(p) for _, p in v) for k, v in ambiguous.items()},
         "vertex_moved_max": float(np.linalg.norm(dV, axis=1).max()),
@@ -457,7 +501,8 @@ def postprocess(sample, verbose=True):
         "seam_curves": len(seams), "seam_spacing": seams.spacing,
     }
     if verbose:
-        print(f"[curve_post] feature edges {q['feature_edges']} (arcs {q['feature_arcs']}), corners {q['corners']}, "
+        print(f"[curve_post] feature edges {q['feature_edges']} (arcs {q['feature_arcs']}, failed {len(q['feature_failed'])}, "
+              f"complete {q['feature_complete']}), corners {q['corners']}, "
               f"pairs {q['pairs']}, ambiguous {q['ambiguous']}, kink max before {q['kink_before_max']} "
               f"after {q['kink_after_max']}, G1 fit dev/L max {q['g1_fit_dev_rel_max']}")
     return {

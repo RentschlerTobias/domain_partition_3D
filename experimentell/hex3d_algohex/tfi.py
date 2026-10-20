@@ -945,7 +945,7 @@ if __name__ == "__main__":
         print(f"\n[tfi] wrote {out}")
         for ci, labs in sorted(interface_classes(P, H, B, lat, classes,
                                                  a.input_vtk).items()):
-            print(f"[tfi] class {ci} is normal to {sorted(labs)}")
+            print(f"[tfi] class {ci} is normal to {sorted(map(str, labs))}")
         if not a.apply_divisions:
             raise SystemExit(0)
 

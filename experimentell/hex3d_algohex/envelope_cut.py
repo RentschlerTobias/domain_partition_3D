@@ -75,6 +75,39 @@ def point_triangle_dist(p, a, b, c):
     return np.linalg.norm(p - q, axis=1)
 
 
+def closest_point(V, F, pts, k=24):
+    """closest point on the triangle mesh (V,F) and the index of its triangle"""
+    tree = cKDTree(V[F].mean(1))
+    _, cand = tree.query(pts, k=min(k, len(F)))
+    best = np.full(len(pts), np.inf); bq = np.zeros_like(pts); bt = np.zeros(len(pts), int)
+    for j in range(cand.shape[1]):
+        f = F[cand[:, j]]
+        q = _closest_tri(pts, V[f[:, 0]], V[f[:, 1]], V[f[:, 2]])
+        d = np.linalg.norm(pts - q, axis=1)
+        m = d < best
+        best[m], bq[m], bt[m] = d[m], q[m], cand[m, j]
+    return bq, bt
+
+
+def _closest_tri(p, a, b, c):
+    ab, ac, ap = b - a, c - a, p - a
+    d1, d2 = (ab * ap).sum(1), (ac * ap).sum(1)
+    bp = p - b; d3, d4 = (ab * bp).sum(1), (ac * bp).sum(1)
+    cp = p - c; d5, d6 = (ab * cp).sum(1), (ac * cp).sum(1)
+    va, vb, vc = d3 * d6 - d5 * d4, d5 * d2 - d1 * d6, d1 * d4 - d3 * d2
+    den = va + vb + vc; den = np.where(np.abs(den) < 1e-300, 1e-300, den)
+    q = a + ab * (vb / den)[:, None] + ac * (vc / den)[:, None]
+    sd = lambda x, y: np.where(np.abs(y) < 1e-300, 0.0, x / np.where(np.abs(y) < 1e-300, 1, y))
+    m = (vc <= 0) & (d1 >= 0) & (d3 <= 0); q[m] = (a + ab * sd(d1, d1 - d3)[:, None])[m]
+    m = (vb <= 0) & (d2 >= 0) & (d6 <= 0); q[m] = (a + ac * sd(d2, d2 - d6)[:, None])[m]
+    m = (va <= 0) & (d4 - d3 >= 0) & (d5 - d6 >= 0)
+    q[m] = (b + (c - b) * sd(d4 - d3, (d4 - d3) + (d5 - d6))[:, None])[m]
+    m = (d1 <= 0) & (d2 <= 0); q[m] = a[m]
+    m = (d3 >= 0) & (d4 <= d3); q[m] = b[m]
+    m = (d6 >= 0) & (d5 <= d6); q[m] = c[m]
+    return q
+
+
 def surface_distance(V, F, pts, k=24):
     """Unsigned distance of pts to the triangle mesh (V,F): exact over the k
     triangles with the nearest centroids (enough for a fine, regular wall)."""
@@ -220,7 +253,7 @@ def hgrad_opt():
 
 # ---------------------------------------------------------------- ls cut
 def ls_cut(P, tets, btris, ids, ls_fun, new_label, out, tag, size_max, hausd,
-           iso_hausd=None, h_iso=None):
+           iso_hausd=None, h_iso=None, fine_refs=None, iso_hmin=None):
     """mmg3d -ls on (P, tets) with surface refs `ids` and level set ls_fun(P);
     keep the ls > 0 side, label its new iso triangles `new_label`.
     `iso_hausd` refines only the new iso surface (mmg local parameters on its
@@ -248,15 +281,22 @@ def ls_cut(P, tets, btris, ids, ls_fun, new_label, out, tag, size_max, hausd,
         ids = M0["Triangles"][:, 3].astype(int)
         print(f"[env] {tag}: pre-refined to h {h_iso:.4f} near the iso surface: "
               f"{len(P)} nodes, {len(tets)} tets", flush=True)
+    # mmg marks the new iso surface with ref ISO_REF; shift our labels while it runs if one
+    # of them collides with it (canada blk domain: IN_OUTLET was label 10 and got swallowed)
+    shift = 1000 if ISO_REF in set(np.asarray(ids).tolist()) else 0
+    ids = np.asarray(ids) + shift
+    if fine_refs is not None:
+        fine_refs = [r + shift for r in fine_refs]
     write_mesh(out / f"{tag}_in.mesh", P, tets, btris, ids)
     write_sol(out / f"{tag}_in.sol", ls_fun(P))
     if iso_hausd:
         # the rings lie on the iso surface AND on the earlier cut surfaces
-        refs = [ISO_REF] + [r for r in (v5.S_BL_IFACE_HUB, v5.S_BL_IFACE_SHROUD) if r in set(ids)]
+        refs = [ISO_REF] + ([r for r in (v5.S_BL_IFACE_HUB, v5.S_BL_IFACE_SHROUD) if r in set(ids)]
+                            if fine_refs is None else list(fine_refs))
         with open(out / f"{tag}_in.mmg3d", "w") as f:
             f.write(f"Parameters\n{len(refs)}\n")
             for r in refs:
-                f.write(f"{r} Triangles {iso_hausd / 10:.6g} {size_max:.6g} {iso_hausd:.6g}\n")
+                f.write(f"{r} Triangles {iso_hmin or iso_hausd / 10:.6g} {size_max:.6g} {iso_hausd:.6g}\n")
     cmd = [MMG, "-in", str(out / f"{tag}_in.mesh"), "-sol", str(out / f"{tag}_in.sol"),
            "-ls", "0", "-hmax", str(size_max), "-hausd", str(hausd), *hgrad_opt(),
            "-out", str(out / f"{tag}_cut.mesh")]
@@ -302,7 +342,7 @@ def ls_cut(P, tets, btris, ids, ls_fun, new_label, out, tag, size_max, hausd,
         if r is None:
             miss += 1
             r = ISO_REF
-        bid.append(new_label if r == ISO_REF else r)
+        bid.append(new_label if r == ISO_REF else r - shift)
         bt.append([newi[x] for x in f])
     bid = np.array(bid)
     hist = tp.check_manifold([tuple(t) for t in bt])
@@ -311,17 +351,18 @@ def ls_cut(P, tets, btris, ids, ls_fun, new_label, out, tag, size_max, hausd,
     return Pm[used_n], newi[keep], bt, bid
 
 
-def coarsen(P, tets, btris, ids, out, size_max, hausd, cut_hausd):
+def coarsen(P, tets, btris, ids, out, size_max, hausd, cut_hausd, refs=None, cut_hmin=None):
     """Final mmg3d pass without level set: the cuts leave their fine near-iso
     sizing in the whole volume (canada guide vane ~170-230k tets); remesh to
     size_max inside while the three cut surfaces keep cut_hausd, so their
     rings stay resolved."""
     write_mesh(out / "final_in.mesh", P, tets, btris, ids)
     with open(out / "final_in.mmg3d", "w") as f:
-        refs = [r for r in (v5.S_BL_IFACE_HUB, v5.S_BL_IFACE_SHROUD, v5.S_OGRID_IFACE) if r in set(ids)]
+        if refs is None:
+            refs = [r for r in (v5.S_BL_IFACE_HUB, v5.S_BL_IFACE_SHROUD, v5.S_OGRID_IFACE) if r in set(ids)]
         f.write(f"Parameters\n{len(refs)}\n")
         for r in refs:
-            f.write(f"{r} Triangles {cut_hausd / 10:.6g} {size_max:.6g} {cut_hausd:.6g}\n")
+            f.write(f"{r} Triangles {cut_hmin or cut_hausd / 10:.6g} {size_max:.6g} {cut_hausd:.6g}\n")
     cmd = [MMG, "-in", str(out / "final_in.mesh"), "-hmax", str(size_max), "-hausd", str(hausd),
            *hgrad_opt(), "-out", str(out / "final_out.mesh")]
     with open(out / "final_mmg.log", "w") as lf:
@@ -360,6 +401,146 @@ def coarsen(P, tets, btris, ids, out, size_max, hausd, cut_hausd):
     return Pn, tn, bt, np.array(bid)
 
 
+def wall_faces(BV, BF, deg=25.0):
+    """Split the body wall into smooth faces at its sharp edges (dihedral > deg):
+    list of triangle-index arrays, plus the adjacent face pairs."""
+    n = np.cross(BV[BF[:, 1]] - BV[BF[:, 0]], BV[BF[:, 2]] - BV[BF[:, 0]])
+    n /= np.linalg.norm(n, axis=1)[:, None]
+    e2t = collections.defaultdict(list)
+    for i, t in enumerate(BF):
+        for a, b in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+            e2t[tuple(sorted((int(a), int(b))))].append(i)
+    adj, sharp = collections.defaultdict(set), []
+    for e, inc in e2t.items():
+        if len(inc) != 2:
+            continue
+        if np.degrees(np.arccos(np.clip(n[inc[0]] @ n[inc[1]], -1, 1))) > deg:
+            sharp.append(inc)
+        else:
+            adj[inc[0]].add(inc[1]); adj[inc[1]].add(inc[0])
+    comp, c = -np.ones(len(BF), int), 0
+    for s0 in range(len(BF)):
+        if comp[s0] >= 0:
+            continue
+        st = [s0]; comp[s0] = c
+        while st:
+            u = st.pop()
+            for w in adj[u]:
+                if comp[w] < 0:
+                    comp[w] = c; st.append(w)
+        c += 1
+    pairs = sorted({tuple(sorted((int(comp[a]), int(comp[b])))) for a, b in sharp if comp[a] != comp[b]})
+    faces = [np.flatnonzero(comp == k) for k in range(c)]
+    print(f"[env] body wall: {c} smooth faces, {len(sharp)} sharp edges, adjacent pairs {pairs}")
+    return faces, pairs
+
+
+def ridge_split(P, tets, btris, ids, BV, BF, env_label, out, deg=25.0):
+    """Feature curves ON the envelope where the wall has sharp edges: for every pair of
+    adjacent smooth wall faces A/B the bisector {d_A = d_B} is cut into the mesh with
+    mmg -ls (nothing removed, no other remeshing), then every envelope triangle gets the
+    label of its nearest face. The label boundaries are the offsets of the sharp edges
+    (LE/TE ridges of a blade, ends of a ring) as complete, mesh-conforming curves."""
+    faces, pairs = wall_faces(BV, BF, deg)
+    if len(faces) < 2:
+        return P, tets, btris, np.asarray(ids), {}
+    dist = lambda k, X: surface_distance(BV, BF[faces[k]], X)
+    nrm = np.cross(BV[BF[:, 1]] - BV[BF[:, 0]], BV[BF[:, 2]] - BV[BF[:, 0]])
+    nrm /= np.linalg.norm(nrm, axis=1)[:, None]
+
+    def bisector(a, b):
+        # phi = v.(n_A - n_B), v = x - (closest wall point): > 0 over face A, < 0 over B, changing
+        # sign on the angle bisector inside the rounded band of their common sharp edge.
+        # (d_A - d_B vanishes on the WHOLE band, its closest point is the edge for both faces.)
+        FA, FB = BF[faces[a]], BF[faces[b]]
+        FAB = np.vstack([FA, FB])
+        # continuous normals: area-weighted vertex normals of each face separately (at the sharp
+        # edge each face keeps its own), interpolated barycentrically at the closest point.
+        # Per-triangle normals made phi jump between neighbouring triangles of the curved LE.
+        def vnormals(F):
+            vn = np.zeros_like(BV)
+            fn = np.cross(BV[F[:, 1]] - BV[F[:, 0]], BV[F[:, 2]] - BV[F[:, 0]])
+            for i in range(3):
+                np.add.at(vn, F[:, i], fn)
+            return vn / np.maximum(np.linalg.norm(vn, axis=1), 1e-300)[:, None]
+        vnA, vnB = vnormals(FA), vnormals(FB)
+
+        def interp(F, vn, X):
+            q, t = closest_point(BV, F, X)
+            A, Bv, C = BV[F[t, 0]], BV[F[t, 1]], BV[F[t, 2]]
+            v0, v1, v2 = Bv - A, C - A, q - A
+            d00, d01, d11 = (v0 * v0).sum(1), (v0 * v1).sum(1), (v1 * v1).sum(1)
+            d20, d21 = (v2 * v0).sum(1), (v2 * v1).sum(1)
+            den = np.maximum(d00 * d11 - d01 * d01, 1e-300)
+            w1 = (d11 * d20 - d01 * d21) / den; w2 = (d00 * d21 - d01 * d20) / den; w0 = 1 - w1 - w2
+            n = w0[:, None] * vn[F[t, 0]] + w1[:, None] * vn[F[t, 1]] + w2[:, None] * vn[F[t, 2]]
+            return n / np.maximum(np.linalg.norm(n, axis=1), 1e-300)[:, None]
+
+        def phi(X):
+            c, _ = closest_point(BV, FAB, X)
+            return np.einsum("ij,ij->i", X - c, interp(FA, vnA, X) - interp(FB, vnB, X))
+        return phi
+    for a, b in pairs:
+        phi = bisector(a, b)
+        ids = np.asarray(ids)
+        shift = 1000 if ISO_REF in set(ids.tolist()) else 0
+        tag = f"ridge{a}_{b}"
+        write_mesh(out / f"{tag}_in.mesh", P, tets, btris, ids + shift)
+        write_sol(out / f"{tag}_in.sol", phi(P))
+        cmd = [MMG, "-in", str(out / f"{tag}_in.mesh"), "-sol", str(out / f"{tag}_in.sol"), "-ls", "0",
+               "-noinsert", "-noswap", "-nomove", "-out", str(out / f"{tag}_out.mesh")]
+        with open(out / f"{tag}_mmg.log", "w") as lf:
+            if subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT).returncode:
+                raise SystemExit(f"[env] mmg ridge split {a}/{b} failed")
+        M = read_mesh(out / f"{tag}_out.mesh")
+        tet = M["Tetrahedra"][:, :4].astype(int) - 1
+        cnt = collections.Counter(frozenset(t[list(f)]) for t in tet
+                                  for f in ((0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)))
+        bt, bid = [], []
+        for t in M["Triangles"]:
+            k = frozenset(t[:3].astype(int) - 1)
+            if cnt.get(k) == 1 and int(t[3]) != ISO_REF:          # exterior faces only
+                bt.append(list(t[:3].astype(int) - 1)); bid.append(int(t[3]) - shift)
+        P, tets, btris, ids = M["Vertices"][:, :3], tet, bt, np.array(bid)
+        hist = tp.check_manifold([tuple(x) for x in btris])
+        print(f"[env] {tag}: {len(P)} nodes, {len(tets)} tets, boundary {len(btris)}, edge multiplicity {dict(hist)}")
+    # relabel the envelope by nearest wall face
+    B = np.asarray(btris)
+    sel = np.flatnonzero(ids == env_label)
+    cen = P[B[sel]].mean(1)
+    D = np.stack([dist(k, cen) for k in range(len(faces))], 1)
+    near = D.argmin(1)
+    for a, b in pairs:     # decide between adjacent faces by the SAME function mmg cut along
+        m = np.isin(near, (a, b))
+        if m.any():
+            near[np.flatnonzero(m)] = np.where(bisector(a, b)(cen[m]) > 0, a, b)
+    new = {k: (env_label if k == 0 else 100 + k) for k in range(len(faces))}
+    ids = ids.copy()
+    ids[sel] = [new[k] for k in near]
+    # majority filter: a triangle whose envelope neighbours mostly carry the other label is a
+    # tooth of the cut (the bisector grazing a vertex leaves 0.002-long wiggles and 128-deg turns)
+    envl = set(new.values())
+    e2t = collections.defaultdict(list)
+    for i in sel:
+        t = B[i]
+        for x, y in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+            e2t[tuple(sorted((int(x), int(y))))].append(i)
+    for _ in range(3):
+        flips = 0
+        for i in sel:
+            t = B[i]
+            nb = [j for x, y in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0]))
+                  for j in e2t[tuple(sorted((int(x), int(y))))] if j != i and ids[j] in envl]
+            c = collections.Counter(ids[j] for j in nb)
+            if c and c.most_common(1)[0][0] != ids[i] and c.most_common(1)[0][1] >= 2:
+                ids[i] = c.most_common(1)[0][0]; flips += 1
+        if not flips:
+            break
+    print(f"[env] majority filter on the envelope labels: last pass flipped {flips}")
+    print(f"[env] envelope split into {len(set(near.tolist()))} labels {sorted(set(new[k] for k in near))}")
+    return P, tets, btris, ids, new
+
+
 def distances(BV, BF, nodes, T, ids, names):
     dist = {}
     for sid in np.unique(ids):
@@ -391,6 +572,8 @@ def main():
                          "19-38k tets, 86-116 singular edges or a broken parametrisation; "
                          "at 0.08: 44-50k tets, the 52 singular edges / 12 raw blocks of tistos)")
     ap.add_argument("--hausd", type=float, default=0.002)
+    ap.add_argument("--ridges", action="store_true",
+                    help="cut feature curves onto the envelope at the offsets of the wall's sharp edges")
     ap.add_argument("--hgrad", type=float, default=None,
                     help="mmg size gradation (default: mmg's own for reduced, 2.0 for fluid)")
     a = ap.parse_args()
@@ -447,7 +630,16 @@ def main():
                                  delta * np.radians(15) if a.domain == "fluid" else None)
     if a.domain == "fluid":
         P, tets, btris, ids = coarsen(P, tets, btris, ids, out, a.size_max, a.hausd, iso_hausd)
-    left = set(ids.tolist()) - set(range(1, 8))
+    if a.ridges:
+        P, tets, btris, ids, new = ridge_split(P, tets, btris, ids, BV, BF, v5.S_OGRID_IFACE, out)
+        # the split leaves micro edges where the bisector grazes a vertex (0.002 against 0.01
+        # along the guide-vane LE curve; AlgoHex then failed with 8 invalid tets): remesh once more,
+        # the curves are ref boundaries and survive as ridges
+        env_refs = sorted(set(new.values()) | {v5.S_BL_IFACE_HUB, v5.S_BL_IFACE_SHROUD})
+        P, tets, btris, ids = coarsen(P, tets, btris, ids, out, a.size_max, a.hausd,
+                                      delta * (1 - np.cos(np.radians(15))), refs=env_refs,
+                                      cut_hmin=delta * np.radians(15))
+    left = set(ids.tolist()) - set(range(1, 8)) - set(range(100, 200))
     if left:
         raise SystemExit(f"[env] labels {sorted(left)} survived the cuts")
     nd = {i: tuple(p) for i, p in enumerate(P)}

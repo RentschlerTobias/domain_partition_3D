@@ -2,10 +2,10 @@
 
 Like datagen/gen_mesh.py (tistos), but without dtCase (the OpenFOAM builder is
 missing in this dtOO build) and without ru_adjustDomain (canada has no such plugin).
-Run inside a copy of /dtOO/test/canadaLight (/opt/venv-dtoo/bin/python; demo/canada fails in dtOO):
+Run inside a copy of /dtOO/test/canadaLight:
     python gen_mesh_canada.py <state> <bv_label> <out.msh> [params.json]
 """
-import json, sys, time
+import json, os, sys, time
 from dtOOPythonSWIG import *
 
 state, bv_label, out = sys.argv[1:4]
@@ -28,6 +28,6 @@ parser.createBoundedVolume(bC, cV, aF, aG, bV)
 print(f"[dtoo] bounded volumes: {[b.getLabel() for b in bV]}", flush=True)
 ref = bV.get(bv_label); ref.makeGrid()
 ob = bVOWriteMSH()
-ob.jInit(jsonPrimitive('{"_filename" : "%s", "_saveAll" : true}' % out), None, None, None, None, None, ref)
+ob.jInit(jsonPrimitive('{"_filename" : "%s", "_saveAll" : %s}' % (out, os.environ.get("SAVE_ALL", "true"))), None, None, None, None, None, ref)
 ob.postUpdate()
 print(f"[time] dtoo {time.time()-t0:.1f}s -> {out}", flush=True)

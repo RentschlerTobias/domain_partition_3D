@@ -98,23 +98,27 @@ def tagged_2d_lookup(elements):
     return look
 
 
-def removed_face_kind(elements):
+def removed_face_kind(elements, drop_prisms=True):
     """face-key -> which kind of removed cell it belonged to.
 
     'ogrid' = the hexahedral O-grid around the blade (geom regions 2-6),
-    'bl'    = the prismatic hub/shroud boundary layer."""
+    'bl'    = the prismatic hub/shroud boundary layer (only when it is removed: with --keep-prisms the
+              prisms stay in the domain, and a face between a kept prism and the removed O-grid must read
+              'ogrid' -- otherwise the O-grid cut splits into three labels with two artificial rings)."""
     kind = {}
     for et, _p, geom, nds in elements:
         if et not in tp._VOL_FACES:
             continue
         if geom in OGRID_GEOM:
             k = "ogrid"
-        elif et == 6:
+        elif et == 6 and drop_prisms:
             k = "bl"
         else:
             continue
         for loc in tp._VOL_FACES[et]:
             face = [nds[i] for i in loc]
+            if kind.get(frozenset(face)) == "ogrid":
+                continue                      # a face of a removed O-grid cell stays 'ogrid'
             kind[frozenset(face)] = k
             if len(face) == 4:
                 # both diagonals, same reason as in tagged_2d_lookup
@@ -298,6 +302,107 @@ def remesh_patch(nodes, tris, ids, sid, h):
     return keep + new, np.array(keep_ids + [sid] * len(new), int)
 
 
+def remesh_all(nodes, tris, ids, h=None):
+    """Re-mesh the WHOLE labelled boundary isotropically, curves included.
+
+    With --keep-prisms the inlet, outlet, periodic and O-grid-cut surfaces carry the prism layering in the
+    boundary-layer zone (triangle quality ~0.02) -- on the surfaces AND on their seam curves, so
+    `remesh_patch` (boundary node-for-node fixed) cannot help. Here every label becomes one discrete gmsh
+    surface, every seam between two labels one discrete curve shared by both, their ends discrete points;
+    `createGeometry` reparametrises them and gmsh meshes curves and surfaces anew at size h, so the surfaces
+    stay conforming and the label structure (= feature curves) survives. h defaults to the median edge length
+    of the well-shaped triangles (quality > 0.5)."""
+    import gmsh
+    from collections import defaultdict
+    T = np.asarray(tris); L = np.asarray(ids)
+    used = sorted({int(v) for t in T for v in t})
+    X = {v: np.asarray(nodes[v], float) for v in used}
+    if h is None:
+        A, B, C = (np.array([X[int(v)] for v in T[:, k]]) for k in range(3))
+        e = np.stack([np.linalg.norm(B - A, axis=1), np.linalg.norm(C - B, axis=1), np.linalg.norm(A - C, axis=1)], 1)
+        q = 2 * np.sqrt(3) * np.linalg.norm(np.cross(B - A, C - A), axis=1) / (e ** 2).sum(1)
+        h = float(np.median(e[q > 0.5])) if (q > 0.5).any() else float(np.median(e))
+    e2t = defaultdict(list)
+    for i, t in enumerate(T):
+        for k in range(3):
+            a, b = int(t[k]), int(t[(k + 1) % 3])
+            e2t[(min(a, b), max(a, b))].append(i)
+    seam = {e: tuple(sorted({int(L[i]) for i in ts})) for e, ts in e2t.items() if len({int(L[i]) for i in ts}) > 1}
+    vadj = defaultdict(list)
+    for (a, b), lp in seam.items():
+        vadj[a].append((b, lp)); vadj[b].append((a, lp))
+    junction = {v for v, nb in vadj.items() if len(nb) != 2 or nb[0][1] != nb[1][1]}
+    # chains of seam edges between junctions (closed chains without junction get one)
+    chains, seen = [], set()
+    def walk(start, nxt, lp):
+        ch = [start, nxt]; seen.add((min(start, nxt), max(start, nxt)))
+        while ch[-1] not in junction and ch[-1] != ch[0]:
+            cand = [w for w, l2 in vadj[ch[-1]] if l2 == lp and (min(ch[-1], w), max(ch[-1], w)) not in seen]
+            if not cand:
+                break
+            seen.add((min(ch[-1], cand[0]), max(ch[-1], cand[0]))); ch.append(cand[0])
+        return ch
+    for v in sorted(junction):
+        for w, lp in vadj[v]:
+            if (min(v, w), max(v, w)) not in seen:
+                chains.append((walk(v, w, lp), lp))
+    for (a, b), lp in seam.items():                      # closed loops without a junction
+        if (a, b) not in seen:
+            junction.add(a)
+            chains.append((walk(a, b, lp), lp))
+    gmsh.initialize(); gmsh.option.setNumber("General.Terminal", 0); gmsh.model.add("all")
+    tag = {v: i + 1 for i, v in enumerate(used)}
+    ptag = {}
+    for v in sorted(junction):
+        ptag[v] = gmsh.model.addDiscreteEntity(0)
+        gmsh.model.mesh.addNodes(0, ptag[v], [tag[v]], X[v].tolist())
+    on_curve = set(junction)
+    surf_curves = defaultdict(list)
+    for ch, lp in chains:
+        a, b = ch[0], ch[-1]
+        c = gmsh.model.addDiscreteEntity(1, -1, [ptag[a], ptag[b]])
+        inner = ch[1:-1]
+        on_curve |= set(inner)
+        if inner:
+            gmsh.model.mesh.addNodes(1, c, [tag[v] for v in inner], np.array([X[v] for v in inner]).ravel().tolist())
+        seg = []
+        for k in range(len(ch) - 1):
+            seg += [tag[ch[k]], tag[ch[k + 1]]]
+        gmsh.model.mesh.addElementsByType(c, 1, [], seg)
+        for l in lp:
+            surf_curves[l].append(c)
+    stag = {}
+    for l in sorted(set(L.tolist())):
+        sf = gmsh.model.addDiscreteEntity(2, -1, surf_curves[l])
+        stag[sf] = l
+        Tl = T[L == l]
+        inner = sorted({int(v) for t in Tl for v in t} - on_curve)
+        if inner:
+            gmsh.model.mesh.addNodes(2, sf, [tag[v] for v in inner], np.array([X[v] for v in inner]).ravel().tolist())
+        gmsh.model.mesh.addElementsByType(sf, 2, [], [tag[int(v)] for t in Tl for v in t])
+    gmsh.model.mesh.createGeometry()
+    gmsh.model.geo.synchronize()
+    # curves refined by curvature (tight O-grid outline at LE / TE), surfaces grade out from them
+    for k, v in (("Mesh.MeshSizeMin", h / 4), ("Mesh.MeshSizeMax", h), ("Mesh.MeshSizeFromCurvature", 24),
+                 ("Mesh.MeshSizeExtendFromBoundary", 1), ("Mesh.MeshSizeFromPoints", 0), ("Mesh.Algorithm", 6)):
+        gmsh.option.setNumber(k, v)
+    gmsh.model.mesh.generate(2)
+    nt, nc, _ = gmsh.model.mesh.getNodes()
+    Q = np.array(nc).reshape(-1, 3); row = {int(t): i for i, t in enumerate(nt)}
+    new_nodes = {i + 1: tuple(Q[i]) for i in range(len(Q))}
+    new_tris, new_ids = [], []
+    for dim, sf in gmsh.model.getEntities(2):
+        et, _i, ev = gmsh.model.mesh.getElements(2, sf)
+        for t_, vv in zip(et, ev):
+            if t_ == 2:
+                for tri in np.array(vv).reshape(-1, 3):
+                    new_tris.append([row[int(x)] + 1 for x in tri]); new_ids.append(stag[sf])
+    gmsh.finalize()
+    print(f"[v5] remeshed all surfaces at h={h:.4f}: {len(T)} -> {len(new_tris)} triangles, "
+          f"{len(chains)} seam curves, {len(junction)} curve ends", flush=True)
+    return new_nodes, new_tris, np.array(new_ids)
+
+
 def ring_census(nodes, tris, ids, verbose=True):
     """The two mutual rings of the three artificial cut surfaces, with the
     dihedral angle of every one of their edges.
@@ -391,7 +496,7 @@ def feature_vertices(feat):
 
 def main(size_max=0.12, out_name="T1_9_tet_v5.vtk", drop_prisms=True,
          remesh_ogrid=None, merge_interfaces=None, ring_kink=None, msh=None,
-         out_dir=None):
+         out_dir=None, remesh_all_h=None):
     """`msh` overrides the input mesh, `out_dir` where the result goes.
 
     The T1_9 grid was the only geometry for a long time and its path was a
@@ -404,7 +509,7 @@ def main(size_max=0.12, out_name="T1_9_tet_v5.vtk", drop_prisms=True,
     nodes, elements = parse_msh(msh)
     tris = reduced_boundary(nodes, elements, drop_prisms)
     look = tagged_2d_lookup(elements)
-    removed_kind = removed_face_kind(elements)
+    removed_kind = removed_face_kind(elements, drop_prisms)
     ids = classify(nodes, tris, look, removed_kind)
     # Re-mesh BEFORE merging. The merge relabels S_OGRID_IFACE away, and
     # remesh_patch selects its patch by that label -- the other order hands
@@ -413,6 +518,12 @@ def main(size_max=0.12, out_name="T1_9_tet_v5.vtk", drop_prisms=True,
         tris, ids = remesh_patch(nodes, tris, ids, S_OGRID_IFACE, remesh_ogrid)
         hist = tp.check_manifold(tris)
         print(f"[v5] after remeshing, edge multiplicity {dict(hist)}")
+        if set(hist) - {2}:
+            raise RuntimeError("remeshing broke the closed 2-manifold")
+    if remesh_all_h is not None:
+        nodes, tris, ids = remesh_all(nodes, tris, ids, None if remesh_all_h <= 0 else remesh_all_h)
+        hist = tp.check_manifold(tris)
+        print(f"[v5] after remeshing all, edge multiplicity {dict(hist)}")
         if set(hist) - {2}:
             raise RuntimeError("remeshing broke the closed 2-manifold")
     rings = ring_census(nodes, tris, ids)
@@ -487,7 +598,10 @@ if __name__ == "__main__":
                          "length H, keeping its boundary node-for-node")
     ap.add_argument("--keep-prisms", action="store_true",
                     help="keep the hub/shroud boundary layer in the domain")
+    ap.add_argument("--remesh-all", type=float, default=None, metavar="H",
+                    help="re-mesh all surfaces and seam curves at edge length H (0 = median edge length of the "
+                         "well-shaped input triangles); needed with --keep-prisms (layered BL triangles)")
     a = ap.parse_args()
     main(a.size_max, a.out, drop_prisms=not a.keep_prisms,
          remesh_ogrid=a.remesh_ogrid, merge_interfaces=a.merge_interfaces,
-         ring_kink=a.ring_kink, msh=a.msh, out_dir=a.out_dir)
+         ring_kink=a.ring_kink, msh=a.msh, out_dir=a.out_dir, remesh_all_h=a.remesh_all)

@@ -121,6 +121,7 @@ def surface_distance(V, F, pts, k=24):
 
 
 # ------------------------------------------------------------- body wall
+BODY_ENT = [None]          # dtOO 2D entity of every body-wall triangle (set by body_wall)
 def body_wall(nodes, els):
     """Exterior faces of the removed O-grid hexes that face neither the
     remaining volume nor a real wall: the blade surface itself."""
@@ -144,7 +145,14 @@ def body_wall(nodes, els):
         if c == 1 and k not in v1f:
             ent[look.get(k)].add(k)
     body = [g for g, fs in ent.items() if not any(v in walln for f in fs for v in f)]
-    bt = np.array(tp.orient_and_triangulate([fo[k] for g in body for k in ent[g]], nodes))
+    faces_in = [fo[k] for g in body for k in ent[g]]
+    ent_of = [g for g in body for k in ent[g]]
+    bt, bent = [], []
+    for f, g in zip(faces_in, ent_of):
+        tri = tp.orient_and_triangulate([f], nodes)
+        bt += tri; bent += [g] * len(tri)
+    bt = np.array(bt)
+    BODY_ENT[0] = np.array(bent)
     u = np.unique(bt)
     m = {v: i for i, v in enumerate(u)}
     V = np.array([nodes[v] for v in u], float)
@@ -435,13 +443,120 @@ def wall_faces(BV, BF, deg=25.0):
     return faces, pairs
 
 
-def ridge_split(P, tets, btris, ids, BV, BF, env_label, out, deg=25.0):
+def wall_faces_from_entities(BV, BF, ent, deg=20.0):
+    """Smooth faces of the body wall from its GEOMETRY: the dtOO 2D entities, merged where the
+    curve they share is smooth everywhere (max dihedral < deg). Dihedral detection on the mesh
+    broke the LE/TE lines of most pilot guide vanes into pieces (1 face, no ridges)."""
+    n = np.cross(BV[BF[:, 1]] - BV[BF[:, 0]], BV[BF[:, 2]] - BV[BF[:, 0]])
+    n /= np.linalg.norm(n, axis=1)[:, None]
+    e2t = collections.defaultdict(list)
+    for i, t in enumerate(BF):
+        for a, b in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+            e2t[tuple(sorted((int(a), int(b))))].append(i)
+    seam = collections.defaultdict(float)
+    for inc in e2t.values():
+        if len(inc) == 2 and ent[inc[0]] != ent[inc[1]]:
+            k = tuple(sorted((int(ent[inc[0]]), int(ent[inc[1]]))))
+            seam[k] = max(seam[k], np.degrees(np.arccos(np.clip(n[inc[0]] @ n[inc[1]], -1, 1))))
+    ents = sorted(set(ent.tolist()))
+    par = {e: e for e in ents}
+    def find(e):
+        while par[e] != e:
+            e = par[e]
+        return e
+    for (a, b), mx in seam.items():
+        if mx < deg:
+            par[find(a)] = find(b)
+    self_creases = [(a, b) for (a, b), mx in seam.items() if mx >= deg and find(a) == find(b)]
+    if self_creases:
+        # one closed wall with a crease inside it (thin blade: rounded LE, sharp TE). The bisector
+        # of the two entities meeting at the crease is the mid-surface of the body; it leaves the
+        # envelope at the crease AND at the opposite nose (LE), which gives both ridge curves
+        a, b = self_creases[0]
+        faces = [np.flatnonzero(ent == a), np.flatnonzero(ent == b)]
+        print(f"[env] body wall faces from entities: seams {dict((k, round(v, 1)) for k, v in seam.items())} "
+              f"-> crease inside one smooth wall, bisector of entities {a} | {b}")
+        return faces, [(0, 1)]
+    groups = sorted({find(e) for e in ents})
+    gi = {g: i for i, g in enumerate(groups)}
+    comp = np.array([gi[find(e)] for e in ent])
+    faces = [np.flatnonzero(comp == k) for k in range(len(groups))]
+    pairs = sorted({tuple(sorted((gi[find(a)], gi[find(b)]))) for (a, b), mx in seam.items() if mx >= deg})
+    print(f"[env] body wall faces from entities: seams {dict((k, round(v, 1)) for k, v in seam.items())} "
+          f"-> {len(faces)} faces, pairs {pairs}")
+    return faces, pairs
+
+
+def crease_vertices(BV, BF, ent, deg=20.0):
+    """wall vertices on seams between dtOO entities that meet at a real crease (max dihedral >= deg);
+    without entity information: vertices of edges whose triangles meet at more than 90 deg"""
+    n = np.cross(BV[BF[:, 1]] - BV[BF[:, 0]], BV[BF[:, 2]] - BV[BF[:, 0]])
+    n /= np.linalg.norm(n, axis=1)[:, None]
+    e2t = collections.defaultdict(list)
+    for i, t in enumerate(BF):
+        for x, y in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+            e2t[tuple(sorted((int(x), int(y))))].append(i)
+    if ent is None:
+        return np.unique([v for e, inc in e2t.items() if len(inc) == 2 and n[inc[0]] @ n[inc[1]] < 0 for v in e])
+    seam = collections.defaultdict(list)
+    for e, inc in e2t.items():
+        if len(inc) == 2 and ent[inc[0]] != ent[inc[1]]:
+            seam[tuple(sorted((int(ent[inc[0]]), int(ent[inc[1]]))))].append(
+                (e, np.degrees(np.arccos(np.clip(n[inc[0]] @ n[inc[1]], -1, 1)))))
+    out = [v for k, lst in seam.items() if max(a for _, a in lst) >= deg for e, _ in lst for v in e]
+    return np.unique(out) if out else np.zeros(0, int)
+
+
+def select_crease_ridges(P, btris, ids, env_labels, main_label, BV, BF, ent, delta):
+    """Keep only the ridge curves (boundaries between the envelope's sub-labels) that lie over a real
+    crease of the wall, decided per CONNECTED curve (per-edge selection broke the TE curve into
+    9-15 pieces); the envelope becomes main_label again and the kept curves are returned as
+    explicit feature edges."""
+    B = np.asarray(btris)
+    e2l = collections.defaultdict(set)
+    for t, l in zip(B, ids):
+        for x, y in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+            e2l[tuple(sorted((int(x), int(y))))].add(int(l))
+    rid = [e for e, ls in e2l.items() if len(ls) == 2 and ls <= set(env_labels)]
+    extra = []
+    cv_ = crease_vertices(BV, BF, ent)
+    if rid and len(cv_):
+        tc = cKDTree(BV[cv_])
+        radj = collections.defaultdict(list)
+        for x, y in rid:
+            radj[x].append(y); radj[y].append(x)
+        seen = set()
+        for s0 in list(radj):
+            if s0 in seen:
+                continue
+            st, cv = [s0], {s0}; seen.add(s0)
+            while st:
+                u = st.pop()
+                for w in radj[u]:
+                    if w not in seen:
+                        seen.add(w); cv.add(w); st.append(w)
+            E = [e for e in rid if e[0] in cv]
+            cpt, _ = closest_point(BV, BF, np.array([(P[x] + P[y]) / 2 for x, y in E]))
+            med = float(np.median(tc.query(cpt)[0]))
+            keep = med < 0.5 * delta
+            print(f"[env] ridge curve {len(E)} edges, median foot distance to a wall crease {med:.4f}: "
+                  f"{'kept' if keep else 'dropped'}")
+            if keep:
+                extra += E
+    ids = np.where(np.isin(ids, [l for l in env_labels if l != main_label]), main_label, ids)
+    return ids, extra
+
+
+def ridge_split(P, tets, btris, ids, BV, BF, env_label, out, deg=25.0, delta=None, size_max=None):
     """Feature curves ON the envelope where the wall has sharp edges: for every pair of
     adjacent smooth wall faces A/B the bisector {d_A = d_B} is cut into the mesh with
     mmg -ls (nothing removed, no other remeshing), then every envelope triangle gets the
     label of its nearest face. The label boundaries are the offsets of the sharp edges
     (LE/TE ridges of a blade, ends of a ring) as complete, mesh-conforming curves."""
-    faces, pairs = wall_faces(BV, BF, deg)
+    if BODY_ENT[0] is not None and len(BODY_ENT[0]) == len(BF):
+        faces, pairs = wall_faces_from_entities(BV, BF, BODY_ENT[0])
+    else:
+        faces, pairs = wall_faces(BV, BF, deg)
     if len(faces) < 2:
         return P, tets, btris, np.asarray(ids), {}
     dist = lambda k, X: surface_distance(BV, BF[faces[k]], X)
@@ -477,14 +592,35 @@ def ridge_split(P, tets, btris, ids, BV, BF, env_label, out, deg=25.0):
             return n / np.maximum(np.linalg.norm(n, axis=1), 1e-300)[:, None]
 
         def phi(X):
+            # normal term: carries the sign change at a sharp edge (where d_A == d_B on the band);
+            # distance term d_B - d_A: smooth and decisive at a rounded nose where the normal term
+            # is ~0 and flips noisily (guide-vane LE: 29 kinks). Both are > 0 over face A.
             c, _ = closest_point(BV, FAB, X)
-            return np.einsum("ij,ij->i", X - c, interp(FA, vnA, X) - interp(FB, vnB, X))
+            normal = np.einsum("ij,ij->i", X - c, interp(FA, vnA, X) - interp(FB, vnB, X))
+            return normal + surface_distance(BV, FB, X) - surface_distance(BV, FA, X)
         return phi
     for a, b in pairs:
         phi = bisector(a, b)
         ids = np.asarray(ids)
         shift = 1000 if ISO_REF in set(ids.tolist()) else 0
         tag = f"ridge{a}_{b}"
+        if delta is not None:
+            # pre-refine where the curve will lie: near phi = 0 AND near the envelope; the
+            # no-insert cut alone left the rounded LE nose under-resolved (30 kinks > 30 deg)
+            h_iso = delta * np.radians(15)
+            dE = np.abs(surface_distance(BV, BF, P) - delta)
+            h = np.clip(h_iso + 0.5 * (np.abs(phi(P)) + dE), h_iso, size_max)
+            write_mesh(out / f"{tag}_pre.mesh", P, tets, btris, ids + shift)
+            write_sol(out / f"{tag}_pre.sol", h)
+            cmd = [MMG, "-in", str(out / f"{tag}_pre.mesh"), "-sol", str(out / f"{tag}_pre.sol"),
+                   *hgrad_opt(), "-out", str(out / f"{tag}_pre_out.mesh")]
+            with open(out / f"{tag}_pre_mmg.log", "w") as lf:
+                if subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT).returncode:
+                    raise SystemExit(f"[env] ridge pre-refinement {a}/{b} failed")
+            M0 = read_mesh(out / f"{tag}_pre_out.mesh")
+            P = M0["Vertices"][:, :3]; tets = M0["Tetrahedra"][:, :4].astype(int) - 1
+            btris = (M0["Triangles"][:, :3].astype(int) - 1).tolist()
+            ids = M0["Triangles"][:, 3].astype(int) - shift
         write_mesh(out / f"{tag}_in.mesh", P, tets, btris, ids + shift)
         write_sol(out / f"{tag}_in.sol", phi(P))
         cmd = [MMG, "-in", str(out / f"{tag}_in.mesh"), "-sol", str(out / f"{tag}_in.sol"), "-ls", "0",
@@ -572,6 +708,8 @@ def main():
                          "19-38k tets, 86-116 singular edges or a broken parametrisation; "
                          "at 0.08: 44-50k tets, the 52 singular edges / 12 raw blocks of tistos)")
     ap.add_argument("--hausd", type=float, default=0.002)
+    ap.add_argument("--crease-ridges-only", action="store_true",
+                    help="with --ridges: keep only ridge curves over real wall creases (TE), not over a rounded nose")
     ap.add_argument("--ridges", action="store_true",
                     help="cut feature curves onto the envelope at the offsets of the wall's sharp edges")
     ap.add_argument("--hgrad", type=float, default=None,
@@ -631,7 +769,8 @@ def main():
     if a.domain == "fluid":
         P, tets, btris, ids = coarsen(P, tets, btris, ids, out, a.size_max, a.hausd, iso_hausd)
     if a.ridges:
-        P, tets, btris, ids, new = ridge_split(P, tets, btris, ids, BV, BF, v5.S_OGRID_IFACE, out)
+        P, tets, btris, ids, new = ridge_split(P, tets, btris, ids, BV, BF, v5.S_OGRID_IFACE, out,
+                                               delta=delta, size_max=a.size_max)
         # the split leaves micro edges where the bisector grazes a vertex (0.002 against 0.01
         # along the guide-vane LE curve; AlgoHex then failed with 8 invalid tets): remesh once more,
         # the curves are ref boundaries and survive as ridges
@@ -639,11 +778,18 @@ def main():
         P, tets, btris, ids = coarsen(P, tets, btris, ids, out, a.size_max, a.hausd,
                                       delta * (1 - np.cos(np.radians(15))), refs=env_refs,
                                       cut_hmin=delta * np.radians(15))
+    extra_feat = []
+    if a.ridges and a.crease_ridges_only:
+        ids, extra_feat = select_crease_ridges(P, btris, ids, {v5.S_OGRID_IFACE} | set(range(100, 200)),
+                                               v5.S_OGRID_IFACE, BV, BF, BODY_ENT[0], delta)
     left = set(ids.tolist()) - set(range(1, 8)) - set(range(100, 200))
     if left:
         raise SystemExit(f"[env] labels {sorted(left)} survived the cuts")
     nd = {i: tuple(p) for i, p in enumerate(P)}
     feat, fverts = v2.feature_graph(nd, [tuple(t) for t in btris], ids)
+    if extra_feat:
+        feat = sorted({tuple(sorted(e)) for e in feat} | {tuple(sorted(map(int, e))) for e in extra_feat})
+        fverts = v5.feature_vertices(feat)
     tp.write_algohex_vtk_analytic(P, tets, btris, ids, feat, fverts, out / "tet.vtk")
     print(f"[env] done: domain {a.domain}, delta {delta:.4f}")
 

@@ -434,6 +434,67 @@ def postprocess(sample, verbose=True):
             V[v] = min(pool, key=lambda p: np.linalg.norm(p - V[v]))
         elif cs:
             V[v] = seams.on_curve(cs[0], V[v])[2][0]
+    # corners in the order the block structure prescribes: the feature edges on one seam curve chain its corners
+    # (a cycle on a closed curve, a path on an open one); where nearest-point positions contradict that order
+    # (two corners a few hundredths apart, swapped -- arcs would then run over each other), the positions are
+    # made monotone along the chain with a minimum gap, junction corners fixed
+    order_fixed = []
+    for c in sorted(set(cur_of.values())):
+        ks = [k for k in cur_of if cur_of[k] == c]
+        adj = defaultdict(list)
+        for k in ks:
+            a, b = int(E[k][0]), int(E[k][1]); adj[a].append(b); adj[b].append(a)
+        if any(len(n) > 2 for n in adj.values()) or len(adj) < 3:
+            continue
+        ends = [v for v, n in adj.items() if len(n) == 1]
+        start = ends[0] if ends else min(adj)
+        chain, prev = [start], None
+        while True:
+            nx = [w for w in adj[chain[-1]] if w != prev and w not in chain]
+            if not nx:
+                break
+            prev = chain[-1]; chain.append(nx[0])
+        if len(chain) != len(adj):
+            continue
+        L = float(seams.arclen[c][-1]); closed = bool(seams.closed[c])
+        t = np.array([float(seams.on_curve(c, V[v])[1][0]) for v in chain])
+        fixed = np.array([(v in corner) and not closed for v in chain])
+        best = None
+        for sgn in (1.0, -1.0):
+            if closed:
+                d = (sgn * np.diff(np.r_[t, t[0]])) % L               # step to the next corner, cycle closed
+                d = np.where(d > 0.5 * L, d - L, d)                   # almost a full turn = a small step back
+                if abs(d.sum() - L) > 1e-6 * L:
+                    continue                                          # this direction is not one revolution
+                u = np.r_[0.0, np.cumsum(d[:-1])]
+            else:
+                u = sgn * (t - t[0])
+            viol = int((np.diff(u) < 0).sum())
+            if best is None or viol < best[0]:
+                best = (viol, sgn, u)
+        if best is None or best[0] == 0:
+            continue
+        viol, sgn, u = best
+        gap = 0.02 * (L if closed else abs(u[-1])) / len(chain)
+        w = u.copy()                                                  # pool adjacent violators (isotonic fit)
+        blocks = [[i] for i in range(len(w))]
+        val = [w[i] for i in range(len(w))]
+        i = 0
+        while i < len(val) - 1:
+            if val[i + 1] < val[i] + gap and not any(fixed[j] for j in blocks[i + 1]):
+                blocks[i] += blocks.pop(i + 1); val[i] = float(np.mean(u[blocks[i]])); val.pop(i + 1)
+                i = max(i - 1, 0)
+            else:
+                i += 1
+        for b, m in zip(blocks, val):                                 # spread a pooled group around its mean
+            for r, j in enumerate(b):
+                w[j] = m + (r - (len(b) - 1) / 2) * gap
+        for v, wj, uj, f in zip(chain, w, u, fixed):
+            if f or abs(wj - uj) < 1e-12:
+                continue
+            tw = (t[0] + sgn * wj) % L if closed else t[0] + sgn * wj
+            V[v] = seams.sample(c, np.array([tw]))[0]
+            order_fixed.append(int(v))
     # cubics follow moved corners (chord-relative), feature edges become arcs + G1 cubic
     dV = V - V0
     n1 = c1 + (2 * dV[E[:, 0]] + dV[E[:, 1]]) / 3
@@ -459,6 +520,8 @@ def postprocess(sample, verbose=True):
         fit_dev.append(float(cKDTree(Q).query(P)[0].max() / max(np.linalg.norm(V[b] - V[a]), 1e-30)))
 
     # directed outputs, aligned with sample["edges"]
+    if verbose and order_fixed:
+        print(f"[curve_post] corners re-ordered along their seam: {sorted(set(order_fixed))}", flush=True)
     post_ctrl, arc_pts, arc_off, featd = [], [], [0], []
     for (k, rev) in dmap:
         post_ctrl.append([n2[k], n1[k]] if rev else [n1[k], n2[k]])

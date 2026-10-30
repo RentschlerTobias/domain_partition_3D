@@ -362,6 +362,129 @@ matches the waiting shell's own command line and loops forever. It cost two
 silent 20-minute stalls. Launch through a script file whose name does not
 appear in the waiting command.
 
+---
+
+## P3a — the canada `-n` sweep (2026-10-30)
+
+Question: does the target cell count `-n` decide whether the hex complex can be
+turned into a valid block structure? Four replays of one parametrisation state
+(`/work/canada/dt/cad1/state/param_state.ovm`, 352949 input tets) at
+n = 2000 / 8000 / 20000 / 100000, each run exactly as
+
+```
+/work/tools/algohex-size/build/Build/bin/HexMeshing --load-param-state <state> \
+  -o /work/canada/sweep/n<N>/hex_n<N>.ovm \
+  -j /work/canada/sweep/n<N>/metrics_n<N>.json -n <N>
+```
+
+and ranked by bad valency, then invalid tets. Collector: `canada_sweep.py`.
+
+| n | valid_volume | bad valency | invalid tets | hexes | rank |
+|---|---|---|---|---|---|
+| 20000 | 0.998956 | 4 | 7157 | 19915 | 1 |
+| 100000 | 0.999818 | 6 | 2551 | 105837 | 2 |
+| 8000 | 0.998049 | 13 | 8960 | 7888 | 3 |
+| 2000 | 0.996418 | 106 | 10930 | 1823 | 4 |
+
+`bad valency` is `Parametrization.n_invalid_valencies`; its seamless variant is
+0 at every n, i.e. the parametrization stage repairs every invalid valency it
+finds. `invalid tets` is `n_invalid_param_tets`; its seamless variant is 476 /
+440 / 459 / 467, i.e. the seamless repair fixes all but a few hundred of them at
+every n. The log's `remaining defects: #invalid_tets = 596 and
+#invalid_edge_valencies = 0` is the same for all four n — it describes the
+input tet mesh restored from the state, not the run. The n = 20000 replay
+reproduces the prior reference (`state/metrics_n20k.json`: valid_volume
+0.9989558, 4 bad valencies, 7156 invalid tets; `state/hex_n20k.ovm` has 19915
+polyhedra against the "~19785 hexes" of the brief).
+
+**The beam stage, run with the flags of `datagen/run_sample_keepbl.sh`**
+(`--width 32 --depth 20 --guard struct --hausdorff-tol 0.15 --workers 4`):
+
+| lane | role | result |
+|---|---|---|
+| n = 20000 | best 1 | **REJECT** — raw hex mesh off the input surface: Hausdorff 1.2234 > 0.15 (164 blocks, 19922 cells) |
+| n = 8000 | diagnostic 3rd | **REJECT** — Hausdorff 1.2664 > 0.15 (125 blocks, 7888 cells) |
+| n = 100000 | best 2 | gate passed (Hausdorff 0.1005); base 330 blocks / 105837 cells, **10 inverted cells, min scaled Jacobian -0.9906**, 634 singularities, 35 tiny blocks, 86 excess; depth 1 gave 47 admissible collapses, best 210 blocks, in 1095 s; still running when the report was written |
+
+`n = 8000` was run as a third, clearly labelled diagnostic lane because the
+n = 100000 beam cannot finish (below); it is the only other lane that produces
+a recorded beam row.
+
+**Which n removes inverted cells? None.** The inverted cells are not a
+parametrization defect and raising n does not remove them — it makes them
+worse. After `fill_cavities` + `untangle` the raw mesh still holds
+
+| n | inverted cells before untangle | after untangle | min scaled Jacobian |
+|---|---|---|---|
+| 8000 | 52 | 6 | -0.3983 |
+| 20000 | 61 | 5 | -0.1498 |
+| 100000 | 148 | 10 | -0.9906 |
+
+`untangle` moves vertices and reduces the count (61 → 5 at n = 20000, 148 → 10
+at n = 100000) but always leaves a residue, and the residue is what the
+collapse guard measures. The log lines are reproducible: the prior canada runs
+(`/work/canada/dt/cad1/beam_n20k.log`, `beam_n8k.log`,
+`state/beam_n100k.log`) show the same 5 inverted / min -0.1498, the same
+Hausdorff 1.2234 / 1.2662 and the same 10 inverted / min -0.9906.
+
+**Does beam reach a small valid structure? No — two different blockers.**
+
+1. **n ≤ 20000: the raw hex mesh does not hug the input surface.** The gate
+   `max_base_hausdorff = 0.15` fires before the search starts, so there is no
+   collapse, no `blocks.vtk`, no TFI and no validator run. The blocker is a
+   *surface distance*, not a cell count: max Hausdorff 1.2234 (n = 20000) and
+   1.2664 (n = 8000) against 0.15, i.e. eight times the gate. Nothing in the
+   `-n` direction fixes it, because n = 20000 is already the best of the four
+   on valency and invalid tets and it still fails by 1.07.
+2. **n = 100000: the gate passes and the guard cannot.** The search starts
+   (330 → 210 blocks at depth 1) but every admissible candidate keeps
+   min_sj ≈ -0.99, because the guard `min sJ >= 0.05` is measured against the
+   same 10 inverted cells (scaled Jacobian -0.9906, a fully flipped hexahedron).
+   The prior completed run of this very mesh (`state/beam_n100k.log`,
+   `guard=abs`, width 6, depth 6) ended `[beam] depth 1: no admissible
+   collapse, stop` and HexBlockValidator reported **INVALID** with one hard
+   failure, `10 inverted cells (scaled Jacobian <= 0)`: 326 blocks, cuboid_fraction
+   0.871, 35 tiny blocks, block face counts {6: 284, 7: 21, 8: 9, 9: 2,
+   10: 10}, min scaled Jacobian -0.9906, boundary Hausdorff to input surface 0.1005.
+   So at the one n where the beam
+   gets to run, the answer is still a structure with 10 inverted cells.
+   It also cannot be finished here: depth 1 took 1095 s on 105837 cells and
+   depth 2 must repeat that for each of the 32 beam entries (~2.4 h per level,
+   20 levels).
+
+**Net answer for the pipeline:** the canada domain is blocked before the block
+structure, at two places that are independent of `-n`. At n ≤ 20000 the raw
+hex mesh is off the input surface by ~1.2 (gate 0.15); at n = 100000 it is on
+the surface (0.10) but 10 inverted cells (scaled Jacobian -0.9906) keep the collapse
+guard at min_sj >= 0.05 unreachable. Both are HexEx/extraction-stage defects,
+not parametrization ones — which is consistent with the metrics: every invalid
+*valency* is repaired (seamless 0) while inverted *cells* survive and grow
+with n.
+
+**Reproduce / re-check:**
+
+```
+cd experimentell/hex3d_algohex
+/opt/venv-sci/bin/python canada_sweep.py run /work/canada/sweep/report.json \
+    --no-replay --beam-ns 20000 8000 100000   # collect, rank, beam the lanes
+/opt/venv-sci/bin/python canada_sweep.py --check /work/canada/sweep/report.json
+```
+
+`canada_sweep.py` never deletes or overwrites a canada run: a replay is refused
+while `hex_n<N>.ovm` exists (unless `--force`), a beam lane is skipped when its
+log already holds a result, and logs are appended to. Two artefacts of the
+session are left in place rather than cleaned up:
+`/work/canada/sweep/n32000` is a stray lane from a first command whose loop
+computed `2000*4**i` (32000 instead of 20000 — it completed and is kept), and
+`n2000/hexmeshing_n2000.log` holds two attempts after an accidental relaunch
+(valid_volume 0.99479 → 0.99642; the ADMM is not bit-reproducible). The sweep
+process that launched the n=100000 beam lane is still running: when it ends it
+rewrites `report.json` from its own two-lane selection (n=20000 + n=100000),
+which also satisfies the `--check` contract, and the n=8000 diagnostic lane
+stays on disk in `beam_n8000/`.
+
+---
+
 ## Documents
 
 | file | content |

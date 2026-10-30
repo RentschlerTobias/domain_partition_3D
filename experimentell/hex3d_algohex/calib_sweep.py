@@ -26,7 +26,9 @@ Settings (the calibration matrix for T4/T5):
 
 Each run gets its own directory <out>/<geometry>_<setting>_<n>/ with
 run_algohex.py called as a subprocess, pinned to 2 cores with taskset
-(--backend native refuses --cpus, so CPU is limited outside the process),
+(--backend native refuses --cpus, so CPU is limited outside the process);
+the cores are --cores (default '0,1', override per lane with $CALIB_CORES
+so several sweep lanes can run side by side on disjoint core pairs),
 killed after --timeout seconds (default 7200). metrics.json (this script) and
 hexmeshing.log (run_algohex.py) land in the run directory; metrics.json holds
 `valid_volume` and `Parametrization` values from HexMeshing's own -j file plus
@@ -303,8 +305,9 @@ if __name__ == "__main__":
     ap.add_argument("--out", default="/work/calib/sweep",
                     help="sweep root; the run goes to "
                          "<out>/<geometry>_<setting>_<n>/")
-    ap.add_argument("--cores", default=None,
-                    help="taskset core list (default: first 2 allowed cores)")
+    ap.add_argument("--cores", default=os.environ.get("CALIB_CORES", "0,1"),
+                    help="taskset core list for the run (default: $CALIB_CORES, "
+                         "else '0,1')")
     ap.add_argument("--timeout", type=int, default=7200,
                     help="kill HexMeshing after this many seconds")
     ap.add_argument("--hexmeshing-bin", default=None,

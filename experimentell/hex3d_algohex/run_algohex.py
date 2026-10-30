@@ -51,7 +51,11 @@ DOCKER_IMAGE = "algohex:portable"
 # only: `enroot create` derives the container name from the .sqsh basename, so
 # algohex.sqsh -> "algohex".
 ENROOT_IMAGE = REPO / "output" / "hex3d_algohex" / "algohex.sqsh"
-HEXMESHING_BIN = "HexMeshing"          # on PATH inside the image, since T2
+# Overridable with HEXMESHING_BIN / --hexmeshing-bin: a second build with
+# extra AlgoHex flags (e.g. --save/--load-param-state for -n sweeps) can be
+# selected without touching the code. An absolute path works, too --
+# shutil.which() resolves those in check_backend.
+HEXMESHING_BIN = os.environ.get("HEXMESHING_BIN", "HexMeshing")
 WORK = "/work"                          # the repo, inside the container
 
 # Neither runtime inherits the caller's environment: enroot composes the
@@ -285,9 +289,15 @@ if __name__ == "__main__":
                     help="also write the seamless map and the intermediate "
                          "tet mesh (~56 MB). Off by default: replaying them "
                          "does not work, see DATA_GENERATION.md")
+    ap.add_argument("--hexmeshing-bin", default=None,
+                    help="HexMeshing binary to run (default HEXMESHING_BIN "
+                         "environ or 'HexMeshing' on PATH); a second build "
+                         "with extra AlgoHex flags can be selected this way")
     ap.add_argument("rest", nargs=argparse.REMAINDER,
                     help="extra flags passed straight to HexMeshing")
     a = ap.parse_args()
+    if a.hexmeshing_bin:
+        HEXMESHING_BIN = a.hexmeshing_bin
     backend = resolve_backend(a.backend)
     check_backend(backend)
     extra = [x for x in a.rest if x != "--"]

@@ -601,6 +601,94 @@ chain. `n=8000` is the working point (the n=2000 smoke was too coarse).
 
 ---
 
+## T19 — the inverted cells of canada n = 100000 as VTK (2026-10-30)
+
+`canada_export_vtk.py` writes the two saved stages of the n = 100000 run
+(`/work/canada/sweep/repair_probe_stages.npz`, `/work/canada/sweep/repair_probe.json`)
+out as legacy VTK into `/work/canada/sweep/inspect/`, so the defect that
+`canada_repair_probe.py` could only report as numbers becomes something you
+can look at. sJ here is the minimum corner scaled jacobian
+(`clean_blocks.scaled_jacobians`; `ovm_io.scaled_jacobian` is the same thing
+for one hex): a hex can keep a positive signed volume and still have inverted
+corners, so this — not the volume — is the validity test.
+
+| file | what it is | cells | `inverted == 1` |
+| --- | --- | ---: | ---: |
+| `hex_n100000.vtk` | the pre-repair mesh — what the beam measures, i.e. the `fill_cavities` + `untangle` stage of `hex_n100000.ovm` | 105837 | 10 |
+| `inverted_cells.vtk` | those 10 hexes plus their 1-ring neighbourhood | 140 | 10 |
+| `repaired_n100000.vtk` | the post-repair mesh | 105837 | 1 |
+
+All three are ASCII legacy `UNSTRUCTURED_GRID` files (VTK 2.0 header,
+`VTK_HEXAHEDRON`, one `SCALARS` block per array). The two full meshes keep the
+mesh's own point array and cell order, so the cell id in ParaView's spreadsheet
+view is the cell id in `repair_probe.json`; `inverted_cells.vtk` keeps the same
+point array and the same cell ids and only drops the 105697 cells that
+are not in the 1-ring, so the defect is findable without the 105837 cells.
+`--check` re-measures the sJ of both stages from the npz, re-reads the three
+files, and confirms that the stage's connectivity is the `.ovm`'s — the `.ovm`
+and the stage are the same 105837 hexes, the same vertex sets; only the points
+moved (first `untangle`, then the repair).
+
+Cell data:
+
+* `scaled_jacobian` (float) — the cell's sJ, negative exactly where the cell is inverted;
+* `inverted` (int) — 1 for an inverted cell, 0 else;
+* `distance_to_inverted` (int, `inverted_cells.vtk` only) — 0 for an inverted
+  cell, 1 for a cell that shares a vertex with one.
+
+To see it in ParaView:
+
+1. Open the file (`File → Open`; an ASCII legacy file is picked up by the
+   *legacy VTK reader* from its header).
+2. Add a `Threshold` filter (`Filters → Common → Threshold`), set `Scalars` to
+   `inverted` with `Minimum = Maximum = 1`, Apply. What is left are the
+   10 inverted cells — in `inverted_cells.vtk` use
+   `distance_to_inverted` from 0 to 1 to get the 140-cell patch instead
+   (130 neighbours, which is the part a repair has to move).
+3. Color by `scaled_jacobian` (diverging map, no "Rescale to Data Range") to
+   see which of the 10 are collapsed (sJ near -1) and which are
+   only slightly folded.
+4. Click a cell and read `Cell Id` in the `Information` tab (or open the
+   *Spreadsheet View*) to get the id to feed back into the probe.
+
+The 10 inverted cells of the pre-repair stage (centroid in mesh
+coordinates, sJ = minimum corner scaled jacobian; negative means inverted):
+
+| cell | x | y | z | sJ |
+| --- | ---: | ---: | ---: | ---: |
+| 85 | 5.428614 | 1.317982 | 6.380345 | -0.404510 |
+| 90 | 2.307035 | 0.963002 | -3.944410 | -0.126242 |
+| 102 | 5.257099 | 1.109242 | 9.941260 | -0.233411 |
+| 117 | 0.588783 | 0.511962 | 0.242499 | -0.162434 |
+| 276 | 2.207800 | 0.907584 | 2.442037 | -0.990573 |
+| 852 | 2.209148 | 0.888689 | 2.537983 | -0.173731 |
+| 2054 | 2.204447 | 0.859904 | 2.643421 | -0.126488 |
+| 15707 | 1.563037 | 0.727327 | 0.237509 | -0.119079 |
+| 17799 | 1.505772 | 0.666320 | 0.243490 | -0.084556 |
+| 17800 | 1.617603 | 0.660174 | 0.232996 | -0.158389 |
+
+After the repair 9 of the
+10 are clean and one remains: cell 852 (centroid
+(2.208712, 0.894427, 2.543348),
+sJ -0.043762) — the folded cell of a two-cell doublet in a
+valence-6 singularity cluster, which the beam reports as topologically locked
+(`repair.remaining[0].reason`). That is the cell to look at in
+`repaired_n100000.vtk` with the same threshold.
+
+Reproduce / verify:
+
+```
+# (re)write the three files (~3 s: reads the npz, no AlgoHex, no beam)
+/opt/venv-sci/bin/python experimentell/hex3d_algohex/canada_export_vtk.py run
+# verify them (~30 s): the three files exist, cell counts match the stages and
+# the report, the sJ arrays are the stages' sJ, 10 / 1 cells are inverted, the
+# flagged ids match repair_probe.json, the 1-ring is complete, and the stage's
+# connectivity is the .ovm's (--no-ovm skips that last one)
+/opt/venv-sci/bin/python experimentell/hex3d_algohex/canada_export_vtk.py --check /work/canada/sweep/inspect
+```
+
+---
+
 ## Documents
 
 | file | content |

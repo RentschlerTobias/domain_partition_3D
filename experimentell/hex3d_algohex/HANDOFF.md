@@ -483,6 +483,97 @@ rewrites `report.json` from its own two-lane selection (n=20000 + n=100000),
 which also satisfies the `--check` contract, and the n=8000 diagnostic lane
 stays on disk in `beam_n8000/`.
 
+## P3b — the 10 inverted cells of canada n = 100000 (2026-10-30)
+
+**Answer: 9 of the 10 are a coordinate defect and are repaired locally; the
+10th is topologically locked and cannot be fixed by moving vertices.** The mesh
+goes from 10 inverted cells (min sJ −0.9906) to **1** (min sJ −0.0438), with the
+Hausdorff distance to the input surface unchanged at 0.10053 (gate 0.15).
+
+**Tool.** `canada_repair_probe.py` (standalone; `clean_blocks.py` defaults are
+untouched). `run` replays the beam's own preprocessing, localizes the cells,
+repairs only their neighbourhood and writes `/work/canada/sweep/repair_probe.json`
+plus `repair_probe_stages.npz` (both mesh stages); `--check` re-derives every
+count, minimum and centroid from the saved geometry instead of trusting the
+report. The running width-32 lane `beam_n100000` was not touched.
+
+**Where they are.** The 10 cells form five clusters, four of them single cells:
+
+| cell | centroid | surface label | singular edges | volume | min sJ | max corner dist to surface |
+|---|---|---|---|---|---|---|
+| 85   | (5.429, 1.318, 6.380)   | 5  | 1 | 0.00182 | -0.4045 | 0.162 |
+| 90   | (2.307, 0.963, −3.944)  | 10 | 2 | 0.00232 | -0.1262 | 0.115 |
+| 102  | (5.257, 1.109, 9.941) | 12 | 1 | 0.00105 | -0.2334 | 0.124 |
+| 117  | (0.589, 0.512, 0.242) | 2  | 1 | 0.00165 | -0.1624 | 0.094 |
+| 276  | (2.208, 0.908, 2.442)   | 3  | 0 | 0.00160 | **−0.9906** | 0.203 |
+| 852 | (2.209, 0.889, 2.538) | 3 | 1 | 0.00078 | -0.1737 | 0.285 |
+| 2054 | (2.204, 0.860, 2.643) | — | 1 | 0.00041 | -0.1265 | 0.285 |
+| 15707 | (1.563, 0.727, 0.238) | 2  | 0 | 0.00083 | -0.1191 | 0.091 |
+| 17799 | (1.506, 0.666, 0.243) | 2  | 0 | 0.00050 | −0.0846 | 0.090 |
+| 17800 | (1.618, 0.660, 0.233) | 2  | 0 | 0.00082 | -0.1584 | 0.093 |
+
+Four lone cells, each on a *different* boundary surface (labels 5, 10, 12, 2)
+with 1–2 singular edges; a three-cell chain at (2.21, 0.89, 2.44–2.64) in a
+valence-6 singularity cluster, which holds the fully flipped −0.9906 cell; and
+three cells stacked on the z ≈ 0.2 plane (label 2) with no singular edge at all.
+No cell touches two surface labels, i.e. none sits on a feature curve — the
+labelling/valency machinery is not what fails here, the extraction is.
+
+**What fixed them.** A local one-sided barrier `sum max(0, eps − J)²` on the
+scaled Jacobians of the inverted cells and their neighbourhood — the objective
+of `clean_blocks._smooth`, with the barrier grid and the ring widening driven
+from the probe — accepted only when the *global* inverted count drops. Two
+sweeps did it: (rings 2, eps 0.15) 10 → 2, then (rings 2, eps 0.05) 2 → 1
+(~30 s of local work). Every wider or differently weighted sweep of the grid
+(rings 2/3, eps 0.02–0.15) is worse and keeps 2–10 inverted. Nothing outside
+the neighbourhoods moved: cell count unchanged (105837), Hausdorff unchanged.
+
+**The cell that cannot be fixed.** `852` at (2.209, 0.889, 2.538):
+volume 0.00126, edges 0.0519–0.4409 (aspect 8.5), all eight vertices interior,
+one singular edge. It is one half of a two-cell doublet: at the start of the
+repair the shared quad was non-planar by 0.046, i.e. 31% of a cell edge. The
+other half (cell `2054` at (2.204, 0.860, 2.643)) is repaired — it
+now sits at sJ 0.004 — so the pair was genuinely folded, not merely displaced,
+and the surviving half is the one that cannot be straightened. Measured floor: a local
+barrier with 2, 3, 4 and 6 rings of free vertices (12 → 965 vertices, 32 →
+1015 cells), eps 0.02–0.15, lifts its own min sJ from -0.1737 to at best
+−0.0368 and never clears 1 inverted; every setting that pushes a single cell
+further inverts neighbours instead (up to 10). All eight vertices are interior,
+so the input surface is not the constraint. The corner tetrahedra of this cell
+are ordered opposite to its neighbours; making them positive means pushing
+those neighbours through zero volume, i.e. the defect is a parametrization
+fold, not a coordinate error. A topological op (collapsing the sheets through
+the doublet, which is what the beam does elsewhere) can remove it; vertex
+motion cannot.
+
+**Bounded beam.** Not run: step 3 is conditional on 0 inverted, and with the
+worst cell at −0.0438 no collapse can meet `--guard abs` (`min sJ >= 0.05`).
+The report records `beam: SKIPPED` with that reason. Note the earlier completed
+width-6/depth-6 lane on the unrepaired mesh also stopped at
+`depth 1: no admissible collapse` — this is the same guard, and the gap it has
+to close is now 0.09 in sJ (from −0.0438 to 0.05) instead of 1.04, but it is
+still a wall for vertex motion alone.
+
+**Consequence for the sweep.** The `-n` knob is exhausted: n = 100000 passes
+the surface gate and is now *one* folded hex away from a clean mesh, but that
+hex is not a coordinate defect. The next lever is upstream — the HexEx param
+state (`cad1/state/param_state.ovm`) or a topological removal of the
+doublet — not another replay at a different n.
+
+**Reproduce / re-check:**
+
+```
+cd experimentell/hex3d_algohex
+/opt/venv-sci/bin/python canada_repair_probe.py run        # ~27 min
+/opt/venv-sci/bin/python canada_repair_probe.py --check /work/canada/sweep/repair_probe.json
+```
+
+`repair_probe.json` holds every cell (centroid, bbox, edge lengths, volume,
+min sJ, surface distance, labels, singular edges), every repair sweep with its
+inverted count, the three wide probes that establish the floor, and the beam
+record; `repair_probe_stages.npz` holds both mesh stages so `--check` verifies
+the counts and centroids against geometry.
+
 ---
 
 ## Documents

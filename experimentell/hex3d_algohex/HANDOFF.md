@@ -576,6 +576,31 @@ the counts and centroids against geometry.
 
 ---
 
+## HexMe calibration sweep (P4b)
+
+`CALIBRATION.md` is the hexme calibration matrix (6 shapes × 3 feature
+settings at n=8000): one table per geometry, the status vocabulary
+(works/diverged/segfault/timeout/running), the AlgoHex failure modes verbatim
+and a synthesis. It is built and checked from `/work/calib/report_hexme.json`
+by `calib_report.py`:
+
+```
+/opt/venv-sci/bin/python calib_report.py --build /work/calib/hexme_sweep \
+    --out /work/calib/report_hexme.json
+/opt/venv-sci/bin/python calib_report.py --check /work/calib/report_hexme.json --rows 18
+```
+
+What it settles for the next sweep: (1) `-d` alone is a no-op on tagged inputs
+— A and B are the same mode; only `--force-feature-threshold` (C) changes the
+feature network; (2) the prescribed cell colors collapse the torus
+(valid_volume 0.699, 0 hexes) while C meshes it, so C is the default for
+third-party/hexme meshes; (3) `-n` is a target, not a budget, in C mode
+(+41 % on n04u at -n 8000); (4) `--keep-prisms` is a no-op on every hexme shape
+(no prism cells, no tet_prep step in the path) and only matters in this keep-BL
+chain. `n=8000` is the working point (the n=2000 smoke was too coarse).
+
+---
+
 ## Documents
 
 | file | content |
@@ -585,6 +610,7 @@ the counts and centroids against geometry.
 | `DATA_GENERATION.md` | how the geometries are generated (dtOO), first candidates |
 | `RUNS.md` | every T1_9 AlgoHex run with input, runtime, outcome |
 | `MESH_QUALITY.md` | the CFD criteria, measured on our own mesh |
+| `CALIBRATION.md` | the hexme P4b calibration sweep: 6 shapes × 3 feature settings at n=8000, per-geometry status tables + synthesis |
 | `PROGRESS.md`, `SESSION_*.md` | chronological logs including every failed attempt |
 | `../../docs/decisions/` | every decision with its measurements and rejected options |
 | `../../docs/cluster-enroot-findings.md` | every cluster-side trap |

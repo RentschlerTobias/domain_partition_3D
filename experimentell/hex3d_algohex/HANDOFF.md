@@ -689,6 +689,41 @@ Reproduce / verify:
 
 ---
 
+## T33 — keep-BL tistos: feature curves as VTK (2026-10-31)
+
+`export_features_vtk.py` reads the keep-BL tistos tet input
+`/work/datagen_keepbl/runs/tistos_s1_0131/tet.vtk` (legacy ASCII VTK,
+`CELL_DATA 'color'` with nonzero = feature element), counts the feature graph
+and exports the feature **curves** as explicit VTK_LINE cells to
+`/work/datagen_keepbl/inspect/keepbl_features.vtk` (all source points copied,
+so the lines keep the source vertex indices; feature points as vertex cells;
+per-line `CELL_DATA 'feature_curve_id'`, -1 on vertices).
+
+Counts, source → export (must be identical):
+
+| | feature edges | curves | curve sizes / topology |
+|---|---|---|---|
+| keep-BL source | 580 | 3 | 462 open, 72 closed, 46 closed |
+| keep-BL export | 580 | 3 | same ids 1/2/3 |
+
+`--check` re-parses the export and asserts **exact edge-set equality** plus the
+same `feature_curve_id` partition (verified to also fail on a tampered export,
+exit 1), exits 0 only if equal. Feature points: 8, feature tris: 26728,
+surface tags on tris [1, 2, 3, 4, 7, 8, 9]. For context, the stripped
+reference `/work/datagen/runs/tistos_s1_0131/tet.vtk`: 534 edges, 3 curves
+(310 open, 112 + 112 closed), tags [1..7]; the difference is the extra
+keep-BL surfaces (tags 8, 9; the mesh header says T1_9) — not an export
+artefact.
+
+```
+# export + report (~4 s)
+/opt/venv-sci/bin/python experimentell/hex3d_algohex/export_features_vtk.py
+# verify export vs source (exact)
+/opt/venv-sci/bin/python experimentell/hex3d_algohex/export_features_vtk.py --check /work/datagen_keepbl/inspect/keepbl_features.vtk
+```
+
+---
+
 ## Documents
 
 | file | content |

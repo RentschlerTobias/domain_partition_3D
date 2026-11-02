@@ -245,6 +245,7 @@ def _check_boundary_geometric(P_orig, H_orig, P_new, H_new, tol=1e-3):
             "changed_verts": 0,
             "orig_bnd_quads": len(orig_quads),
             "new_bnd_quads": len(new_quads),
+            "hausdorff_max": 0.0,
         }
         return True, None, info
     

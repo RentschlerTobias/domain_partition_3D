@@ -849,6 +849,59 @@ symptom; the non-conforming divisions are the cause.
 
 ---
 
+## T47 — P1 keep-BL tistos: the finished P1 result as VTK (2026-11-02)
+
+`p1_export_vtk.py` turns the finished P1 stages of the keep-BL tistos run
+into three legacy ASCII VTK files for viewing in ParaView:
+
+| file | content | bytes |
+|---|---|---|
+| `inspect/p1/blocks.vtk` | the 12-block structure (582 hexes), `CELL_DATA block_id` (int) + `scaled_jacobian` (float) | 57,583 |
+| `inspect/p1/tfi.vtk` | the TFI refill (77,372 hexes), `CELL_DATA block_id` + `scaled_jacobian` | 9,947,680 |
+| `inspect/p1/overview.vtk` | blocks **plus** the feature curves as VTK_LINE cells (580) + 8 vertex cells, `CELL_DATA block_id` / `scaled_jacobian` / `feature_curve_id` (1170 cells, 1451 points) | 100,791 |
+
+Inputs (read-only): `runs/tistos_s1_0131/{blocks.vtk,tfi.vtk,sample.npz,
+tet.vtk}` and `inspect/keepbl_features.vtk` (the T33 export).
+
+No new dependencies: the writer is the repo's own legacy-ASCII style (as
+`ovm_io.write_hex_vtk` / `export_vtk.write_vtk`), the scaled Jacobian comes from
+`ovm_io.scaled_jacobian` (vectorised copy `clean_blocks.scaled_jacobians`), and
+the feature curves are re-used from `export_features_vtk.parse_vtk`. The `vtk`
+python module is **not** used.
+
+Quality of the exported P1 (recomputed here, not copied):
+
+| | cells | sJ min | sJ mean | inverted |
+|---|---|---|---|---|
+| blocks | 582 | 0.3814 | 0.9134 | 0 |
+| tfi refill | 77,372 | 0.3814 | 0.9533 | 0 |
+
+The refill improves the mean scaled Jacobian (0.913 → 0.953) and leaves the
+worst cell at 0.381 — no inverted cells anywhere.
+
+`--check` re-parses the three exports and asserts: all three exist and are
+non-empty; `blocks.vtk` has **exactly 12** block ids (0…11) and its block
+count agrees with `sample.npz`'s recorded `quality.blocks`; `tfi.vtk` has
+**77,372** cells; `overview.vtk`'s feature-line cells reproduce
+`keepbl_features.vtk`'s edge set **exactly** (580 edges, curves 1/2/3, matched
+by rounded coordinates because the overview renumbers the points).
+
+```
+# export the three VTKs
+/opt/venv-sci/bin/python experimentell/hex3d_algohex/p1_export_vtk.py
+# verify them
+/opt/venv-sci/bin/python experimentell/hex3d_algohex/p1_export_vtk.py --check /work/datagen_keepbl/inspect/p1
+```
+
+ParaView: open `inspect/p1/overview.vtk` (structure + curves in one file),
+`inspect/p1/blocks.vtk` or `inspect/p1/tfi.vtk`. Colour by `block_id` (12
+blocks; -1 marks the curve cells in the overview) or by `feature_curve_id`
+(3 curves, -1 on the hexes). To see the worst cells apply a **Threshold** on
+`scaled_jacobian` (e.g. keep `scaled_jacobian < 0.5`).
+
+
+---
+
 ## Documents
 
 | file | content |
@@ -883,3 +936,21 @@ TE-Ring-Diagnose: 25 TE-Ringe, 380 Kontrollringe, TE sJ >= 0.846, 0 invertiert.
 **Cell quality / relation to inversion:** no inverted cells in TE region (x>9.0). `sJ_min` per ring >= 0.8459 in TE (mesh mean sJ_high), `n_inverted` 0 for all listed rings. Correlation between ring wobble and worst sJ in ring is negative (-0.65 over TE) - more ragged rings touch slightly lower-sJ cells but never inverted; raggedness is geometric (post-processed vertex columns) not due to bad/inverted cells.
 
 **Numbers (representative):** TE ring with largest axial deviation `station_x`~9.56635 has `dev_axial_max` 0.2925, `kink_p90_deg` 85.4°, `gap_mean` 0.0432, `dev_axial_over_gap` 6.77. A tight TE ring `station_x`~1.565875 has `dev_axial_max` 0.3275, `dev_spline_max` 0.175, `kink_p90_deg` 88.25°, `gap_mean` 0.0024, `dev_axial_over_gap` 136.2. The 10 inverted cells of the mesh sit upstream (centroids down to z~-3.94, x>=0.59) far from x>9.0; raggedness is orthogonal to the inversion issue.
+
+## T42 — Torus collapse probe (2026-10-31)
+
+Question: does the sheet collapse need an O-grid / boundary layer, or only an
+all-hex mesh + sheets?
+
+Answer: **the probe is blocked on the only available torus mesh** — `s16u_torus_C`
+is all-hex but its boundary sits 3.70 from the input surface (11 of 14 internal
+voids cannot be closed by `fill_cavities`), so the beam's raw surface gate
+(0.15) rejects it before any collapse (`Hausdorff 3.7005 > 0.15`, 3 blocks,
+8763 cells). The control `s01c_cube_A` collapses cleanly (1 block, 7600 cells,
+0 inverted, min sJ 1.0, VALID, TFI lattice in every block). With the gates
+lifted above the mesh's own 3.70 the collapse runs but lands on 1 block with
+299 inverted cells and min sJ -0.186, i.e. not a valid block structure. So on
+this evidence the method needs more than all-hex + sheets: it needs the mesh to
+hug the input surface, which in practice means the O-grid / boundary-layer
+chain (or a mesh whose unclosable voids are fixed). Report:
+`/work/calib/collapse_probe/report.json` (checked by `collapse_probe.py --check`).

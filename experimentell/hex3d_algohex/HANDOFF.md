@@ -862,3 +862,23 @@ symptom; the non-conforming divisions are the cause.
 | `PROGRESS.md`, `SESSION_*.md` | chronological logs including every failed attempt |
 | `../../docs/decisions/` | every decision with its measurements and rejected options |
 | `../../docs/cluster-enroot-findings.md` | every cluster-side trap |
+
+## T43/T48 - trailing-edge ring raggedness
+
+**Source:** `/work/canada/sweep/inspect/hex_n100000.vtk` (105837 hexes, 116806 points). Axis x; trailing-edge region x > 9.0 (first 0.5-bin with z-span < 25% of inlet 13.900095, te_zspan_at_te0=3.1927825). Tip vertex (11.0,0.0,10.0). Rings extracted as outer-skin vertex chains in 36 polar bins around local channel centre, closed per cross-section (`rings.json` meta).
+
+**PNGs:** `/work/canada/sweep/inspect/trailing_edge_rings.png`, `/work/canada/sweep/inspect/trailing_edge_jacobian.png`, `/work/canada/sweep/inspect/trailing_edge_rings_control.png`.
+
+**TE rings (x > 9.0), n=25:** per-ring `station_x`, vertex counts 6-54, full 360° coverage. Geometric raggedness (wobble/spikes):
+- `dev_axial_max` up to 0.2925 (median across TE rings ~0.088), `dev_axial_median` up to ~0.070; `dev_spline_max` up to 0.3211 (median ~0.162), `dev_spline_median` up to ~0.101.
+- `kink_max_deg` 180° on most rings (pinched/pointing joints), `kink_p90_deg` ranges 85-136° (median ~92°).
+- Ring spacing: `gap_mean` 0.004-0.327 (median ~0.027), `gap_jump`/`gap_station_jump` show large jumps (e.g. 0.154, 0.375) between consecutive rings.
+- Normalised by spacing, rings become very "stretched": `dev_axial_over_gap` reaches 175x in extreme TE cases (median across TE rings large, often >>1), indicating the axial wobble is comparable to/larger than ring spacing in many places.
+
+**Mid-channel control rings (x~1.56-3.03), n=380:** similar geometric wobble relative form but finer spacing.
+- `dev_axial_max` up to ~0.387, `dev_spline_max` up to ~0.241; `kink_p90_deg` can be very small (down to ~0.8-1.4° in tight clusters) with `kink_max_deg` still 180° in places.
+- `gap_mean` often 0.001-0.206, `gap_jump` small in tight packs but `dev_axial_over_gap` explodes to 10-136x in the tightest spacing regions (e.g. stations ~1.566 give dev_axial_over_gap 50-175x). So normalised raggedness is also severe in tight control regions.
+
+**Cell quality / relation to inversion:** no inverted cells in TE region (x>9.0). `sJ_min` per ring >= 0.8459 in TE (mesh mean sJ_high), `n_inverted` 0 for all listed rings. Correlation between ring wobble and worst sJ in ring is negative (-0.65 over TE) - more ragged rings touch slightly lower-sJ cells but never inverted; raggedness is geometric (post-processed vertex columns) not due to bad/inverted cells.
+
+**Numbers (representative):** TE ring with largest axial deviation `station_x`~9.56635 has `dev_axial_max` 0.2925, `kink_p90_deg` 85.4°, `gap_mean` 0.0432, `dev_axial_over_gap` 6.77. A tight TE ring `station_x`~1.565875 has `dev_axial_max` 0.3275, `dev_spline_max` 0.175, `kink_p90_deg` 88.25°, `gap_mean` 0.0024, `dev_axial_over_gap` 136.2. The 10 inverted cells of the mesh sit upstream (centroids down to z~-3.94, x>=0.59) far from x>9.0; raggedness is orthogonal to the inversion issue.

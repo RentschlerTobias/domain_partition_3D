@@ -601,6 +601,15 @@ chain. `n=8000` is the working point (the n=2000 smoke was too coarse).
 
 ---
 
+## Charité LV sweep (12 runs, n=2000)
+
+See the "Charité LV sweep (n=2000)" section of `CALIBRATION.md` for the
+per-case tables: 4 cases × 3 feature settings, 6 works / 6 diverged, all
+failures parametrization-side (exit 241/245/250). Built and checked from
+`/work/calib/report_charite.json` by `calib_report.py` (`--check --rows 12`).
+
+---
+
 ## T19 — the inverted cells of canada n = 100000 as VTK (2026-10-30)
 
 `canada_export_vtk.py` writes the two saved stages of the n = 100000 run
@@ -848,7 +857,7 @@ symptom; the non-conforming divisions are the cause.
 | `DATA_GENERATION.md` | how the geometries are generated (dtOO), first candidates |
 | `RUNS.md` | every T1_9 AlgoHex run with input, runtime, outcome |
 | `MESH_QUALITY.md` | the CFD criteria, measured on our own mesh |
-| `CALIBRATION.md` | the hexme P4b calibration sweep: 6 shapes × 3 feature settings at n=8000, per-geometry status tables + synthesis |
+| `CALIBRATION.md` | the hexme P4b calibration sweep: 6 shapes × 3 feature settings at n=8000, per-geometry status tables + synthesis; and the Charité LV sweep: 4 cases × 3 settings at n=2000 |
 | `PROGRESS.md`, `SESSION_*.md` | chronological logs including every failed attempt |
 | `../../docs/decisions/` | every decision with its measurements and rejected options |
 | `../../docs/cluster-enroot-findings.md` | every cluster-side trap |

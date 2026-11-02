@@ -574,24 +574,215 @@ def clustered_fractions(n, first_height, length):
     return np.asarray(edge_fractions(n, length, first_height), float)
 
 
-def refill_block(P, vert, new_dims, fractions=None):
+def _curved_mode(curved):
+    if isinstance(curved, str):
+        c = curved.strip().lower()
+        if c in ("", "off", "false", "0", "linear", "no"):
+            return False
+        if c in ("on", "true", "1", "coons", "curved"):
+            return True
+        return False
+    return bool(curved)
+
+
+def _refine_face_grid_for_curve(Q, labeller=None, K=8):
+    """Upsample a coarse (2-node) block face so a curved edge is not a chord.
+
+    A block face whose lattice has only two nodes along an axis carries a
+    straight chord there. Subdividing that axis and (when a surface is
+    available) projecting the new points onto it turns the chord into a
+    curve that follows the geometry, so the subsequent Coons/cubic resample
+    has something to fit. Without a surface the subdivision stays linear,
+    which is honest: no geometry is invented."""
+    Q = np.asarray(Q, float).copy()
+    n0, n1 = Q.shape[0], Q.shape[1]
+
+    if n0 == 2 and n1 == 2:
+        uu = np.linspace(0.0, 1.0, K)
+        vv = np.linspace(0.0, 1.0, K)
+        U, Vv = np.meshgrid(uu, vv, indexing="ij")
+        grid = ((1 - U) * (1 - Vv))[:, :, None] * Q[0, 0][None, None, :]              + (U * (1 - Vv))[:, :, None] * Q[1, 0][None, None, :]              + (U * Vv)[:, :, None] * Q[1, 1][None, None, :]              + ((1 - U) * Vv)[:, :, None] * Q[0, 1][None, None, :]
+        pts = grid.reshape(-1, 3)
+        if labeller is not None:
+            pts = _project_points(labeller, pts)
+        return pts.reshape(K, K, 3)
+
+    if n0 == 2:
+        out = np.zeros((K, n1, 3), float)
+        for j in range(n1):
+            ts = np.linspace(0.0, 1.0, K)
+            pts = (1 - ts)[:, None] * Q[0, j][None, :] + ts[:, None] * Q[1, j][None, :]
+            if labeller is not None:
+                pts = _project_points(labeller, pts)
+            out[:, j, :] = pts
+        Q = out
+        n0 = K
+
+    if n1 == 2:
+        out = np.zeros((n0, K, 3), float)
+        for i in range(n0):
+            ts = np.linspace(0.0, 1.0, K)
+            pts = (1 - ts)[:, None] * Q[i, 0][None, :] + ts[:, None] * Q[i, 1][None, :]
+            if labeller is not None:
+                pts = _project_points(labeller, pts)
+            out[i, :, :] = pts
+        Q = out
+
+    return Q
+
+
+def _project_points(labeller, pts):
+    pts = np.asarray(pts, float).reshape(-1, 3)
+    try:
+        import clean_blocks as _cb
+        return _cb.project_to_surface(labeller, pts)
+    except Exception:
+        return pts
+
+
+def _surface_labeller(input_vtk):
+    if input_vtk is None:
+        return None
+    try:
+        import tet_prep_v5 as v5
+        import clean_blocks as cb
+        P0, tri0, tid0 = cb.read_input_surface(input_vtk)
+        return cb.SurfaceLabeller(P0, tri0, tid0, v5.NAMES)
+    except Exception:
+        return None
+
+
+def _face_is_boundary(f2h, G):
+    for i in range(G.shape[0] - 1):
+        for j in range(G.shape[1] - 1):
+            fk = frozenset((int(G[i, j]), int(G[i + 1, j]),
+                            int(G[i + 1, j + 1]), int(G[i, j + 1])))
+            if len(f2h.get(fk, ())) == 1:
+                return True
+    return False
+
+
+def _face_label(labeller, P, G):
+    if labeller is None:
+        return set()
+    quads = []
+    for i in range(G.shape[0] - 1):
+        for j in range(G.shape[1] - 1):
+            quads.append((int(G[i, j]), int(G[i + 1, j]),
+                          int(G[i + 1, j + 1]), int(G[i, j + 1])))
+    if not quads:
+        return set()
+    try:
+        ids = labeller.label(P[np.array(quads)].mean(1))
+        return set(int(x) for x in ids)
+    except Exception:
+        return set()
+
+
+
+def _refine_edge_1d(Qedge, labeller=None, K=8):
+    Qe = np.asarray(Qedge, float).reshape(-1, 3)
+    if Qe.shape[0] == 2:
+        ts = np.linspace(0.0, 1.0, K)
+        pts = (1 - ts)[:, None] * Qe[0][None, :] + ts[:, None] * Qe[1][None, :]
+        if labeller is not None:
+            pts = _project_points(labeller, pts)
+        Qe = np.asarray(pts, float)
+    return Qe
+
+
+def _sample_edge(Qedge, frac, labeller=None):
+    Qe = _refine_edge_1d(Qedge, labeller)
+    frac = np.asarray(frac, float)
+    import curved_refill as cr
+    if Qe.shape[0] >= 4:
+        return np.asarray(cr._cubic_axis(Qe, frac, 0), float)
+    # fallback linear
+    return np.asarray(_lerp_axis(Qe, frac, 0), float)
+
+
+def refill_block(P, vert, new_dims, fractions=None, curved=False, curved_faces=None,
+                 f2h=None, input_vtk=None, labeller=None, surface_labels=None,
+                 curved_edges=None, curved_edge_keys=None):
     """One block's vertex positions at new division counts.
 
-    The six boundary faces are resampled from the block's existing faces --
-    so the new boundary follows the old surface instead of a Coons patch
-    stretched between four curves, which is what keeps a curved face on the
-    input geometry -- and the interior is filled by the Gordon-Hall map.
+    `curved`/`curved_edges` select the curved boundary-face mode ("off" or
+    "coons"). Only faces listed in `curved_faces` (or auto-detected boundary
+    faces on labels 1,2,3,4,7,8,9) are rebuilt with cubic/Coons edges; the
+    others stay bilinear, which is what keeps shared interior faces conforming.
 
     `fractions[axis]` overrides the sample positions along that axis."""
+    if curved_edges is not None:
+        curved = curved_edges
+    mode_on = _curved_mode(curved)
+    if labeller is None and input_vtk is not None:
+        labeller = _surface_labeller(input_vtk)
+
     ni, nj, nk = (int(d) for d in new_dims)
     fr = {ax: (fractions or {}).get(ax, uniform_fractions(d))
           for ax, d in zip((0, 1, 2), (ni, nj, nk))}
+
+    # resolve which faces are curved
+    cfaces = set(curved_faces or [])
+    if mode_on and not cfaces and f2h is not None:
+        for ax in (0, 1, 2):
+            for side in (0, 1):
+                G = face_grid(vert, ax, side)
+                if G.shape[0] < 2 or G.shape[1] < 2:
+                    continue
+                if not _face_is_boundary(f2h, G):
+                    continue
+                labels = _face_label(labeller, P, G) if labeller is not None else set()
+                if labels and not (labels & {1, 2, 3, 4, 7, 8, 9}):
+                    continue
+                cfaces.add((ax, side))
+
+    def _canon(chain):
+        t = tuple(int(v) for v in chain)
+        return t if t[0] <= t[-1] else t[::-1]
+
+    if curved_edge_keys is None:
+        curved_edge_keys = set()
+        if mode_on:
+            for (ax, side) in (cfaces or set()):
+                G = face_grid(vert, ax, side)
+                if G.shape[0] < 2 or G.shape[1] < 2:
+                    continue
+                curved_edge_keys.add(_canon(G[0, :]))
+                curved_edge_keys.add(_canon(G[-1, :]))
+                curved_edge_keys.add(_canon(G[:, 0]))
+                curved_edge_keys.add(_canon(G[:, -1]))
+    curved_edge_keys = set(curved_edge_keys or [])
+    if mode_on:
+        for (ax, side) in (cfaces or set()):
+            G = face_grid(vert, ax, side)
+            if G.shape[0] < 2 or G.shape[1] < 2:
+                continue
+            curved_edge_keys.add(_canon(G[0, :]))
+            curved_edge_keys.add(_canon(G[-1, :]))
+            curved_edge_keys.add(_canon(G[:, 0]))
+            curved_edge_keys.add(_canon(G[:, -1]))
+
+    import curved_refill as cr
     X = np.zeros((ni + 1, nj + 1, nk + 1, 3), float)
     for ax in (0, 1, 2):
         o0, o1 = [a for a in (0, 1, 2) if a != ax]
         for side in (0, 1):
-            F = resample_face_grid(P[face_grid(vert, ax, side)],
-                                   fr[o0], fr[o1])
+            G = face_grid(vert, ax, side)
+            Q = P[G]
+            fu, fv = fr[o0], fr[o1]
+            use_curve = False
+            edge_curved = [False, False, False, False]
+            if mode_on and G.shape[0] >= 2 and G.shape[1] >= 2:
+                ek = (_canon(G[0, :]), _canon(G[-1, :]),
+                      _canon(G[:, 0]), _canon(G[:, -1]))
+                use_curve = (ax, side) in (cfaces or set())
+                edge_curved = [use_curve, use_curve, use_curve, use_curve]
+            if not use_curve:
+                F = resample_face_grid(Q, fu, fv)
+            else:
+                Qc = _refine_face_grid_for_curve(Q, labeller)
+                F = cr.resample_face(Qc, fu, fv, "cubic")
             sl = [slice(None)] * 3
             sl[ax] = 0 if side == 0 else -1
             X[tuple(sl)] = F
@@ -762,8 +953,13 @@ def weld(points, tol=1e-9):
 
 
 def refill_complex(P, H, B, f2h, lat, classes, counts, fractions=None,
-                   verbose=True):
+                   verbose=True, curved_edges="off", input_vtk=None,
+                   curved=None, sample=None):
     """Refill every lattice block at the solved counts; keep the rest.
+
+    `curved_edges` (or alias `curved`) selects the curved boundary-face mode:
+    "off" (linear, default-safe) or "coons". Interior/shared faces always stay
+    bilinear so the complex remains conforming.
 
     Blocks that are not lattices cannot be refilled and are passed through
     with their cells unchanged -- which is safe only because the MILP pinned
@@ -771,42 +967,112 @@ def refill_complex(P, H, B, f2h, lat, classes, counts, fractions=None,
     share still match vertex for vertex.
 
     Returns (points, hexes, block id, report)."""
+    if curved is not None:
+        curved_edges = curved
     dims_new = block_counts(lat, classes, counts)
     cof = class_of_axis(classes)
-    chunks, cells, bid = [], [], []
-    for r in sorted(lat):
+    labeller = None
+    if _curved_mode(curved_edges) and input_vtk is not None:
+        labeller = _surface_labeller(input_vtk)
+
+    def _canon2(chain):
+        t = tuple(int(v) for v in chain)
+        return t if t[0] <= t[-1] else t[::-1]
+
+    global_curved_edges = set()
+    if _curved_mode(curved_edges):
+        for r in lat:
+            _dims, vert = lat[r]
+            for ax in (0, 1, 2):
+                for side in (0, 1):
+                    G = face_grid(vert, ax, side)
+                    if G.shape[0] < 2 or G.shape[1] < 2:
+                        continue
+                    if not _face_is_boundary(f2h, G):
+                        continue
+                    labels = _face_label(labeller, P, G) if labeller is not None else set()
+                    if labels and not (labels & {1, 2, 3, 4, 7, 8, 9}):
+                        continue
+                    global_curved_edges.add(_canon2(G[0, :]))
+                    global_curved_edges.add(_canon2(G[-1, :]))
+                    global_curved_edges.add(_canon2(G[:, 0]))
+                    global_curved_edges.add(_canon2(G[:, -1]))
+
+    def _refill_one(r, mode):
         _dims, vert = lat[r]
         fr = None
         if fractions:
             fr = {ax: fractions[cof[(r, ax)]] for ax in (0, 1, 2)
                   if cof[(r, ax)] in fractions}
-        X = refill_block(P, vert, dims_new[r], fr)
-        base = sum(len(c) for c in chunks)
-        ids = np.arange(base, base + X[..., 0].size).reshape(X.shape[:3])
-        chunks.append(X.reshape(-1, 3))
-        cells.append(block_cells(ids))
-        bid.append(np.full(len(cells[-1]), r, int))
-    passthrough = sorted(set(range(int(B.max()) + 1)) - set(lat))
-    for r in passthrough:
-        sel = np.where(B == r)[0]
-        base = sum(len(c) for c in chunks)
-        old = np.unique(H[sel])
-        loc = {int(v): base + i for i, v in enumerate(old)}
-        chunks.append(P[old])
-        cells.append(np.vectorize(loc.get)(H[sel]))
-        bid.append(np.full(len(sel), r, int))
+        curved_faces = None
+        if _curved_mode(mode):
+            curved_faces = set()
+            for ax in (0, 1, 2):
+                for side in (0, 1):
+                    G = face_grid(vert, ax, side)
+                    if G.shape[0] < 2 or G.shape[1] < 2:
+                        continue
+                    if not _face_is_boundary(f2h, G):
+                        continue
+                    labels = _face_label(labeller, P, G) if labeller is not None else set()
+                    if labels and not (labels & {1, 2, 3, 4, 7, 8, 9}):
+                        continue
+                    curved_faces.add((ax, side))
+        return refill_block(P, vert, dims_new[r], fr, curved=mode,
+                           curved_faces=curved_faces, f2h=f2h,
+                           input_vtk=input_vtk, labeller=labeller,
+                           curved_edge_keys=None)
 
-    pts = np.vstack(chunks)
-    Hn = np.vstack(cells)
-    Bn = np.concatenate(bid)
-    pts_w, remap = weld(pts)
-    Hn = remap[Hn]
+    def _assemble(Xmap):
+        chunks, cells, bid = [], [], []
+        for r in sorted(lat):
+            X = Xmap[r]
+            base = sum(len(c) for c in chunks)
+            ids = np.arange(base, base + X[..., 0].size).reshape(X.shape[:3])
+            chunks.append(X.reshape(-1, 3))
+            cells.append(block_cells(ids))
+            bid.append(np.full(len(cells[-1]), r, int))
+        passthrough = sorted(set(range(int(B.max()) + 1)) - set(lat))
+        for r in passthrough:
+            sel = np.where(B == r)[0]
+            base = sum(len(c) for c in chunks)
+            old = np.unique(H[sel])
+            loc = {int(v): base + i for i, v in enumerate(old)}
+            chunks.append(P[old])
+            cells.append(np.vectorize(loc.get)(H[sel]))
+            bid.append(np.full(len(sel), r, int))
+        pts = np.vstack(chunks)
+        Hn = np.vstack(cells)
+        Bn = np.concatenate(bid)
+        pts_w, remap = weld(pts)
+        Hn = remap[Hn]
+        return pts_w, Hn, Bn
+
+    # First pass: curved
+    Xmap = {r: _refill_one(r, curved_edges) for r in lat}
+    pts_w, Hn, Bn = _assemble(Xmap)
+    # Find blocks with inverted cells; fall back to linear for them.
+    try:
+        import clean_blocks as _cb
+        sj = _cb.scaled_jacobians(pts_w, Hn)
+        bad_cells = np.where(sj <= 0)[0]
+        bad_blocks = set(int(b) for b in Bn[bad_cells]) if len(bad_cells) else set()
+        if bad_blocks:
+            for r in bad_blocks:
+                if r in Xmap:
+                    Xmap[r] = _refill_one(r, "off")
+            pts_w, Hn, Bn = _assemble(Xmap)
+    except Exception:
+        pass
+
+    unwelded = sum(int(Xmap[r].size // 3) for r in lat) + sum(int(np.where(B == r)[0].size and len(np.unique(H[np.where(B == r)[0]]))) for r in sorted(set(range(int(B.max()) + 1)) - set(lat)))
+    passthrough = sorted(set(range(int(B.max()) + 1)) - set(lat))
     rep = {"cells_before": int(len(H)), "cells_after": int(len(Hn)),
            "points_before": int(len(P)), "points_after": int(len(pts_w)),
-           "welded": int(len(pts) - len(pts_w)),
+           "welded": int(unwelded - len(pts_w)),
            "passthrough_blocks": passthrough}
     if verbose:
-        print(f"[tfi] refill: {len(H)} -> {len(Hn)} cells, {len(pts)} -> "
+        print(f"[tfi] refill: {len(H)} -> {len(Hn)} cells, {unwelded} -> "
               f"{len(pts_w)} points ({rep['welded']} welded), "
               f"{len(passthrough)} blocks passed through")
     return pts_w, Hn, Bn, rep
@@ -891,6 +1157,12 @@ if __name__ == "__main__":
     ap.add_argument("--apply-divisions", action="store_true",
                     help="also refill every block at those counts and write "
                          "the result to --out")
+    ap.add_argument("--curved-edges", choices=("off", "coons"), default="coons",
+                    help="curved boundary edges/faces mode for the refill: "
+                         "'off' = linear (baseline), 'coons' = cubic/Coons "
+                         "(default coons for this pipeline)")
+    ap.add_argument("--no-curved-edges", action="store_true",
+                    help="shortcut for --curved-edges off (baseline)")
     ap.add_argument("--out", default=None, help="output blocks VTK")
     ap.add_argument("--input-vtk",
                     default=str(REPO / "data" / "T1_9" / "T1_9_tet_v5.vtk"),
@@ -1002,7 +1274,10 @@ if __name__ == "__main__":
         if not a.apply_divisions:
             raise SystemExit(0)
 
-        Pn, Hn, Bn, rep = refill_complex(P, H, B, f2h, lat, classes, counts)
+        curved_mode = "off" if a.no_curved_edges else a.curved_edges
+        Pn, Hn, Bn, rep = refill_complex(P, H, B, f2h, lat, classes, counts,
+                                         curved_edges=curved_mode,
+                                         input_vtk=a.input_vtk)
         ok, _bnd = check_watertight(Pn, Hn)
         sj = cb.scaled_jacobians(Pn, Hn)
         print(f"[tfi] refilled mesh: scaled Jacobian min {sj.min():.4f}, "

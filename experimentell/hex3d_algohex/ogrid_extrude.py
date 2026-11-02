@@ -20,6 +20,7 @@ VERTEX, so two faces sharing an edge share every extruded node.
 """
 
 import sys
+import time
 from collections import Counter, defaultdict, deque
 from pathlib import Path
 
@@ -101,7 +102,15 @@ class OgridMap:
         self.L = int(lay[np.unique(np.ravel(outer))].min())
         if lay[np.unique(np.ravel(outer))].max() != self.L:
             raise RuntimeError("outer tube is not a single O-grid layer")
-        self.outer = np.array([_quad_loop(f, H) for f in outer], np.int64)
+        if verbose:
+            print(f"[ogrid] {time.time()-_t0:.1f}s: resolving {len(outer)} "
+                  "outer quad loops")
+        self.outer = np.array(_quad_loops(outer, H, verbose=verbose), np.int64)
+        if verbose:
+            print(f"[ogrid] {time.time()-_t0:.1f}s: outer quad loops done")
+        if max_seconds and (time.time() - _t0) > max_seconds:
+            raise TimeoutError(f"OgridMap: exceeded {max_seconds}s at outer "
+                               "quad loops")
         self.tree = cKDTree(P[self.outer].mean(1))
         # the outer-layer NODES (not quad centroids): a chain hangs off each
         self.outer_nodes = np.unique(self.outer)
@@ -189,6 +198,41 @@ def _quad_loop(face, H):
                 if set(int(h[i]) for i in loop) == fs:
                     return [int(h[i]) for i in loop]
     raise RuntimeError("face not found")
+
+
+def _quad_loops(faces, H, verbose=False):
+    """Order each face's 4 vertex ids as a loop, using the hex that owns it.
+
+    Same result as ``[_quad_loop(f, H) for f in faces]`` but O(len(H) +
+    len(faces)) instead of O(len(faces) * len(H)): the hex array is scanned
+    ONCE to build a face-key -> loop table, then each face is looked up.
+    The per-face scan was the O-grid construction's bottleneck (260 s of the
+    262 s of ``OgridMap.__init__`` on the 44800-hex blade O-grid, because
+    most faces sit late in the array and the linear scan had to walk to the
+    end of it).
+
+    With ``verbose`` the scan prints a counter every 1000 hexes so a stalled
+    run shows which stage it is in.
+    """
+    f2loop = {}
+    t0 = time.time()
+    for n, h in enumerate(H, 1):
+        h = [int(x) for x in h]
+        for loop in ((0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4),
+                     (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)):
+            f2loop.setdefault(frozenset(h[i] for i in loop),
+                              [h[i] for i in loop])
+        if verbose and n % 1000 == 0:
+            print(f"[ogrid] {time.time()-t0:.1f}s: quad-loop scan "
+                  f"{n}/{len(H)} hexes", flush=True)
+    out = []
+    for f in faces:
+        key = frozenset(int(v) for v in f)
+        loop = f2loop.get(key)
+        if loop is None:
+            raise RuntimeError("face not found")
+        out.append(loop)
+    return out
 
 
 def _bilinear_inverse(X, Q, iters=12):
@@ -571,10 +615,13 @@ def extrude_ogrid_const(S, omap, n_layers=None, verbose=True):
         block_areas = []
         for lp in loops:
             a, b, c = S.P[lp[0]], S.P[lp[1]], S.P[lp[2]]
-            n = np.cross(b - a, c - a)
-            ln = np.linalg.norm(n)
+            # NOT `n`: `n` is the vertex count used by `pid` below. Binding it
+            # to a 3-vector here made `pid` return an array and the hex
+            # connectivity array inhomogeneous.
+            nv = np.cross(b - a, c - a)
+            ln = np.linalg.norm(nv)
             if ln > 0:
-                block_normals.append(n / ln)
+                block_normals.append(nv / ln)
                 block_areas.append(ln)
         if block_normals:
             avg_normal = np.average(block_normals, axis=0, weights=block_areas)
@@ -646,11 +693,12 @@ def extrude_ogrid_smooth(S, omap, n_layers=None, verbose=True, max_rotation_deg=
     for _r, loops in faces:
         for lp in loops:
             a, b, c = S.P[lp[0]], S.P[lp[1]], S.P[lp[2]]
-            n = np.cross(b - a, c - a)
-            ln = np.linalg.norm(n)
+            # NOT `n`: `n` is the vertex count used by `pid` below.
+            nv = np.cross(b - a, c - a)
+            ln = np.linalg.norm(nv)
             if ln == 0:
                 continue
-            n = n / ln
+            nv = nv / ln
             fk = frozenset(lp)
             hs = S.f2h.get(fk, ())
             if hs:
@@ -666,9 +714,9 @@ def extrude_ogrid_smooth(S, omap, n_layers=None, verbose=True, max_rotation_deg=
                     on = on / max(np.linalg.norm(on), 1e-30)
                     if (S.P[own].mean(0) - S.P[hrow].mean(0)) @ on < 0:
                         on = -on
-                    n = on
+                    nv = on
             for v in lp:
-                nrm[vert_idx[int(v)]] += n
+                nrm[vert_idx[int(v)]] += nv
     bad = np.linalg.norm(nrm, axis=1) < 1e-12
     nrm[bad] = np.array([0.0, 0.0, 1.0])
     nrm /= np.linalg.norm(nrm, axis=1)[:, None]
@@ -832,6 +880,10 @@ if __name__ == "__main__":
                     help="max rotation per layer for smooth variant (default: 10 deg)")
     ap.add_argument("--diagnose-twist", action="store_true",
                     help="diagnose twist quantitatively for blocks 12-15")
+    ap.add_argument("--max-seconds", type=float, default=None,
+                    help="wall-clock budget for the O-grid construction; the "
+                         "run aborts with a TimeoutError naming the stage that "
+                         "exceeded it (default: no limit)")
     a = ap.parse_args()
 
     if a.diagnose_twist:
@@ -851,7 +903,7 @@ if __name__ == "__main__":
     S = cb.BlockStructure.from_arrays(m.points, hx, bid, lab)
     nodes, elements = parse_msh(a.msh)
     Po, Ho, _Bo = ra.ogrid_blocks(elements, nodes, verbose=False)
-    omap = OgridMap(Po, Ho)
+    omap = OgridMap(Po, Ho, max_seconds=a.max_seconds)
 
     # Choose variant
     if a.variant == "const":

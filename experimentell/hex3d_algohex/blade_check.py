@@ -37,6 +37,27 @@ import tfi                         # noqa: E402
 DEFAULT_RUN = Path("/work/datagen_keepbl/runs/tistos_s1_0131")
 MIN_SCALED_JACOBIAN = 0.15
 
+# The ring variants built by `ogrid_extrude.py --variant const|smooth`.
+# Each one writes its own blocks file, summary and TFI output next to the
+# canonical s1/s2c files, so a variant is audited without touching the
+# promoted `blocks_blade.vtk` / `tfi_blade.vtk`.
+VARIANTS = ("const", "smooth")
+
+
+def variant_files(blade_dir, variant):
+    """(blocks_vtk, summary_json, tfi_vtk, s2c_json) for a variant.
+
+    An empty variant means the canonical S1 files."""
+    if not variant:
+        return (blade_dir / "blocks_blade.vtk",
+                blade_dir / "blade_s1.json",
+                blade_dir / "tfi_blade.vtk",
+                blade_dir / "blade_s2c.json")
+    return (blade_dir / f"blocks_blade_{variant}.vtk",
+            blade_dir / f"blade_s1_{variant}.json",
+            blade_dir / f"tfi_blade_{variant}.vtk",
+            blade_dir / f"blade_s2c_{variant}.json")
+
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -93,12 +114,12 @@ def signed_volume(pts):
 # stage s1
 # ---------------------------------------------------------------------------
 
-def stage_s1(run, verbose=True):
+def stage_s1(run, verbose=True, variant=""):
     """The ring straight out of the extrusion."""
     failures = []
     blade_dir = run / "blade"
-    summary_path = blade_dir / "blade_s1.json"
-    vtk_path = blade_dir / "blocks_blade.vtk"
+    summary_path, vtk_path = (variant_files(blade_dir, variant)[1],
+                              variant_files(blade_dir, variant)[0])
     for p in (summary_path, vtk_path):
         if not p.exists():
             failures.append(f"missing {p}")
@@ -373,17 +394,18 @@ def stage_s2(run, verbose=True):
 # stage s2c
 # ---------------------------------------------------------------------------
 
-def stage_s2c(run, verbose=True):
+def stage_s2c(run, verbose=True, variant=""):
     """Blade S2c: pinned wall-normal class + corrected cell volumes + TFI."""
     failures = []
     blade_dir = run / "blade"
-    summary_path = blade_dir / "blade_s2c.json"
-    vtk_path = blade_dir / "tfi_blade.vtk"
-    blocks_path = blade_dir / "blocks_blade.vtk"
+    # the s2c summary is the 4th entry of variant_files; the 2nd is the s1 one
+    blocks_path, _s1_path, vtk_path, summary_path = variant_files(blade_dir, variant)
     v1_path = blade_dir / "blocks_blade_v1.vtk"
 
-    # old copy must exist
-    check(v1_path.exists(), f"missing {v1_path}", failures)
+    # old copy must exist (the canonical S1 run keeps one; a variant has no
+    # v1 predecessor to keep)
+    if not variant:
+        check(v1_path.exists(), f"missing {v1_path}", failures)
 
     if not vtk_path.exists():
         failures.append(f"missing {vtk_path}")
@@ -520,14 +542,17 @@ def main(argv=None):
     ap.add_argument("stage", choices=["s1", "s2", "s2c", "s3"])
     ap.add_argument("--run", default=str(DEFAULT_RUN),
                     help="run directory (default: %(default)s)")
+    ap.add_argument("--variant", default="", choices=["", *VARIANTS],
+                    help="audit a ring variant (const/smooth) instead of the "
+                         "canonical S1 files")
     args = ap.parse_args(argv)
     run = Path(args.run)
     if args.stage == "s1":
-        return stage_s1(run)
+        return stage_s1(run, variant=args.variant)
     if args.stage == "s2":
         return stage_s2(run)
     if args.stage == "s2c":
-        return stage_s2c(run)
+        return stage_s2c(run, variant=args.variant)
     print("[blade_check] s3: not implemented yet (no TFI on the ring)")
     return 0
 

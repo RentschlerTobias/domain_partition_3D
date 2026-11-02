@@ -862,6 +862,7 @@ symptom; the non-conforming divisions are the cause.
 | `PROGRESS.md`, `SESSION_*.md` | chronological logs including every failed attempt |
 | `../../docs/decisions/` | every decision with its measurements and rejected options |
 | `../../docs/cluster-enroot-findings.md` | every cluster-side trap |
+TE-Ring-Diagnose: 25 TE-Ringe, 380 Kontrollringe, TE sJ >= 0.846, 0 invertiert.
 
 ## T43/T48 - trailing-edge ring raggedness
 

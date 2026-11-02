@@ -604,9 +604,10 @@ chain. `n=8000` is the working point (the n=2000 smoke was too coarse).
 ## Charité LV sweep (12 runs, n=2000)
 
 See the "Charité LV sweep (n=2000)" section of `CALIBRATION.md` for the
-per-case tables: 4 cases × 3 feature settings, 6 works / 6 diverged, all
-failures parametrization-side (exit 241/245/250). Built and checked from
-`/work/calib/report_charite.json` by `calib_report.py` (`--check --rows 12`).
+per-case tables (Case09_pre/post, Case199_pre/post): 4 cases × 3 feature
+settings, 6 works / 6 diverged, all failures parametrization-side
+(exit 241/245/250). Built and checked from `/work/calib/report_charite.json`
+by `calib_report.py` (`--check --rows 12`).
 
 ---
 

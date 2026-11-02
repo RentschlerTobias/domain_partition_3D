@@ -179,3 +179,89 @@ and keep-BL calibration sweeps and for the `n` choice in the dataset runs
 (`DATASET_PIPELINE.md`).
 
 _Report built 2026-10-30 20:51 UTC from `/work/calib/report_hexme.json` (18 rows)._
+
+---
+
+# Charité LV sweep — P4c: 4 cases × 3 settings
+
+**What this is.** The Charité left-ventricle aneurysm calibration matrix (P4c
+harness, `calib_sweep.py`): 4 LV cases × 3 HexMeshing settings = 12 runs at
+`-n 2000`, to find which feature-edge mode works on the Charité geometries.
+Runs and raw outputs live in
+`/work/calib/sweep/charite/<geometry>_<setting>_2000/`, the machine-readable
+report in `/work/calib/report_charite.json` (built and checked by
+`calib_report.py`).
+
+**Matrix.** Cases: `Case09_post`, `Case09_pre`, `Case199_post`, `Case199_pre`.
+Settings: same as the hexme sweep (A = default, B = `-d 70`, C = `-d 70
+--force-feature-threshold`). `n=2000` because the Charité LVs are smaller than
+the hexme shapes and `n=8000` would overshoot; the earlier smoke at `n=2000`
+showed the cases were meshable.
+
+**Method.** Each run: `calib_sweep.py run --geometry … --setting … --n 2000
+--out /work/calib/sweep/charite --cores <pair> --timeout 14400`, i.e.
+`run_algohex.py --backend native` → `HexMeshing -i … -o hex_hex.ovm -j
+hex_hex_metrics.json` under `taskset -c <pair>`, `OMP_NUM_THREADS=2`, one run
+per core pair. Per row: status, `valid_volume` (HexMeshing's own
+`valid_volume_seamless`), hex count, inverted cells (min corner scaled Jacobian
+≤ 0 over the recovered hexes), `n`, setting, wall time.
+
+**Status legend** (same as hexme: `calib_report.py::classify`, deterministic):
+
+| status | meaning |
+|---|---|
+| `works` | exit 0, hex mesh written (`hex_cells > 0`), `valid_volume ≥ 0.9` (the smoke bar) |
+| `diverged` | everything else: parametrization failed/covered < 90 %, solver abort, process died on a non-SIGSEGV signal, or no output |
+| `segfault` | HexMeshing died on SIGSEGV (exit −11 / 139) |
+| `timeout` | killed by the harness after 14 400 s (`stopped: "timeout"`) |
+| `running` | no `metrics.json` yet — the run was still executing when this report was cut; the row carries its exact command |
+
+The **failure mode** column carries the AlgoHex failure verbatim: exit code +
+last non-empty line of `hexmeshing.log`. The **note** column adds HexMeshing's
+own parametrization diagnostic (`hex_hex_metrics.json`: seamless parametric
+volume and invalid tet count).
+
+## Run tables (one per geometry)
+
+### Case09_post
+
+| setting | flags | n | status | valid_volume | hexes | inverted | wall_s | failure mode (exit + last log line) | note |
+|---|---|---|---|---|---|---|---|---|---|
+| A | default | 2000 | works | 1.000 | 2229 | 0 | 297.9 | — | parametric_volume 2e+03, n_invalid_param_tets 0 |
+| B | -d 70 | 2000 | works | 1.000 | 2229 | 0 | 300.9 | — | parametric_volume 2e+03, n_invalid_param_tets 0 |
+| C | -d 70 --force-feature-threshold | 2000 | works | 1.000 | 3048 | 0 | 2215.6 | — | parametric_volume 2e+03, n_invalid_param_tets 0 |
+
+### Case09_pre
+
+| setting | flags | n | status | valid_volume | hexes | inverted | wall_s | failure mode (exit + last log line) | note |
+|---|---|---|---|---|---|---|---|---|---|
+| A | default | 2000 | works | 1.000 | 2434 | 12 | 5026.5 | — | parametric_volume 2e+03, n_invalid_param_tets 0 |
+| B | -d 70 | 2000 | works | 1.000 | 2434 | 12 | 2950.6 | — | parametric_volume 2e+03, n_invalid_param_tets 0 |
+| C | -d 70 --force-feature-threshold | 2000 | diverged | 1.000 | — | — | 1431.8 | exit 250: what():  QGP3D failed | parametric_volume 2e+03, n_invalid_param_tets None |
+
+### Case199_post
+
+| setting | flags | n | status | valid_volume | hexes | inverted | wall_s | failure mode (exit + last log line) | note |
+|---|---|---|---|---|---|---|---|---|---|
+| A | default | 2000 | diverged | 1.000 | — | — | 354.0 | exit 245: Cbc0035I Maximum depth 9, 0 variables fixed on reduced cost | parametric_volume 2e+03, n_invalid_param_tets None |
+| B | -d 70 | 2000 | diverged | 1.000 | — | — | 355.8 | exit 245: Cbc0035I Maximum depth 9, 0 variables fixed on reduced cost | parametric_volume 2e+03, n_invalid_param_tets None |
+| C | -d 70 --force-feature-threshold | 2000 | works | 1.000 | 3648 | 59 | 3112.6 | — | parametric_volume 2e+03, n_invalid_param_tets 0 |
+
+### Case199_pre
+
+| setting | flags | n | status | valid_volume | hexes | inverted | wall_s | failure mode (exit + last log line) | note |
+|---|---|---|---|---|---|---|---|---|---|
+| A | default | 2000 | diverged | — | — | — | 4073.5 | exit 241: --> regularize Hessian with value 0.01 | parametric_volume -1, n_invalid_param_tets -1 |
+| B | -d 70 | 2000 | diverged | — | — | — | 4089.6 | exit 241: --> regularize Hessian with value 100000 | parametric_volume -1, n_invalid_param_tets -1 |
+| C | -d 70 --force-feature-threshold | 2000 | diverged | 1.000 | — | — | 510.4 | exit 250: what():  QGP3D failed | parametric_volume 2e+03, n_invalid_param_tets None |
+
+**Reproduce / re-check:**
+
+```
+cd experimentell/hex3d_algohex
+/opt/venv-sci/bin/python calib_report.py --build /work/calib/sweep/charite \
+    --out /work/calib/report_charite.json        # + print the tables above
+/opt/venv-sci/bin/python calib_report.py --check /work/calib/report_charite.json --rows 12
+```
+
+_Report built 2026-11-02 from `/work/calib/report_charite.json` (12 rows)._

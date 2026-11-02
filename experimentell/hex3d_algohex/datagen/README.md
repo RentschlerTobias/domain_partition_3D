@@ -114,3 +114,4 @@ stay on the cylinder.
   runs 2-10 h, normal max ~7 min / ~70 min). Every stage now runs under `timeout`
   (TO_DTOO 1800 s, TO_ALGOHEX 10800 s, TO_BEAM 3600 s, others 600 s; override per env);
   a timeout logs `TIMEOUT after <t>s` before the `FAIL <stage>` line.
+- P1 reference (tistos_s1_0131, 2026-11-02): built on hex_hex_x_16c.ovm; see the kept-BL section above.

@@ -724,6 +724,121 @@ artefact.
 
 ---
 
+## T40 — canada n = 100000, struct-guard beam + TFI attempt (2026-11-02)
+
+**Answer: the struct guard buys a *structurally* valid subdivision, but TFI
+cannot refill it, so the lane stops here.** The depth-1 beam result is a real
+block complex (no block touches two opposite or two adjacent faces, the face
+count is 6 for 180 of 210 blocks), the hexahedral validator still calls it
+INVALID because 9 cells are inverted, and the TFI refill **fails** — twice over.
+
+**Tool.** `canada_struct_beam.py` (standalone, in this directory).
+`run --depth 1` runs the beam, the TFI attempt and the export, and writes
+`/work/canada/sweep/struct_beam/report.json`;
+`--check REPORT.json` re-derives every number from the logs and the files on
+disk and exits 0 only if they agree. The lane was started by T20; T40 finished
+it (the report carries `"continued_by": "T40"`).
+
+### The beam (depth 1)
+
+Guard `struct`: inverted cells allowed (≤ 148), min sJ ≥ 0.05, Hausdorff ≤ 0.15,
+width 4, depth 1. The base complex is 330 blocks / 105 837 cells with 10
+inverted cells; after the untangle the interior-only pass fails and 31 boundary
+vertices slide on the input surface.
+
+| | cells | blocks | cuboids | excess | inverted | min sJ | Hausdorff | wall |
+|---|---|---|---|---|---|---|---|---|
+| base | 105 837 | 330 | 287 | 86 | 10 | −0.9906 | 0.10053 | — |
+| depth 1 (best of 4 states) | 103 824 | **210** | 180 | 66 | **9** | −0.9906 | 0.10053 | 1174 s |
+
+47 of the states at depth 1 are admissible. The four states are
+210 bl/ex 66/sJ −0.99, 246 bl/ex 69, 186 bl/ex 74, 275 bl/ex 78 — so **210
+blocks is the smallest** the guard allows at depth 1, and the excess (66
+non-cuboid block faces) is what the guard buys.
+
+**Is the structure a valid subdivision?** Yes, structurally: the validator's
+only failure is `9 inverted cells (scaled Jacobian <= 0)`, and the report records
+`beam.structurally_valid = true` (the inverted cells are a cell-quality
+failure, not a structural one). Face census:
+180 blocks with 6 faces, 20 with 7, 4 with 12, 4 with 10, 1 with 11, 1 with 5;
+11 tiny blocks, min 2 cells per block; mean sJ 0.9489. Blocks touching one
+surface on two opposite faces: 0; on two adjacent faces: 0.
+
+### The TFI attempt — two failures
+
+`TFI cannot build the lattices`, and it fails **before** the `--require-lattices`
+gate, so the run never reaches it:
+
+```
+[tfi] 9 blocks are not lattices and will be passed through unchanged:
+      [8, 15, 25, 26, 83, 86, 88, 92, 96]
+[tfi] conformity of the existing divisions: 1 classes disagree
+AssertionError: class 0 below its lower bound      (tfi.py:492, solve_block_divisions)
+```
+
+Exit code 1, no `tfi_blocks.vtk` written. Reproduced with `--solve-divisions`
+alone (without `--apply-divisions`), so it is the **division solve** that dies,
+not the refill. The root cause is visible in the line above the crash: the
+beam's own divisions are **not conforming** — one direction class disagrees —
+so `solve_block_divisions` cannot find counts that satisfy every block's lower
+bound. The 9 blocks that are not lattices are a second, independent problem.
+
+The plain TFI refill (no `--solve-divisions`, at the existing divisions)
+answers the other half of the question — for the 201 blocks that *do* carry a
+lattice, does the refill hold up? **No, it makes the mesh worse:**
+
+| metric | before | after |
+|---|---|---|
+| scaled Jacobian (min) | −0.9906 (9 bad) | −0.9906 (**102 bad**) |
+| non-orthogonality (deg) | 81.14 (30 bad) | 81.78 (**138 bad**) |
+| skewness | 0.869 (0 bad) | 1.199 (0 bad) |
+| aspect ratio | 20.34 (0 bad) | 13.89 (0 bad) |
+| vol ratio | 0.118 (0 bad) | 0.003 (**5 bad**) |
+| face weight | 0.0105 (2 bad) | 0.0005 (**86 bad**) |
+| face flatness | 0.0000 (257 bad) | 0.0000 (345 bad) |
+
+So the honest summary is: **the struct guard preserves the block topology but
+destroys the conformality that TFI needs.** The inverted cells are the visible
+symptom; the non-conforming divisions are the cause.
+
+### What this means for the pipeline
+
+- The **export is skipped**: with no lattices there is nothing for
+  `export_sample.py --check` to round-trip, so the report records
+  `export.status = "skipped"`, reason `TFI cannot build the lattices`. No
+  `sample_100000.npz` is produced from this lane.
+- Depth 2/3 are out of reach for the same reason and for the clock: the
+  measured per-state cost is 1174 s, so depth 2 ≈ 5870 s (fits the timeout)
+  and depth 3 ≈ 10 566 s (does not). Deeper is not the blocker — **conformity
+  is**.
+- The fix is on the beam side, not the TFI side: the collapse has to leave a
+  **conforming** division per direction class (every block of a class sharing
+  the same counts along its class axis), and the 9 blocks whose shape is not a
+  lattice have to be reshaped before the refill, not passed through.
+
+### Files and commands
+
+```
+/work/canada/sweep/struct_beam/
+  beam_d1.log        the depth-1 beam run (the reused log)
+  beam_d1.pid        its pid (the process has exited)
+  blocks.vtk         the 210-block result (103 824 cells)
+  blocks_quality.vtk per-cell scaled Jacobian, for the inverted cells
+  blocks_edges.vtk   the block edge graph
+  tfi.log            the --solve-divisions run: the AssertionError
+  tfi_rebuild.log    the plain refill at the existing divisions: the metric table
+  report.json        the report
+```
+
+```
+# run the lane (reuses beam_d1.log, tfi.log and tfi_rebuild.log if present)
+/opt/venv-sci/bin/python experimentell/hex3d_algohex/canada_struct_beam.py run --depth 1
+# verify the report against the logs and the files on disk
+/opt/venv-sci/bin/python experimentell/hex3d_algohex/canada_struct_beam.py --check /work/canada/sweep/struct_beam/report.json
+```
+
+---
+
 ## Documents
 
 | file | content |

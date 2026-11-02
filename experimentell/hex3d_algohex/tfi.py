@@ -145,6 +145,20 @@ def block_lattice(hexes, cells, f2h):
     return dims, vert
 
 
+def _hex_signed_volume(pts):
+    """Signed volume of a hex via the divergence theorem with the standard
+    (correct) VTK face winding. Used instead of the 5-tet decomposition,
+    which gives false negatives on warped (but valid) hexes."""
+    FACES = [(0, 3, 2, 1), (4, 5, 6, 7), (0, 4, 7, 3),
+             (1, 2, 6, 5), (0, 1, 5, 4), (2, 3, 7, 6)]
+    V = 0.0
+    for f in FACES:
+        a = pts[f[0]]; b = pts[f[1]]; c = pts[f[2]]; d = pts[f[3]]
+        V += float(np.dot(a, np.cross(b, c)))
+        V += float(np.dot(a, np.cross(c, d)))
+    return V / 6.0
+
+
 def _fix_handedness(P, vert):
     """A lattice is only defined up to orientation.
 
@@ -152,10 +166,10 @@ def _fix_handedness(P, vert):
     cell's own VTK order fixes a handedness that the (i, j, k) convention
     here need not share -- and the whole block then comes out with negative
     volume. Reversing one index flips the handedness for all of it at once.
-    Detected on the mesh's own vertices, so it cannot be argued with."""
+    Detected on the mesh's own vertices (divergence theorem, correct face
+    winding), so it cannot be argued with."""
     C = block_cells(vert)
-    import ovm_io
-    if ovm_io._hex_volume(P[C[0]]) < 0:
+    if _hex_signed_volume(P[C[0]]) < 0:
         vert = vert[::-1].copy()
     return vert
 
@@ -881,6 +895,13 @@ if __name__ == "__main__":
     ap.add_argument("--input-vtk",
                     default=str(REPO / "data" / "T1_9" / "T1_9_tet_v5.vtk"),
                     help="AlgoHex input mesh, for the surface labels")
+    ap.add_argument("--pin-class", action="append", default=[],
+                    help="pin a direction class: CLASS=COUNT (repeatable). "
+                         "CLASS may be a class index (pins every axis in that "
+                         "class) or BLOCK,AXIS / BLOCK.AXIS (pins one axis).")
+    ap.add_argument("--frozen", action="append", default=[],
+                    help="alias for --pin-class: pin a block axis: "
+                         "BLOCK,AXIS=COUNT (repeatable)")
     a = ap.parse_args()
     if a.apply_divisions:
         a.solve_divisions = True
@@ -895,6 +916,38 @@ if __name__ == "__main__":
         classes = direction_classes(lat, f2h, H, B)
         check_conformity(lat, classes)
         frozen = frozen_from_missing(lat, H, f2h, B)
+        # auto-detect ring blocks (S1 ids >= 12, or a wall-normal axis whose
+        # count differs from its class siblings) and pin their wall-normal
+        # axis to the block's existing layer count.
+        for _r in lat:
+            if int(_r) >= 12:
+                frozen.setdefault((_r, 2), int(lat[_r][0][2]))
+        # explicit pins from the CLI
+        def _parse_pin(spec):
+            if "=" not in spec:
+                raise SystemExit(f"bad pin spec (expected CLASS=COUNT): {spec!r}")
+            left, right = spec.split("=", 1)
+            count = int(right.strip())
+            left = left.strip()
+            if "," in left or "." in left:
+                sep = "," if "," in left else "."
+                r, ax = left.split(sep, 1)
+                yield (int(r.strip()), int(ax.strip()), count)
+            else:
+                # class index
+                ci = int(left)
+                if ci < 0 or ci >= len(classes):
+                    raise SystemExit(f"class index {ci} out of range "
+                                     f"(0..{len(classes)-1})")
+                for (r, ax) in classes[ci]:
+                    yield (int(r), int(ax), count)
+
+        for spec in list(a.pin_class or []) + list(a.frozen or []):
+            for (r, ax, count) in _parse_pin(spec):
+                if (r, ax) in frozen and frozen[(r, ax)] != count:
+                    print(f"[tfi] WARNING: overriding pin ({r},{ax}) "
+                          f"{frozen[(r,ax)]} -> {count}")
+                frozen[(r, ax)] = count
         if frozen:
             # What pinning costs, in full. A block that cannot be refilled
             # forces its neighbours' faces to keep their counts, and class

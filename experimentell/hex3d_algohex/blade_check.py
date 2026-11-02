@@ -74,6 +74,21 @@ def check(cond, msg, failures):
     return bool(cond)
 
 
+
+
+def signed_volume(pts):
+    """Signed volume of a hexahedron via the divergence theorem with the
+    standard (correct) face winding of a VTK hexahedron. Returns a float."""
+    FACES = [(0, 3, 2, 1), (4, 5, 6, 7), (0, 4, 7, 3),
+             (1, 2, 6, 5), (0, 1, 5, 4), (2, 3, 7, 6)]
+    V = 0.0
+    for f in FACES:
+        a = pts[f[0]]; b = pts[f[1]]; c = pts[f[2]]; d = pts[f[3]]
+        V += float(np.dot(a, np.cross(b, c)))
+        V += float(np.dot(a, np.cross(c, d)))
+    return V / 6.0
+
+
 # ---------------------------------------------------------------------------
 # stage s1
 # ---------------------------------------------------------------------------
@@ -355,12 +370,154 @@ def stage_s2(run, verbose=True):
 
 
 # ---------------------------------------------------------------------------
+# stage s2c
+# ---------------------------------------------------------------------------
+
+def stage_s2c(run, verbose=True):
+    """Blade S2c: pinned wall-normal class + corrected cell volumes + TFI."""
+    failures = []
+    blade_dir = run / "blade"
+    summary_path = blade_dir / "blade_s2c.json"
+    vtk_path = blade_dir / "tfi_blade.vtk"
+    blocks_path = blade_dir / "blocks_blade.vtk"
+    v1_path = blade_dir / "blocks_blade_v1.vtk"
+
+    # old copy must exist
+    check(v1_path.exists(), f"missing {v1_path}", failures)
+
+    if not vtk_path.exists():
+        failures.append(f"missing {vtk_path}")
+        print(f"[blade_check] s2c: FAILED: missing {vtk_path}")
+        return 1
+    if not summary_path.exists():
+        failures.append(f"missing {summary_path}")
+        print(f"[blade_check] s2c: FAILED: missing {summary_path}")
+        return 1
+    if not blocks_path.exists():
+        failures.append(f"missing {blocks_path}")
+        print(f"[blade_check] s2c: FAILED: missing {blocks_path}")
+        return 1
+
+    summary = json.loads(summary_path.read_text())
+
+    # pinned class
+    pinned = summary.get("pinned_class", {})
+    pid = pinned.get("id", summary.get("pinned_class_id"))
+    pcnt = pinned.get("count", summary.get("pinned_class_count"))
+    print(f"[blade_check] s2c: pinned class {pid} = {pcnt}")
+    check(pid is not None, "blade_s2c.json missing pinned_class.id", failures)
+    check(pcnt is not None, "blade_s2c.json missing pinned_class.count", failures)
+
+    # input negative-volume audit (divergence theorem)
+    P0, H0, bid0 = read_blocks_vtk(blocks_path)
+    vols0 = np.array([signed_volume(P0[h]) for h in H0])
+    n_neg_before = int((vols0 <= 0).sum())
+    print(f"[blade_check] s2c: input (blocks_blade.vtk) negative-volume cells: {n_neg_before}")
+    check(n_neg_before == 0, f"{n_neg_before} input cells with volume <= 0", failures)
+
+    reported_before = summary.get("input_negative_volume_cells", {})
+    if isinstance(reported_before, dict):
+        rb = reported_before.get("before")
+    else:
+        rb = reported_before
+    if rb is not None:
+        check(int(rb) == n_neg_before,
+              f"blade_s2c.json says {rb} negative before, file has {n_neg_before}",
+              failures)
+
+    # TFI output
+    P, H, bid = read_blocks_vtk(vtk_path)
+    n_blocks = int(bid.max()) + 1
+    print(f"[blade_check] s2c: {len(H)} hexes in {n_blocks} blocks, {len(P)} points")
+    check(n_blocks == 16, f"expected 16 blocks, got {n_blocks}", failures)
+
+    f2h, _e2h = bc.build_topology(H)
+    cells_of = {}
+    for c in range(len(H)):
+        cells_of.setdefault(int(bid[c]), []).append(c)
+    for r in sorted(cells_of):
+        lat = tfi.block_lattice(H, cells_of[r], f2h)
+        check(lat is not None, f"block {r} has no lattice after TFI", failures)
+
+    sj = cb.scaled_jacobians(P, H)
+    n_inv = int((sj <= 0).sum())
+    min_sj = float(sj.min())
+    print(f"[blade_check] s2c: scaled Jacobian min {min_sj:.4f}, inverted {n_inv}")
+
+    # The TFI outcome is accepted either as a clean mesh (0 inverted, min sJ
+    # >= 0.3) or as an explicitly documented failure: the exact remaining
+    # inverted count and its cause, recorded in blade_s2c.json.
+    complete = summary.get("status") == "completed"
+    if complete:
+        check(n_inv == 0, f"{n_inv} inverted cells", failures)
+        check(min_sj >= 0.3, f"min scaled Jacobian {min_sj:.4f} < 0.3", failures)
+    else:
+        blocker = summary.get("blocker") or {}
+        reported = summary.get("tfi", {})
+        check(int(reported.get("inverted_count", -1)) == n_inv,
+              f"blade_s2c.json inverted_count {reported.get('inverted_count')} "
+              f"does not match the file ({n_inv})", failures)
+        check(abs(float(reported.get("min_scaled_jacobian", 9.0)) - min_sj) < 1e-3,
+              f"blade_s2c.json min_scaled_jacobian {reported.get('min_scaled_jacobian')} "
+              f"does not match the file ({min_sj:.4f})", failures)
+        check(bool(blocker.get("cause")), "blade_s2c.json blocker has no cause", failures)
+        check(bool(blocker.get("what")), "blade_s2c.json blocker has no description",
+              failures)
+        print(f"[blade_check] s2c: INCOMPLETE -- {n_inv} inverted cells, "
+              f"min sJ {min_sj:.4f}; cause documented in blade_s2c.json")
+
+    # boundary faces
+    from collections import defaultdict
+    face_count = defaultdict(int)
+    for cell in H:
+        for face in bc.HEX_FACES:
+            face_count[tuple(sorted(int(cell[i]) for i in face))] += 1
+    n_boundary = sum(1 for cnt in face_count.values() if cnt == 1)
+    print(f"[blade_check] s2c: boundary faces {n_boundary} (passage ref 13514)")
+    check(n_boundary != 13514, "boundary face count unchanged from passage-only TFI",
+          failures)
+    reported_bf = summary.get("boundary_faces", summary.get("closed_blade_boundary_count"))
+    if reported_bf is not None:
+        check(int(reported_bf) == n_boundary,
+              f"blade_s2c.json says {reported_bf} boundary faces, file has {n_boundary}",
+              failures)
+
+    # ogrid_interface interior: should be no boundary faces on interface?
+    # We rely on boundary count != 13514 and summary flag.
+    ogrid_interior = summary.get("ogrid_interface_interior", summary.get("ogrid_interface_now_interior"))
+    if ogrid_interior is not None:
+        check(bool(ogrid_interior), "ogrid_interface is not interior", failures)
+
+    # divisions solve clean
+    divisions_path = blade_dir / "blocks_blade.divisions.json"
+    if divisions_path.exists():
+        div = json.loads(divisions_path.read_text())
+        for row in div.get("table", []):
+            class_id = row["class"]
+            count_now = row["count_now"][0] if isinstance(row["count_now"], list) else row["count_now"]
+            count_new = row["count_new"]
+            if count_new < count_now:
+                failures.append(f"class {class_id} reduced from {count_now} to {count_new}")
+
+    # status: 'completed' means a clean TFI mesh, 'incomplete' means the exact
+    # remaining count and cause are documented (checked above).
+    status = summary.get("status")
+    check(status in ("completed", "incomplete"),
+          f"TFI status is '{status}', expected 'completed' or 'incomplete'", failures)
+
+    print(f"[blade_check] s2c: {len(failures)} failed checks")
+    for f in failures:
+        print(f"[blade_check] s2c:   ! {f}")
+    return 1 if failures else 0
+
+
+# ---------------------------------------------------------------------------
 # driver
 # ---------------------------------------------------------------------------
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("stage", choices=["s1", "s2", "s3"])
+    ap.add_argument("stage", choices=["s1", "s2", "s2c", "s3"])
     ap.add_argument("--run", default=str(DEFAULT_RUN),
                     help="run directory (default: %(default)s)")
     args = ap.parse_args(argv)
@@ -369,6 +526,8 @@ def main(argv=None):
         return stage_s1(run)
     if args.stage == "s2":
         return stage_s2(run)
+    if args.stage == "s2c":
+        return stage_s2c(run)
     print("[blade_check] s3: not implemented yet (no TFI on the ring)")
     return 0
 

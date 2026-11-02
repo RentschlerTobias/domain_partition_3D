@@ -514,9 +514,10 @@ def extrude_ogrid(S, omap, n_layers=None, verbose=True, optimise=True):
 
     # the O-grid's own layer profile (the wall clustering): the cumulative
     # distance along a wall-normal chain, normalised
+    # layer 0 = core base (outer/core side), layer m = blade wall.
     profile = np.zeros(L + 1)
     for v in omap.outer_nodes:
-        C = omap.chain(int(v))[::-1]
+        C = omap.chain(int(v))
         d = np.linalg.norm(np.diff(C, axis=0), axis=1)
         f = np.r_[0.0, np.cumsum(d)]
         profile += f / max(f[-1], 1e-30)
@@ -587,14 +588,16 @@ def extrude_ogrid_const(S, omap, n_layers=None, verbose=True):
     base = len(S.P)
 
     # Profile from O-grid layer positions
+    # layer 0 = core base, layer m = blade wall; keep smallest gap at blade wall.
     profile = np.zeros(L + 1)
     for v in omap.outer_nodes:
-        C = omap.chain(int(v))[::-1]
+        C = omap.chain(int(v))
         d = np.linalg.norm(np.diff(C, axis=0), axis=1)
         f = np.r_[0.0, np.cumsum(d)]
         profile += f / max(f[-1], 1e-30)
     profile /= max(len(omap.outer_nodes), 1)
     profile = profile[idx]
+    profile = profile[::-1]
 
     # Compute constant direction per block
     Q = S.P[list(verts)]
@@ -675,14 +678,16 @@ def extrude_ogrid_smooth(S, omap, n_layers=None, verbose=True, max_rotation_deg=
     base = len(S.P)
 
     # Profile from O-grid layer positions
+    # layer 0 = core base, layer m = blade wall; keep smallest gap at blade wall.
     profile = np.zeros(L + 1)
     for v in omap.outer_nodes:
-        C = omap.chain(int(v))[::-1]
+        C = omap.chain(int(v))
         d = np.linalg.norm(np.diff(C, axis=0), axis=1)
         f = np.r_[0.0, np.cumsum(d)]
         profile += f / max(f[-1], 1e-30)
     profile /= max(len(omap.outer_nodes), 1)
     profile = profile[idx]
+    profile = profile[::-1]
 
     # Start with core normals
     Q = S.P[list(verts)]

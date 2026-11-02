@@ -4,6 +4,7 @@
 import argparse
 import json
 import sys
+import time
 from collections import defaultdict
 from pathlib import Path
 
@@ -44,7 +45,11 @@ def detect_singular(P, H, interior_only=True):
 
 
 def detect_pairs(P, H, interior_only=True):
+    t_start = time.time()
     f2h, e2h, sing = detect_singular(P, H, interior_only=interior_only)
+    sing_set = sing
+
+    # Build hex edges
     hex_edges = []
     for hi, c in enumerate(H):
         es = []
@@ -54,25 +59,40 @@ def detect_pairs(P, H, interior_only=True):
         hex_edges.append(es)
 
     cand = set()
-    for hi in range(len(H)):
-        es = hex_edges[hi]
-        for i in range(len(es)):
-            for j in range(i + 1, len(es)):
-                e1, e2 = es[i], es[j]
-                if (e1 != e2 and not (set(e1) & set(e2)) and e1 in sing and e2 in sing
-                        and _parallel(P, e1, e2)):
+    # Strategy 1: pairs within same hex
+    for hi, es in enumerate(hex_edges):
+        ses = []
+        for e in es:
+            if e in sing_set:
+                ses.append(e)
+        m = len(ses)
+        for i in range(m):
+            e1 = ses[i]
+            for j in range(i + 1, m):
+                e2 = ses[j]
+                if e1 == e2:
+                    continue
+                if e1[0] in e2 or e1[1] in e2:
+                    continue
+                if _parallel(P, e1, e2):
                     cand.add(frozenset((e1, e2)))
+
+    # Strategy 2: pairs across face-adjacent hexes
     for f, hs in f2h.items():
         if len(hs) != 2:
             continue
         h0, h1 = hs[0], hs[1]
         for e1 in hex_edges[h0]:
-            if e1 not in sing:
+            if e1 not in sing_set:
                 continue
             for e2 in hex_edges[h1]:
-                if e2 not in sing:
+                if e2 not in sing_set:
                     continue
-                if (e1 != e2 and not (set(e1) & set(e2)) and _parallel(P, e1, e2)):
+                if e1 == e2:
+                    continue
+                if e1[0] in e2 or e1[1] in e2:
+                    continue
+                if _parallel(P, e1, e2):
                     cand.add(frozenset((e1, e2)))
 
     out = []
@@ -80,7 +100,10 @@ def detect_pairs(P, H, interior_only=True):
         e1, e2 = tuple(c)
         out.append((e1, e2, _min_endpoint_dist(P, e1, e2)))
     out.sort(key=lambda x: x[2])
-    return out, sing, f2h, e2h
+    t_end = time.time()
+    print(f"[singular_pair] detect_pairs took {t_end-t_start:.2f}s, found {len(out)} pairs", flush=True)
+    return out, sing_set, f2h, e2h
+
 
 
 def _boundary_verts(P, H):

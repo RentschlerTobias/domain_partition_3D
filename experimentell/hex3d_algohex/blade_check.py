@@ -1,0 +1,277 @@
+"""Stage checks for the blade O-grid ring built on the P1 core.
+
+The ring is the set of hex blocks that fill the gap between the AlgoHex
+core's `ogrid_interface` and the blade wall. It is built by
+`ogrid_extrude.extrude_ogrid` and written as `blocks_blade.vtk` next to a
+`blade_s1.json` summary.
+
+Stages
+------
+s1  the ring as it comes out of the extrusion: block structure, lattice per
+    block, cell quality, and the bit-exact gluing of the ring's base to the
+    untouched core blocks.
+s2  placeholder: the ring after the O-grid's own blocks have been merged
+    into it (not implemented yet).
+s3  placeholder: the ring after TFI (not implemented yet).
+
+Usage:  python3 blade_check.py s1 [--run DIR]
+"""
+
+import argparse
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+import numpy as np
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent.parent))
+
+import base_complex as bc          # noqa: E402
+import clean_blocks as cb          # noqa: E402
+import tfi                         # noqa: E402
+
+
+DEFAULT_RUN = Path("/work/datagen_keepbl/runs/tistos_s1_0131")
+MIN_SCALED_JACOBIAN = 0.15
+
+
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+def read_blocks_vtk(path):
+    """(points, hexes, block_id) of a legacy-VTK hexahedron file."""
+    import meshio
+    m = meshio.read(str(path))
+    hexes = np.vstack([c.data for c in m.cells if c.type == "hexahedron"])
+    bid = np.concatenate([np.asarray(d).ravel()
+                          for c, d in zip(m.cells, m.cell_data["block_id"])
+                          if c.type == "hexahedron"])
+    return np.asarray(m.points, float), np.asarray(hexes, np.int64), \
+        np.asarray(bid, int)
+
+
+def core_blocks(run):
+    """The P1 core mesh: (points, hexes, block_id) of `blocks.vtk`."""
+    return read_blocks_vtk(run / "blocks.vtk")
+
+
+def surface_labeller(run):
+    """The labeller that names the core's boundary faces, so the block
+    faces can be checked against the physical surfaces."""
+    import tet_prep_v5 as v5
+    P, tri, tid = cb.read_input_surface(str(run / "tet.vtk"))
+    return cb.SurfaceLabeller(P, tri, tid, v5.NAMES)
+
+
+def check(cond, msg, failures):
+    """Record a failed check, return the condition."""
+    if not cond:
+        failures.append(msg)
+    return bool(cond)
+
+
+# ---------------------------------------------------------------------------
+# stage s1
+# ---------------------------------------------------------------------------
+
+def stage_s1(run, verbose=True):
+    """The ring straight out of the extrusion."""
+    failures = []
+    blade_dir = run / "blade"
+    summary_path = blade_dir / "blade_s1.json"
+    vtk_path = blade_dir / "blocks_blade.vtk"
+    for p in (summary_path, vtk_path):
+        if not p.exists():
+            failures.append(f"missing {p}")
+            print(f"[blade_check] FAILED: missing {p}")
+            return 1
+
+    summary = json.loads(summary_path.read_text())
+    P, H, bid = read_blocks_vtk(vtk_path)
+    core_P, core_H, core_bid = core_blocks(run)
+
+    n_blocks = int(bid.max()) + 1
+    ids = np.unique(bid)
+    print(f"[blade_check] s1: {len(H)} hexes in {n_blocks} blocks, "
+          f"{len(P)} points")
+
+    # -- block ids ---------------------------------------------------------
+    contiguous = check(ids.tolist() == list(range(n_blocks)),
+                       f"block ids not contiguous: {ids.tolist()}", failures)
+    counts = Counter(bid.tolist())
+    print(f"[blade_check] s1: block ids contiguous: {contiguous}; "
+          f"cells per block {dict(sorted(counts.items()))}")
+
+    # the summary must agree with the file
+    check(summary.get("n_blocks") == n_blocks,
+          f"blade_s1.json says n_blocks={summary.get('n_blocks')}, "
+          f"the VTK has {n_blocks}", failures)
+    check(summary.get("n_cells") == len(H),
+          f"blade_s1.json says n_cells={summary.get('n_cells')}, "
+          f"the VTK has {len(H)}", failures)
+
+    # the new ring blocks must carry ids appended after the largest core id
+    n_core_blocks = int(summary.get("n_core_blocks", 0))
+    core_ids = sorted(set(int(b) for b in np.unique(core_bid)))
+    new_ids = sorted(set(int(b) for b in np.unique(bid)) - set(core_ids))
+    check(new_ids == list(range(core_ids[-1] + 1, core_ids[-1] + 1 + len(new_ids))),
+          f"the new block ids {new_ids} are not appended after "
+          f"max(core block_id)={core_ids[-1]}", failures)
+    check(summary.get("ring_block_ids") == new_ids,
+          f"blade_s1.json says ring_block_ids={summary.get('ring_block_ids')}, "
+          f"the VTK has {new_ids}", failures)
+    print(f"[blade_check] s1: core block ids {core_ids} "
+          f"({n_core_blocks} blocks), new ring ids {new_ids} "
+          f"(appended after max(core block_id)={core_ids[-1]})")
+
+    # -- a lattice for every block ----------------------------------------
+    f2h, _e2h = bc.build_topology(H)
+    cells_of = {}
+    for c in range(len(H)):
+        cells_of.setdefault(int(bid[c]), []).append(c)
+    lattices = {}
+    for r in sorted(cells_of):
+        lat = tfi.block_lattice(H, cells_of[r], f2h)
+        lattices[r] = lat
+        ok = check(lat is not None,
+                   f"block {r} has no lattice (not a structured grid)", failures)
+        if verbose and ok:
+            print(f"[blade_check] s1: block {r}: lattice dims "
+                  f"{list(lat[0])} over {len(cells_of[r])} cells")
+
+    # -- cell quality ------------------------------------------------------
+    sj = cb.scaled_jacobians(P, H)
+    n_inv = int((sj <= 0).sum())
+    check(n_inv == 0, f"{n_inv} inverted cells (scaled Jacobian <= 0)",
+          failures)
+    check(float(sj.min()) >= MIN_SCALED_JACOBIAN,
+          f"min scaled Jacobian {sj.min():.4f} < {MIN_SCALED_JACOBIAN}",
+          failures)
+    print(f"[blade_check] s1: scaled Jacobian min {sj.min():.4f} "
+          f"mean {sj.mean():.4f}, inverted {n_inv}")
+
+    # -- the whole mesh must pass the block validator ----------------------
+    labeller = surface_labeller(run)
+    S = cb.BlockStructure.from_arrays(P, H, bid, labeller)
+    v = cb.HexBlockValidator(S)
+    hard = v.hard_failures()
+    check(not hard, f"HexBlockValidator: {hard}", failures)
+    print(f"[blade_check] s1: HexBlockValidator "
+          f"{'VALID' if not hard else 'INVALID'}")
+    for line in v.diagnostics().splitlines():
+        print(f"[blade_check] s1:   {line}")
+
+    # -- the ring's base must be glued bit-exactly to the core -------------
+    n_ring = summary.get("n_ring_blocks", n_blocks)
+    ring_blocks = sorted(range(n_blocks))[-n_ring:] if n_ring else []
+    replaced = set(summary.get("replaced_blocks", []))
+    core_blocks_untouched = sorted(set(int(b) for b in np.unique(core_bid))
+                                    - replaced)
+    print(f"[blade_check] s1: ring blocks {ring_blocks}, "
+          f"untouched core blocks {core_blocks_untouched}")
+
+    # the ring's base vertices are the core's interface vertices; they must
+    # appear in the ring with exactly the same coordinates
+    ring_cells = [c for c in range(len(H)) if int(bid[c]) in set(ring_blocks)]
+    n_core_pts = len(core_P)
+    # the ring's layer-0 cells are the ones whose whole base face is made of
+    # core points (the ring stacks its layers along the wall normal, so only
+    # the first layer of each quad touches the core)
+    base_cells = [c for c in ring_cells
+                  if all(int(v) < n_core_pts for v in H[c][:4])]
+    base_pts = set()
+    for c in base_cells:
+        base_pts.update(int(v) for v in H[c][:4])
+    print(f"[blade_check] s1: ring base face: {len(base_cells)} cells over "
+          f"{len(base_pts)} core vertices")
+
+    # the interface quads the ring is built on (recorded by the builder)
+    iface_quads = summary.get("interface_quads") or []
+    on_iface = set(int(v) for q in iface_quads for v in q)
+    check(len(base_pts) == len(on_iface) and base_pts == on_iface,
+          f"the ring's base covers {len(base_pts)} of the "
+          f"{len(on_iface)} interface vertices", failures)
+
+    # the vertices the ring and the untouched core blocks have in common: the
+    # ring replaces blocks {replaced}, so the ring's base is glued to the
+    # interface face that those blocks carried.  Every one of those vertices
+    # must be the very same point in the core and in the ring.
+    ring_shared = sorted(base_pts)
+    print(f"[blade_check] s1: {len(ring_shared)} interface vertices shared "
+          f"between the ring and the core blocks it is glued to")
+
+    # the ring must carry the same coordinates for those vertices
+    ring_pos = {}
+    for c in ring_cells:
+        for v in H[c]:
+            ring_pos[int(v)] = P[int(v)]
+    unfused = 0
+    missing = 0
+    for v in ring_shared:
+        if v not in ring_pos:
+            missing += 1
+        elif not np.array_equal(ring_pos[v], core_P[v]):
+            unfused += 1
+    check(missing == 0, f"{missing} interface vertices missing from the ring",
+          failures)
+    check(unfused == 0,
+          f"{unfused} interface vertices not shared bit-exactly", failures)
+    print(f"[blade_check] s1: interface vertices shared bit-exactly: "
+          f"{len(ring_shared) - unfused - missing}/{len(ring_shared)} "
+          f"(unfused {unfused}, missing {missing})")
+
+    # every interface vertex of the replaced blocks must be on the ring's base
+    not_covered = on_iface - base_pts
+    check(not not_covered,
+          f"{len(not_covered)} interface vertices are not on the ring's base",
+          failures)
+    print(f"[blade_check] s1: interface vertices covered by the ring's base: "
+          f"{len(on_iface) - len(not_covered)}/{len(on_iface)}")
+
+    # -- the untouched core blocks keep their cells ------------------------
+    core_counts = Counter(core_bid.tolist())
+    kept = []
+    for r in core_blocks_untouched:
+        n_core = core_counts.get(r, 0)
+        n_ring_blk = counts.get(r, 0)
+        kept.append((r, n_core, n_ring_blk))
+        check(n_ring_blk == n_core,
+              f"untouched block {r} has {n_ring_blk} cells, "
+              f"the core had {n_core}", failures)
+    print(f"[blade_check] s1: untouched core blocks keep their cell counts: "
+          f"{[(r, n) for r, n, _k in kept]}")
+
+    # -- summary ------------------------------------------------------------
+    print(f"[blade_check] s1: {len(failures)} failed checks")
+    for f in failures:
+        print(f"[blade_check] s1:   ! {f}")
+    return 1 if failures else 0
+
+
+# ---------------------------------------------------------------------------
+# driver
+# ---------------------------------------------------------------------------
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("stage", choices=["s1", "s2", "s3"])
+    ap.add_argument("--run", default=str(DEFAULT_RUN),
+                    help="run directory (default: %(default)s)")
+    args = ap.parse_args(argv)
+    run = Path(args.run)
+    if args.stage == "s1":
+        return stage_s1(run)
+    if args.stage == "s2":
+        print("[blade_check] s2: not implemented yet (the O-grid's own "
+              "blocks are not merged into the ring)")
+        return 0
+    print("[blade_check] s3: not implemented yet (no TFI on the ring)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

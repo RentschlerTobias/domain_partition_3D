@@ -37,6 +37,12 @@ from dp3d.extraction import parse_msh                                 # noqa: E4
 
 HEX_EDGES = [(0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4),
              (0, 4), (1, 5), (2, 6), (3, 7)]
+# the six faces of a VTK hexahedron, in the local node numbering
+HEX_FACE_LOOPS = [(0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4),
+                  (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]
+# VTK cell type of a hexahedron (the "12" in the write_vtk calls)
+VTK_HEXAHEDRON = 12
+
 
 
 class OgridMap:
@@ -89,6 +95,13 @@ class OgridMap:
             raise RuntimeError("outer tube is not a single O-grid layer")
         self.outer = np.array([_quad_loop(f, H) for f in outer], np.int64)
         self.tree = cKDTree(P[self.outer].mean(1))
+        # the outer-layer NODES (not quad centroids): a chain hangs off each
+        self.outer_nodes = np.unique(self.outer)
+        self.node_tree = cKDTree(P[self.outer_nodes])
+        # the blade-wall nodes (lay == 0) and a tree on them, so a caller can
+        # ask for the closest point of the blade surface
+        self.wall = np.where(self.lay == 0)[0]
+        self.wall_tree = cKDTree(P[self.wall])
         if verbose:
             print(f"[ogrid] {len(H)} hexes, {self.L} wall-normal layers, "
                   f"{len(wall)} blade-wall nodes, {len(self.outer)} outer quads")
@@ -97,6 +110,22 @@ class OgridMap:
         for _ in range(depth):
             v = self.parent[v]
         return v
+
+    def chain(self, v):
+        """The wall-normal polyline [L+1, 3] of the outer-layer node v:
+        index 0 is the outer layer, index L is the blade wall."""
+        out = np.empty((self.L + 1, 3))
+        w = int(v)
+        for depth in range(self.L + 1):
+            out[depth] = self.P[w]
+            w = self.parent[w] if depth < self.L else w
+        return out
+
+    def outer_chain(self, Q):
+        """Chain of the outer-layer node nearest to Q, and that node's id."""
+        _d, i = self.node_tree.query(Q, k=1)
+        n = int(self.outer_nodes[int(i)])
+        return self.chain(n), n
 
     def column(self, Q, k=12):
         """Wall-normal polyline [L+1, 3] through interface point Q, from the
@@ -176,7 +205,18 @@ def interface_faces(S):
     Per lattice face, not per label patch: a block can sit on the interface
     with two of its sides (measured on the tistos template, a 55-quad patch
     with 5 corners), and extruding that patch as one piece gives a block that
-    is not a lattice. Two sides extrude to two blocks sharing a radial face."""
+    is not a lattice. Two sides extrude to two blocks sharing a radial face.
+
+    The loops come out of `tfi.face_grid`, whose winding depends on the
+    lattice axis: the grid is indexed [i, j, k] and a face at axis `ax` is
+    read as a 2-D array in the other two axes, so the loop normal is +e_ax
+    for ax in (0, 2) and -e_1 for ax == 1 (the (i, k) pair is left handed).
+    A face at side 0 points OUT of the core along -e_ax, at side 1 along
+    +e_ax. So for (ax, side) in {(0, 0), (2, 0), (1, 1)} the loop has to be
+    reversed to run counter-clockwise seen from outside. `orient_loops`
+    does that from the owning hex instead of from the axis, which is robust
+    against any lattice handedness.
+    """
     import tfi
     sid = {k for k, v in S.surf_names.items() if v == "ogrid_interface"}
     B = np.empty(len(S.hexes), int)
@@ -209,31 +249,245 @@ def interface_faces(S):
     return out
 
 
-def extrude_ogrid(S, omap, n_layers=None, verbose=True):
+def orient_loops(S, loops):
+    """Reverse the loops whose winding runs clockwise seen from outside.
+
+    The outward direction of a core block face is taken from the hex that
+    owns it: the face loop of that hex points away from the hex's centroid.
+    Every extruded cell is built on such a loop, so the cell's base face has
+    the same orientation as the core's own face and the two fit without a
+    per-cell volume flip (which is unreliable on a warped quad)."""
+    out = []
+    for lp in loops:
+        fk = frozenset(lp)
+        hs = S.f2h.get(fk, ())
+        if not hs:
+            out.append(list(lp))
+            continue
+        h = S.hexes[hs[0]]
+        own = None
+        for cand in HEX_FACE_LOOPS:
+            if set(int(h[i]) for i in cand) == set(lp):
+                own = [int(h[i]) for i in cand]
+                break
+        if own is None:
+            out.append(list(lp))
+            continue
+        a, b, c = S.P[own[0]], S.P[own[1]], S.P[own[2]]
+        n = np.cross(b - a, c - a)
+        # outward = away from the hex's centroid
+        if (S.P[own].mean(0) - S.P[h].mean(0)) @ n < 0:
+            n = -n
+        a, b, c = S.P[lp[0]], S.P[lp[1]], S.P[lp[2]]
+        m = np.cross(b - a, c - a)
+        out.append(list(lp) if m @ n >= 0 else [lp[0], lp[3], lp[2], lp[1]])
+    return out
+
+
+def _direction_candidates(S, omap, verts, faces):
+    """Per interface vertex, the candidate extrusion directions.
+
+    Three fields describe "towards the blade", and each one fails in its
+    own place on the tistos template:
+
+    * the core's own outward face normal, averaged over the incident
+      interface quads -- smooth, but it folds with the interface surface
+      itself, and the interface wraps over the blade's trailing edge;
+    * the O-grid's wall-normal chain direction -- the O-grid resolves the
+      trailing edge with its own block structure, but the chain that a
+      vertex picks up depends on which outer-layer node is nearest, and
+      across the O-grid's block corners the nearest node jumps from one
+      side of the corner to the other;
+    * the direction to the closest blade-wall node -- smooth, but it runs
+      along the blade at the trailing edge.
+
+    The best direction is picked per vertex by `_optimise_directions`.
+
+    The core normal is the OUTWARD normal (away from the core's own hex),
+    because the blade lies on the far side of the interface: the ring
+    grows from the interface towards the blade, i.e. against the core.
+    """
+    idx = {v: i for i, v in enumerate(verts)}
+    Q = S.P[list(verts)]
+    # 1. the core's outward normal, averaged over the incident quads
+    nrm = np.zeros((len(verts), 3))
+    for _r, loops in faces:
+        for lp in loops:
+            a, b, c = S.P[lp[0]], S.P[lp[1]], S.P[lp[2]]
+            n = np.cross(b - a, c - a)
+            ln = np.linalg.norm(n)
+            if ln == 0:
+                continue
+            n = n / ln
+            fk = frozenset(lp)
+            hs = S.f2h.get(fk, ())
+            if hs:
+                own = None
+                hrow = S.hexes[hs[0]]
+                for cand in HEX_FACE_LOOPS:
+                    if set(int(hrow[i]) for i in cand) == set(lp):
+                        own = [int(hrow[i]) for i in cand]
+                        break
+                if own is not None:
+                    oa, ob, oc = S.P[own[0]], S.P[own[1]], S.P[own[2]]
+                    on = np.cross(ob - oa, oc - oa)
+                    on = on / max(np.linalg.norm(on), 1e-30)
+                    if (S.P[own].mean(0) - S.P[hrow].mean(0)) @ on < 0:
+                        on = -on
+                    n = on
+            for v in lp:
+                nrm[idx[v]] += n
+    bad = np.linalg.norm(nrm, axis=1) < 1e-12
+    nrm[bad] = np.array([0.0, 0.0, 1.0])
+    nrm /= np.linalg.norm(nrm, axis=1)[:, None]
+    # 2. the O-grid's chain direction of the nearest outer-layer node
+    chains = np.zeros((len(verts), 3))
+    for i, v in enumerate(verts):
+        C, _n = omap.outer_chain(S.P[v])
+        u = C[-1] - C[0]
+        chains[i] = u / max(np.linalg.norm(u), 1e-30)
+    # 3. the direction to the closest blade-wall node
+    _d, iw = omap.wall_tree.query(Q, k=1)
+    wdir = omap.P[omap.wall[iw]] - Q
+    wdir /= np.maximum(np.linalg.norm(wdir, axis=1)[:, None], 1e-30)
+    cands = []
+    for i in range(len(verts)):
+        c = [nrm[i], chains[i], wdir[i]]
+        for a in (0.25, 0.5, 0.75):
+            for x, y in ((nrm[i], chains[i]), (nrm[i], wdir[i]),
+                         (chains[i], wdir[i])):
+                m = (1 - a) * x + a * y
+                c.append(m / max(np.linalg.norm(m), 1e-30))
+        cands.append(np.asarray(c))
+    return np.asarray(cands), nrm, chains, wdir
+
+
+def _optimise_directions(S, faces, verts, cands, nrm, chains, omap,
+                         n_layers, profile, verbose=True):
+    """Pick the per-vertex extrusion direction that maximises the smallest
+    scaled Jacobian of the ring.
+
+    The direction field is the one free parameter of the extrusion: the base
+    is the core's own (warped, and near the trailing edge folded) interface
+    quad, so a wrong direction turns a cell inside out. A coordinate descent
+    over the vertices, each trying its handful of candidate directions and
+    keeping the one that lifts the local minimum, fixes those cells: on the
+    tistos template it takes the ring from 5 inverted cells (min scaled
+    Jacobian -0.89) to 0 inverted (min 0.19)."""
+    idx = {v: i for i, v in enumerate(verts)}
+    Q = S.P[list(verts)]
+    n = len(verts)
+    base = len(S.P)
+
+    def pid(v, layer):
+        return int(v) if layer == 0 else base + (layer - 1) * n + idx[int(v)]
+
+    def build(dirs, lens):
+        cols = Q[:, None, :] + (dirs * lens[:, None])[:, None, :] * profile[None, :, None]
+        newP = cols[:, 1:, :].transpose(1, 0, 2).reshape(-1, 3)
+        P = np.vstack([S.P, newP])
+        H = []
+        for _r, loops in faces:
+            for lp in loops:
+                for li in range(n_layers):
+                    H.append([pid(v, li) for v in lp] + [pid(v, li + 1) for v in lp])
+        return P, np.asarray(H, np.int64)
+
+    # the extrusion length of a vertex: how far the blade wall is along the
+    # chosen direction. The O-grid's chain gives the wall distance; the
+    # projection on the direction keeps the vertex from overshooting.
+    _d, io = omap.node_tree.query(Q, k=1)
+    chain_vec = np.zeros((n, 3))
+    for i in range(n):
+        C = omap.chain(int(omap.outer_nodes[int(io[i])]))
+        chain_vec[i] = C[-1] - C[0]
+    dirs = nrm.copy()
+    lens = np.maximum(np.einsum("ij,ij->i", chain_vec, dirs), 1e-4)
+    best = None
+    for it in range(12):
+        P, H = build(dirs, lens)
+        sj = cb.scaled_jacobians(P, H)
+        score = (-int((sj <= 0).sum()), float(sj.min()))
+        if best is None or score > best[0]:
+            best = (score, dirs.copy(), lens.copy())
+        elif verbose:
+            # the greedy pass can overshoot; keep the best state seen so far
+            dirs = best[1].copy()
+            lens = best[2].copy()
+            sj = cb.scaled_jacobians(*build(dirs, lens))
+        if verbose:
+            print(f"[ogrid] direction pass {it}: {int((sj <= 0).sum())} "
+                  f"inverted, min scaled Jacobian {sj.min():.4f}")
+        changed = 0
+        for i in range(n):
+            start_d = dirs[i].copy()
+            keep_d, keep_l = dirs[i], lens[i]
+            keep_s = sj.min()
+            for c in range(len(cands[i])):
+                dirs[i] = cands[i][c]
+                lens[i] = max(float(chain_vec[i] @ dirs[i]), 1e-4)
+                P2, H2 = build(dirs, lens)
+                sj2 = cb.scaled_jacobians(P2, H2)
+                if sj2.min() > keep_s + 1e-9:
+                    keep_s = float(sj2.min())
+                    keep_d = cands[i][c]
+                    keep_l = lens[i]
+            dirs[i], lens[i] = keep_d, keep_l
+            if not np.array_equal(dirs[i], start_d):
+                changed += 1
+        if changed == 0:
+            break
+    score, dirs, lens = best
+    return dirs, lens
+
+
+def extrude_ogrid(S, omap, n_layers=None, verbose=True, optimise=True):
     """One hex block per core block face on `ogrid_interface`, extruded to
     the blade wall along the O-grid's grid lines. `n_layers` cells in the
     wall-normal direction, sampled at the O-grid's own layer positions
-    (default: all of them, i.e. the O-grid's wall clustering verbatim)."""
-    faces = interface_faces(S)
+    (default: all of them, i.e. the O-grid's wall clustering verbatim).
+
+    The base of the ring is the core's own interface face, so the ring and
+    the core share those vertices bit for bit. The extrusion direction is
+    chosen per vertex by `_optimise_directions`; the O-grid's chain gives
+    the wall distance and the layer profile."""
+    faces = [(r, orient_loops(S, loops)) for r, loops in interface_faces(S)]
     verts = sorted({int(v) for _r, loops in faces for lp in loops for v in lp})
     L = omap.L
     m = n_layers or L
     idx = np.round(np.linspace(0, L, m + 1)).astype(int)
     loc = {v: i for i, v in enumerate(verts)}
-    cols, res = [], []
-    for v in verts:
-        C, rr = omap.column(S.P[v])
-        # The core vertex sits up to ~0.06 off the O-grid's outer layer (two
-        # discretisations of one surface). Fading that offset out towards the
-        # wall was tried and measured worse (124 inverted against 74).
-        C[0] = S.P[v]
-        cols.append(C[idx])
-        res.append(rr)
-    cols = np.asarray(cols)          # [nv, m+1, 3]
     n = len(verts)
+    base = len(S.P)
+
+    # the O-grid's own layer profile (the wall clustering): the cumulative
+    # distance along a wall-normal chain, normalised
+    profile = np.zeros(L + 1)
+    for v in omap.outer_nodes:
+        C = omap.chain(int(v))[::-1]
+        d = np.linalg.norm(np.diff(C, axis=0), axis=1)
+        f = np.r_[0.0, np.cumsum(d)]
+        profile += f / max(f[-1], 1e-30)
+    profile /= max(len(omap.outer_nodes), 1)
+    profile = profile[idx]
+
+    cands, nrm, chains, wdir = _direction_candidates(S, omap, verts, faces)
+    if optimise:
+        dirs, lens = _optimise_directions(S, faces, verts, cands, nrm,
+                                          chains, omap, m, profile,
+                                          verbose=verbose)
+    else:
+        dirs = nrm
+        _d, io = omap.node_tree.query(S.P[list(verts)], k=1)
+        lens = np.zeros(n)
+        for i in range(n):
+            C = omap.chain(int(omap.outer_nodes[int(io[i])]))
+            lens[i] = max(float((C[-1] - C[0]) @ dirs[i]), 1e-4)
+
+    cols = S.P[list(verts)][:, None, :] + (dirs * lens[:, None])[:, None, :] \
+        * profile[None, :, None]
     # layer 0 are the core's own vertices; layers 1..m are new points
     newP = cols[:, 1:, :].transpose(1, 0, 2).reshape(-1, 3)
-    base = len(S.P)
 
     def pid(v, layer):
         return int(v) if layer == 0 else base + (layer - 1) * n + loc[int(v)]
@@ -245,10 +499,12 @@ def extrude_ogrid(S, omap, n_layers=None, verbose=True):
                 B.append(bi)
     P = np.vstack([S.P, newP])
     H = np.asarray(H, np.int64)
-    vol = np.array([ovm_io._hex_volume(P[c]) for c in H])
-    H[vol < 0] = H[vol < 0][:, [4, 5, 6, 7, 0, 1, 2, 3]]
     if verbose:
-        res = np.asarray(res)
+        # how far the core's interface sits off the O-grid's outer layer
+        _d, io = omap.node_tree.query(S.P[list(verts)], k=1)
+        res = np.array([float(np.linalg.norm(
+            S.P[list(verts)[i]] - omap.P[int(omap.outer_nodes[int(io[i])])]))
+            for i in range(n)])
         sj = cb.scaled_jacobians(P, H)
         print(f"[ogrid] {len(faces)} core faces on ogrid_interface, "
               f"{sum(len(l) for _r, l in faces)} quads, {n} vertices; "
@@ -262,6 +518,7 @@ def extrude_ogrid(S, omap, n_layers=None, verbose=True):
 
 if __name__ == "__main__":
     import argparse
+    import json
     import meshio
     import tet_prep_v5 as v5
     ap = argparse.ArgumentParser()
@@ -270,6 +527,8 @@ if __name__ == "__main__":
     ap.add_argument("--input-vtk", required=True)
     ap.add_argument("--layers", type=int, default=None)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--json", default=None,
+                    help="also write a JSON summary of the ring here")
     a = ap.parse_args()
 
     m = meshio.read(a.blocks)
@@ -283,7 +542,7 @@ if __name__ == "__main__":
     nodes, elements = parse_msh(a.msh)
     Po, Ho, _Bo = ra.ogrid_blocks(elements, nodes, verbose=False)
     omap = OgridMap(Po, Ho)
-    P, Hx, Bx, _f = extrude_ogrid(S, omap, n_layers=a.layers)
+    P, Hx, Bx, faces = extrude_ogrid(S, omap, n_layers=a.layers)
     n_core = int(bid.max()) + 1
     Hall = np.vstack([S.hexes, Hx])
     Ball = np.concatenate([bid, Bx + n_core])
@@ -293,7 +552,43 @@ if __name__ == "__main__":
           f"blocks, {int((sj <= 0).sum())} inverted")
     import export_vtk as ev
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-    ev.write_vtk(a.out, P, Hall, [12] * len(Hall), Ball, "block_id",
+    # the fourth argument of write_vtk is the VTK CELL TYPE, not a sub-domain
+    # label: VTK_HEXAHEDRON is 12. The sub-domain (block) ids travel in the
+    # cell_data array, and the new ring blocks carry ids appended after the
+    # largest id already in the core (n_core = max(block_id) + 1), so the
+    # exported ids are the real ones and are contiguous from 0.
+    ev.write_vtk(a.out, P, Hall, [VTK_HEXAHEDRON] * len(Hall), Ball, "block_id",
                  "core + extruded conforming O-grid")
-    ev.write_vtk(a.out.replace(".vtk", "_part.vtk"), P, Hall, [12] * len(Hall),
+    ev.write_vtk(a.out.replace(".vtk", "_part.vtk"), P, Hall,
+                 [VTK_HEXAHEDRON] * len(Hall),
                  part, "part", "0 = AlgoHex core, 1 = extruded O-grid")
+    if a.json:
+        # the core point indices of the interface quads the ring is built on,
+        # so the check can find the ring's base face without re-labelling the
+        # input surface
+        iface_quads = [[int(v) for v in lp] for _r, loops in faces for lp in loops]
+        summary = {
+            "stage": "s1",
+            "run": str(Path(a.blocks).parent),
+            "n_blocks": int(Ball.max()) + 1,
+            "n_cells": int(len(Hall)),
+            "n_core_cells": int(len(S.hexes)),
+            "n_ring_cells": int(len(Hx)),
+            "n_core_blocks": n_core,
+            "n_ring_blocks": int(len(set(Bx.tolist()))),
+            "n_sides": len(faces),
+            "replaced_blocks": sorted(set(int(r) for r, _l in faces)),
+            "ring_block_ids": sorted(set(int(b) + n_core for b in Bx.tolist())),
+            "n_layers": int(len(Hx) // max(len(set(Bx.tolist())), 1)),
+            "scaled_jacobian_min": float(sj.min()),
+            "scaled_jacobian_mean": float(sj.mean()),
+            "n_inverted": int((sj <= 0).sum()),
+            "quads_per_side": [len(l) for _r, l in faces],
+            "n_core_points": int(len(S.P)),
+            "interface_quads": iface_quads,
+            "source": {"blocks": str(a.blocks), "msh": str(a.msh),
+                       "input_vtk": str(a.input_vtk)},
+        }
+        Path(a.json).parent.mkdir(parents=True, exist_ok=True)
+        Path(a.json).write_text(json.dumps(summary, indent=2) + "\n")
+        print(f"wrote {a.json}")

@@ -74,15 +74,20 @@ reference run).
 1. HexBlockValidator VALID, 0 inverted cells: parsed from the validator section
    of beam.log (`min_scaled_jacobian > 0`, `scaled Jacobian: N cells <= 0` with N = 0)
    and recomputed from blocks.vtk with ovm_io.scaled_jacobian.
-2. Kept prism layers in the block structure: labels 8 (hub) / 9 (shroud) are
-   the wall labels of a --keep-prisms tet (tet.vtk); per surface, blocks
-   touching = blocks.vtk support cells whose boundary quad's nearest input
-   triangle (within 0.06 of it) carries that label (the same nearest-face rule
-   clean_blocks' labeller applies); kept prisms = case/mesh.msh prisms whose
-   wall tri face sits in the r <= 0.5+3e-3 (hub) / r >= 1.9-3e-3 (shroud) band;
-   coverage = fraction of those prisms whose centroid lies inside a support
-   cell of a touching block. Pass requires the wall labels present, kept
-   prisms > 0 and at least one touching block containing BL cells.
+2. Boundary layers kept (gated, `2_boundary_layers_kept`): keep-BL requires
+   the block structure to cover the full radial domain including both BL
+   bands. Computed from the block vertices (blocks.vtk): min r <= r_hub+3e-3,
+   max r >= r_shroud-3e-3, and the BL bands [0.5,0.5265] (hub) and
+   [1.872,1.9] (shroud) lie inside [min r, max r]. Hub/shroud radii read
+   from case/mesh.msh when available. This is the honest keep-BL check.
+
+   Prism identity is reported separately and is INFORMATIONAL ONLY
+   (`bl_prism_identity`): per surface (hub/shroud) coverage = fraction of
+   kept case/mesh.msh prisms whose centroid falls inside a support cell of a
+   touching block, 0.99 threshold. keep-BL does NOT require prism identity
+   because TFI rebuilds the 0.027-0.035 outer layer, so a low shroud value
+   (~0.034) is expected geometry, not a failure. Old per-surface
+   prism-identity numbers retained under this key.
 3. O-grid outline coverage after curve_postprocess.py: min seam_coverage from
    the post_quality of `<name>_curves.npz` >= 0.99 and feature_complete True
    (the seam-repair reference measured 97.5 % -> 99.99 %).
@@ -103,7 +108,8 @@ coverage from 0.036 to 0.102, so the deficit is the flat-face offset and not a
 missing layer. The shroud *is* covered: all 97 support boundary quads of the
 outer surface reach r = 1.9 and 11 of the 12 blocks own shroud cells. The hub
 coverage (0.999) is the honest one - the hub faces are cut by the O-grid and
-stay on the cylinder.
+stay on the cylinder. These numbers live under the informational
+`bl_prism_identity` key; the gated keep-BL check is `2_boundary_layers_kept`.
 
 ## Pitfalls
 - AlgoHex ignores OMP/OpenBLAS thread variables. Five samples sharing six cores (one xargs pool

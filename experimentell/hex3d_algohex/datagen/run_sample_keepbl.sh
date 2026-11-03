@@ -28,6 +28,14 @@ st algohex $TO_ALGOHEX $PY run_algohex.py --backend native --prefix hex --tag x 
     --out-dir "$R" -- -n $N
 st beam $TO_BEAM $PY beam_collapse.py "$R/hex_hex_x.ovm" --input-vtk "$R/tet.vtk" --out "$R/blocks.vtk" \
     --width $BWID --depth $BDEP --guard struct --hausdorff-tol $HTOL --workers $BW
+# Blade S4: build O-grid ring on 12-block core + pinned TFI (R1: blade BEFORE TFI, R3: no projection)
+mkdir -p "$R/blade"
+st ogrid $TO_TFI $PY ogrid_extrude.py "$R/blocks.vtk" \
+    --msh "$R/case/mesh.msh" --input-vtk "$R/tet.vtk" \
+    --out "$R/blade/blocks_blade.vtk" --json "$R/blade/blade_s1.json"
+st tfi_blade $TO_TFI $PY tfi.py "$R/blade/blocks_blade.vtk" \
+    --input-vtk "$R/tet.vtk" --target-h 0.05 --pin-class 10=10 \
+    --solve-divisions --apply-divisions --out "$R/blade/tfi_blade.vtk"
 st tfi $TO_TFI $PY tfi.py "$R/blocks.vtk" --input-vtk "$R/tet.vtk" --target-h 0.05 --require-lattices \
     --solve-divisions --apply-divisions --out "$R/tfi.vtk"
 st export $TO_EXPORT $PY export_sample.py "$R/blocks.vtk" --tet "$R/tet.vtk" --target-h 0.05 --n $N \

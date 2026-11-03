@@ -360,3 +360,24 @@ cd experimentell/hex3d_algohex/datagen
 `run_sample_keepbl.sh <run_dir>` skips a run that already has `sample.npz`, so on a re-run
 delete that file first. `run_lane.sh` (the multi-lane driver) takes `DATAGEN_WORK` and a core
 list and still has **no `RUN_SAMPLE` hook** — that is T6/T59.
+
+---
+
+## 8. Blade ring lane
+
+The keep-BL lane now includes **Blade S4**: the O-grid ring build and pinned TFI stages,
+wired into `datagen/run_sample_keepbl.sh` between the `beam` stage (12-block core) and the
+baseline `tfi` stage.
+
+**Flow:** beam → ogrid_extrude (ring build) → tfi_blade (pinned, class 10=10) → baseline tfi → export → curves
+
+**Blade S4 stages:**
+- `ogrid_extrude.py blocks.vtk --msh case/mesh.msh --input-vtk tet.vtk --out blade/blocks_blade.vtk --json blade/blade_s1.json`
+  Builds the blade O-grid ring on the 12-block core, producing 16 blocks (4 ring blocks replacing core blocks 4-7).
+- `tfi.py blade/blocks_blade.vtk --input-vtk tet.vtk --target-h 0.05 --pin-class 10=10 --solve-divisions --apply-divisions --out blade/tfi_blade.vtk`
+  TFI on the blade ring with wall-normal class 10 pinned to 10 layers (blade wall-normal), no projection (R3).
+
+The baseline `tfi` stage (on `blocks.vtk`, the 12-block core without blade) remains as a reference.
+The blade ring output lands in `$R/blade/` as parallel artifacts for validation and acceptance (T58 S3, T69 S2b merge).
+
+**Status:** Blade S4 wired into the lane (2026-11-03). The ring is still inverted (T69 blocked on a valid ring with 0 inverted cells after TFI). S3 (T58: labels, sample.npz, curves) and S2b merge (T69: 16→12 + TFI) are in progress by parallel tasks.

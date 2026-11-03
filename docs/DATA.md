@@ -36,6 +36,8 @@ A finished run contains `params.json`, `case/mesh.msh` (exact dtOO geometry),
 ring, the TFI, the audits and the visualisations produced on 2026-11-02/03. Created
 after the archive was packed, so it must be copied separately (it is small).
 
+Persistent copy: `/opt/stack/datasets/keepbl/tistos_s1_0131/` (387 MB, 2026-11-03).
+
 ## 3. Other data sets
 
 | Set | Location | Size | Notes |
@@ -43,6 +45,16 @@ after the archive was packed, so it must be copied separately (it is small).
 | `blade_blocking_20261021` | `/opt/stack/datasets/blade_blocking_20261021/` | 30 MB | blade-blocking deliverable (`keep_bl/`, `blocking_0131_gap_opt/`) |
 | `meshtron_flow_20261012` | `/opt/stack/datasets/meshtron_flow_20261012/` | 3.7 GB | transport archive of the flow-matching work; already extracted into `meshtron/data` + `meshtron/experiments/flow_topology` |
 | `courier_datagen_2026-10-06` | `/opt/stack/archive/courier_datagen_2026-10-06/` | 1.3 GB | aborted 400-geometry job, 11 finished samples (all included in the corpus above) |
+
+## 3b. Case archives (inputs, runs, results)
+
+Copied from the sandbox on 2026-11-03; each folder has its own `README.md` with the
+layout and a "what is input / what is derived" section.
+
+| Folder | Size | Contents |
+|---|---|---|
+| `/opt/stack/cases/canada/` | 24 GB | canada case `E1_12685`: `cad/` and `case/` (inputs), `dt/` variants, `pilot/` and `sweep/` runs with `metrics_*.json`, `envelope/` experiments, `vtk/` renders |
+| `/opt/stack/cases/calib/` | 7.5 GB | calibration: `report_hexme.json`, `report_charite*.json`, `hexme/meshes/` (190 VTK meshes), `sweep/`, `hexme_sweep/`, `smoke/`, `collapse_probe/` |
 
 ## 4. Working copies (ephemeral, container-local /work)
 
@@ -54,8 +66,9 @@ after the archive was packed, so it must be copied separately (it is small).
 | `/work/calib/` | 7.5 GB | calibration sweep, `calib_sweep.py` |
 | `/work/tools/` | 738 MB | mmg + algohex-size builds |
 
-`/work` is **container-local and disappears with the container**. Only section 1-3 are
-persistent; section 2 is the one item that exists nowhere else yet.
+`/work` is **container-local and disappears with the container**. Everything in sections
+1-3b has a persistent copy under `/opt/stack`; the `/work` entries are just the working
+copies. The only exception is `/work/tools/` (tool builds, not data).
 
 ## 5. Visualisations
 

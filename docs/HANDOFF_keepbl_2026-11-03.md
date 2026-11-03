@@ -5,7 +5,7 @@ from the files named in §5 on 2026-11-03, not copied from a chat. Where a numbe
 commit message rather than a file, that is said.
 
 Job `job-20261030-133532-3225`, integration branch **`jev/job-20261030-133532-3225`**
-(`7c4a7b1`, = HEAD of every task worktree). Longer, older history:
+(`d333fc9` at the time of writing). Longer, older history:
 `experimentell/hex3d_algohex/HANDOFF.md` and `.../STATE_2026-11-02.md`.
 
 ---
@@ -37,10 +37,13 @@ Blade wall-normal class = **class 10**, 4 axes (one per ring block), pinned to *
 
 ## 2. State
 
-`git log --oneline -15` on `jev/job-20261030-133532-3225` (verified):
+Commits on `jev/job-20261030-133532-3225`, newest first (the tip was `d333fc9` at the
+time of writing — check `git log` for anything newer):
 
 | commit | task | what it fixed / produced |
 |---|---|---|
+| `6994ca5` | T88 | The handoff doc for a context-free session — this file |
+| `47dd28d` | T90 | Decision record: keep 12 blocks and fix the misleading p1 check → `docs/decisions/2026-11-03-keep12-fix-p1-check.md` |
 | `7c4a7b1` | T85 | Flip O-grid grading + rebuild ring + TFI. Inverted wall-normal grading in all three extrusion variants in `ogrid_extrude.py` (profile anchored at the blade wall). Rebuilt ring → `blocks_blade_graded.vtk` (16 blocks, 0 cells with signed volume ≤ 0, 105/105 shared interface vertices). Ran the pinned TFI → `tfi_blade_graded.vtk` + `blade_s2c_graded.json`. **Not promoted**, canonical files untouched |
 | `528cc6e` | T83 | Curved block edges/faces before TFI: `--curved-edges {off,coons}` in `tfi.py`, boundary-face detection by surface labels (1,2,3,4,7,8,9), Coons-patch integration. Wrote `curved_edges_check.json` |
 | `0312cf0` | T84 | Diagnose the TFI ring grading. Added `grading_check.py` + `blade/grading_check.json`. `tfi.py` untouched — it reproduces the input lattice and cannot repair an inverted input |
@@ -106,7 +109,7 @@ the cells). T85 therefore did not promote anything.
 ### 3.2 Curve merge — NO-GO
 
 `/work/canada/sweep/pair_probe3/curve_analysis.json` (canada n=100000,
-`/work/canada/sweep/n100000/hex_n100000.ovm`): 15 open singular curves (lengths 14.56 … 0.42,
+`/work/canada/sweep/n100000/hex_n100000.ovm`): 15 open singular curves (lengths 15.2177 … 0.42,
 edge counts 111 … 3), 14 parallel curve pairs within tolerance. Of the **373** pair candidates,
 **0** share a curve (`pairs_belonging_to_same_two_curves = 0`) — no two singular pairs can be
 merged by collapsing one shared curve.
@@ -176,20 +179,20 @@ max 0.066. Exports for ParaView: `/work/datagen_keepbl/inspect/p1/{blocks,tfi,ov
 | **T69** | blocked | Merge the ring 16 → 12 blocks (blocks 12–15 into the core, no r-band split, no re-blocking of untouched blocks) **and then** TFI. Blocked on a valid ring: the ring is still inverted. Do not attempt the merge on `blocks_blade.vtk`; wait for a ring with 0 inverted cells after TFI |
 | **T58** | open | Blade S3: `blade_check.py s3` currently prints *"not implemented yet (no TFI on the ring)"*. Implement it: surface labels + `sample.npz` + curves. The 12-block core already exports (`sample.npz` / `sample_16c.npz`, 40 vertices, 168 edges, `surface_points` 17938 / `surface_tris` 26728 / `surface_tri_label`) and `curve_postprocess.py` produces `sample_16c_curves.npz` (post_* arrays, 24 pairs). The ring variant needs the same from `blocks_blade_graded.vtk` |
 | **T59** | open | S4 lane wiring + HANDOFF section. `datagen/run_sample_keepbl.sh` is the keep-BL lane (dtOO → tet_prep → AlgoHex → `beam_collapse --guard struct` on `hex_hex_x_16c.ovm` → TFI → `export_sample --check` → `curve_postprocess`). It is **not** wired into `datagen/run_lane.sh` (no `RUN_SAMPLE` hook, `grep -c RUN_SAMPLE datagen/run_lane.sh` = 0). Add the hook, then add a keep-BL section to `experimentell/hex3d_algohex/HANDOFF.md` |
-| **T7** | re-scoped | Re-run the existing **1000** keep-BL designs in `/work/datagen/runs/tistos_s1_0000 … tistos_s1_0999` (each has `params.json`; `tistos_s1_0000` has only `tet.vtk` + logs, `tistos_s1_0999` only `params.json` — the old lane is partly finished). **No new Sobol samples.** `run_sample.sh` skips a dir that already has `sample.npz`, so re-running overwrites/extends only what is missing |
+| **T7** | re-scoped | Re-run the existing **1000** keep-BL designs in `/work/datagen/runs/tistos_s1_0000 … tistos_s1_0999` (each has `params.json`; `tistos_s1_0000` has `tet.vtk` + `params.json` + logs, `tistos_s1_0999` only `params.json` — the old lane is partly finished). **No new Sobol samples.** `run_sample.sh` skips a dir that already has `sample.npz`, so re-running overwrites/extends only what is missing |
 | **T6** | open | Lane harness: `datagen/run_lane.sh` / `start_lanes.sh` / `run_sample.sh`. Add the RUN_SAMPLE hook that picks `run_sample_keepbl.sh` vs `run_sample.sh` |
 | **T8** | open | Acceptance review of the whole job (A1–A89) against §1's requirements |
 | **T9** | open | Docs consolidation: fold `STATE_2026-11-02.md` and this file into `experimentell/hex3d_algohex/HANDOFF.md` |
 
-### The two viz tasks of 2026-11-03 (in flight, not merged)
+### The two viz tasks of 2026-11-03 (T87 merged, T86 in flight)
 
 | task | question | where the output lands | tool |
 |---|---|---|---|
 | **T86** | singular merge curves: single-pair + whole-curve | `/work/canada/sweep/pair_probe3/viz/merge_curves.vtp` | `experimentell/hex3d_algohex/viz_merge_curves.py` (does not exist yet; branch `micromanager/job-20261030-133532-3225--T86`) |
-| **T87** | tistos inverted cells + surface + linear/curved blocks | `/work/datagen_keepbl/runs/tistos_s1_0131/blade/viz/tistos_inverted.vtm` — `blade/viz/` now exists but is **empty** (created 2026-11-03 10:45) | `experimentell/hex3d_algohex/viz_inverted_cells.py` (does not exist yet; branch `micromanager/job-20261030-133532-3225--T87`) |
+| **T87** | tistos inverted cells + surface + linear/curved blocks | `/work/datagen_keepbl/runs/tistos_s1_0131/blade/viz/` — written 2026-11-03 10:52: `tistos_inverted.vtm` + `tistos_inverted.png` + `tistos_inverted.json` (215 sJ<0 cells, 429 below 0.3, 141 volume<=0, min sJ -0.99367 at cell 87410 block 12) | `experimentell/hex3d_algohex/viz_inverted_cells.py` (in the repo since `c38984e`; branch `micromanager/job-20261030-133532-3225--T87`) |
 
-Both sit on the same base commit `7c4a7b1`; neither has a commit yet (`git log --oneline
-<branch> --not jev/job-…` is empty). The predecessor `viz_singular.py` (T74) already writes
+T87 has landed as `c38984e`; T86 is still in flight (its `git log --oneline <branch>
+--not jev/job-…` is empty). The predecessor `viz_singular.py` (T74) already writes
 `/work/canada/sweep/pair_probe3/viz/{singular_curves_overview,top10_pairs}.png` — use it as
 the style reference. **T89** verifies the p1-vs-r-band decision.
 
@@ -208,8 +211,8 @@ the style reference. **T89** verifies the p1-vs-r-band decision.
 | `case/mesh.msh` | dtOO mesh; hub r 0.5, shroud r 1.9; prism source for the p1 identity check |
 | `blocks.vtk` | the **12-block** core (582 cells, min sJ 0.3814) — the input to the ring build |
 | `blocks.divisions.json` | core divisions |
-| `sample.npz`, `sample_16c.npz` | the exported sample (both 391508 B, **different md5** — `sample_16c.npz` is the 16-core export): `vertices` 40, `blocks` 12×8, `quad_faces` 40, `edges` 168, `edge_ctrl` 168×2×3, `edge_polyline` 812, `dir_class` 168 + `dir_class_count` 10, `params`, `quality`, `provenance`, `surface_points` 17938 / `surface_tris` 26728 / `surface_tri_label` |
-| `tfi.vtk`, `tfi_16c.vtk`, `tfi_curved_{a,c,d,e,f,g,h,i,j,k,l,m,n,p}.vtk` | TFI refills of earlier experiments; the `tfi_curved_*` set (14 files) is the T83 curved-edge sweep |
+| `sample.npz`, `sample_16c.npz` | the exported sample (576539 B and 576542 B, **different md5** — `sample_16c.npz` is the 16-core export): `vertices` 40, `blocks` 12×8, `quad_faces` 40, `edges` 168, `edge_ctrl` 168×2×3, `edge_polyline` 812, `dir_class` 168 + `dir_class_count` 10, `params`, `quality`, `provenance`, `surface_points` 17938 / `surface_tris` 26728 / `surface_tri_label` |
+| `tfi.vtk`, `tfi_16c.vtk`, `tfi_curved_{c,d,e,f,g,h,i,j,k,l,m,n,p}.vtk` | TFI refills of earlier experiments; the `tfi_curved_*` set (13 files) is the T83 curved-edge sweep |
 | `sample_16c_curves.npz` | `curve_postprocess` output: `post_*` arrays (vertices 40, edge_ctrl 168×2×3, feature_edge 168, arc_polyline 4940, vertex_role, pairs 24×4, quality) |
 | `tistos_s1_0131_curves.npz` | another curve export |
 | `beam.log`, `beam16c.log`, `beam_driver.out` | beam collapse logs |
@@ -234,7 +237,7 @@ the style reference. **T89** verifies the p1-vs-r-band decision.
 | `blocks_blade_part.vtk` | 0 = AlgoHex core, 1 = extruded O-grid |
 | `blocks_blade.divisions.json` | ring divisions |
 | `blade_s1.json`, `blade_s1_{const,smooth}.json`, `blade_s1_graded.json`, `blade_s1_graded.json.bak` | S1 ring-build reports (16 blocks, 582 core + 900 ring cells, ring ids 12–15, 4 sides, quads/side 30/30/18/12, replaced core blocks 4–7, 225 layers) |
-| `tfi_blade.vtk` | TFI of the **original** ring — the current 215-inverted reference |
+| `tfi_blade.vtk` | TFI of the **original** ring — the current 215-inverted reference. It carries **only** cell data `block_id` (no sJ, no volume), so any quality/inversion work must use `tfi_blade_audit.vtk` |
 | `tfi_blade_audit.json` | its audit: 104940 cells, 16 blocks, 215 sJ<0, 429 sJ<0.3, 141 volume≤0, min sJ −0.99367, cross-check CONFIRMED |
 | `tfi_blade_audit.vtk`, `tfi_blade_audit.png` | the same as viewable output |
 | `tfi_blade_const.vtk`, `tfi_blade_smooth.vtk` | twist variants (const 1609 inverted, smooth 805) |
@@ -242,7 +245,7 @@ the style reference. **T89** verifies the p1-vs-r-band decision.
 | `blade_s2c.json`, `blade_s2c_graded.json`, `blade_s2c_{const,smooth}.json`, `blade_variants_s2c.json`, `blade_s2.json` | S2c reports; the graded one carries the old/new grading verdicts and `promote: false` |
 | `grading_check.json` | the T84 report — **see the trap in §6**: it was produced while the graded ring was swapped in |
 | `ogrid_const.log`, `ogrid_smooth.log`, `tfi_const.log`, `tfi_smooth.log` | ring-build and TFI logs for the const/smooth variants |
-| `viz/` | **created and still empty (2026-11-03 10:45)** — this is where T87 writes `tistos_inverted.vtm` |
+| `viz/` | T87's outputs (written 2026-11-03 10:52): `tistos_inverted.vtm`, `tistos_inverted.png`, `tistos_inverted.json` (215 sJ<0, 429 sJ<0.3, 141 volume<=0, min sJ -0.99367 at cell 87410 block 12) |
 
 ### Elsewhere
 
@@ -253,7 +256,7 @@ the style reference. **T89** verifies the p1-vs-r-band decision.
 | `/work/datagen_keepbl/inspect/keepbl_features.vtk` | feature curves of the keep-BL tet input |
 | `/work/datagen/runs/tistos_s1_0000 … 0999` | the **1000 existing designs** to re-run (R9) |
 | `/work/canada/sweep/pair_probe3/` | `curve_analysis.json`, `curve_merge_test.json`, `pair_probe3.json`, `detect_top10.json`, `viz/` (T74 PNGs, T86 target) |
-| `/work/canada/sweep/struct_beam/` | the struct-guard beam report (T61/T40) |
+| `/work/canada/sweep/struct_beam/` | the struct-guard beam report (T61/T40) — the struct-guard mesh is `blocks.vtk` in that directory |
 | `/work/canada/sweep/n100000/hex_n100000.ovm` | the canada mesh the curve-merge probes ran on |
 | `/work/canada/sweep/inspect/` | canada VTK exports |
 | `/work/calib/` | hexme + Charité LV calibration |
@@ -272,6 +275,7 @@ the style reference. **T89** verifies the p1-vs-r-band decision.
 | `experimentell/hex3d_algohex/datagen/README.md` | the keep-BL lane reference incl. the five P1 checks |
 | `experimentell/hex3d_algohex/HANDOFF.md` | the long handoff (longer history) |
 | `experimentell/hex3d_algohex/STATE_2026-11-02.md` | the state digest |
+| `docs/decisions/2026-11-03-keep12-fix-p1-check.md` | the T90 decision record: keep 12 blocks, fix the misleading p1 check (prism identity informational, `2_boundary_layers_kept` is the gate) |
 
 ---
 
@@ -300,7 +304,7 @@ the style reference. **T89** verifies the p1-vs-r-band decision.
 ```bash
 # 1. Where are we?
 cd <your worktree>
-git log --oneline -15                      # tip should be 7c4a7b1 (je v/job-20261030-133532-3225)
+git log --oneline -15                      # tip was d333fc9 at the time of writing (jev/job-20261030-133532-3225)
 git status --short                          # must be empty before you start
 ls /work/datagen_keepbl/runs/tistos_s1_0131/blade/
 ```

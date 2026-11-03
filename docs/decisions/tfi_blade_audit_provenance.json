@@ -1,0 +1,90 @@
+{
+  "purpose": "Provenance of tfi_blade_audit.vtk (TFI blade audit): resolve the 225-vs-215 inverted-cell discrepancy reported by T87.",
+  "run_dir": "/work/datagen_keepbl/runs/tistos_s1_0131/blade",
+  "source_mesh": {
+    "file": "tfi_blade.vtk",
+    "path": "/work/datagen_keepbl/runs/tistos_s1_0131/blade/tfi_blade.vtk",
+    "md5": "61b259521b3167ebaa9031f80bf01038",
+    "sha256": "24698841f0c8de72e3f220599d4a861b40e40d5fa790dde83ceea03a507e03b5",
+    "bytes": 12309278,
+    "points": 112809,
+    "cells": 104940
+  },
+  "audit_mesh": {
+    "file": "tfi_blade_audit.vtk",
+    "path": "/work/datagen_keepbl/runs/tistos_s1_0131/blade/tfi_blade_audit.vtk",
+    "md5": "69ee5741d3aabe48038b24f72392b661",
+    "sha256": "baf5e4c3df35a0f841eb765b455e8e791eba49a306d59c14ac628331bee7d46a",
+    "bytes": 14041282,
+    "points": 112809,
+    "cells": 104940
+  },
+  "graded_mesh_reference": {
+    "file": "tfi_blade_graded.vtk",
+    "path": "/work/datagen_keepbl/runs/tistos_s1_0131/blade/tfi_blade_graded.vtk",
+    "md5": "f86a47b602789cde9865a4a875c8bc8f",
+    "sha256": "57b8cb68596b0a8ada38548cc380ec28101ebe683458d9a8e82130809372d5e0",
+    "bytes": 12309847,
+    "points": 112809,
+    "cells": 104940,
+    "counts": {
+      "n_sJ_lt0": 225,
+      "n_sJ_lt03": 443,
+      "n_volume_le0": 150,
+      "min_sJ": -0.9869441191815008,
+      "min_sJ_cell_id": 87419
+    }
+  },
+  "audit_mesh_identity": {
+    "points_equal_canonical_tfi_blade_vtk": true,
+    "points_equal_graded_tfi_blade_graded_vtk": false,
+    "connectivity_equal_canonical": true,
+    "connectivity_equal_graded": true,
+    "note": "Canonical and graded meshes share identical hex connectivity; only point coordinates differ (T85 regraded the O-grid)."
+  },
+  "counts_on_disk_audit_mesh": {
+    "n_sJ_lt0": 215,
+    "n_sJ_lt03": 429,
+    "n_volume_le0": 141,
+    "min_sJ": -0.9936709408917652,
+    "min_sJ_cell_id": 87410
+  },
+  "counts_recomputed_from_canonical_tfi_blade_vtk": {
+    "n_sJ_lt0": 215,
+    "n_sJ_lt03": 429,
+    "n_volume_le0": 141,
+    "min_sJ": -0.9936709408917652,
+    "min_sJ_cell_id": 87410
+  },
+  "counts_recomputed_from_graded_tfi_blade_graded_vtk": {
+    "n_sJ_lt0": 225,
+    "n_sJ_lt03": 443,
+    "n_volume_le0": 150,
+    "min_sJ": -0.9869441191815008,
+    "min_sJ_cell_id": 87419
+  },
+  "counts_recorded_in_tfi_blade_audit_json": {
+    "n_sJ_lt0": 215,
+    "n_sJ_lt03": 429,
+    "n_volume_le0": 141,
+    "min_sJ": -0.9936709408917652,
+    "min_sJ_cell_id": 87410
+  },
+  "audit_json_file_fingerprint": {
+    "path": "/work/datagen_keepbl/runs/tistos_s1_0131/blade/tfi_blade.vtk",
+    "mtime": 1793645527.533312,
+    "size": 12309278,
+    "sha256": "24698841f0c8de72e3f220599d4a861b40e40d5fa790dde83ceea03a507e03b5"
+  },
+  "audit_json_matches_disk": true,
+  "min_sJ_cell": {
+    "cell_id": 87410,
+    "block": 12,
+    "scaled_jacobian": -0.9936709408917652
+  },
+  "file_on_disk_is_canonical_audit": true,
+  "regenerated": false,
+  "backup_created": null,
+  "conclusion": "tfi_blade_audit.vtk on disk IS the canonical audit: its point coordinates equal tfi_blade.vtk and differ from tfi_blade_graded.vtk, and it recomputes to 215 inverted cells (sJ<0), 429 cells with sJ<0.3, 141 cells with volume<=0, min sJ -0.9936709 at cell 87410 - identical to tfi_blade_audit.json and to the viz number 215. 225 is the inverted-cell count of the T85 regraded mesh tfi_blade_graded.vtk, so the first 225 read came from a stale/graded artifact or a read of a file mid-rewrite, not from the canonical audit file on disk.",
+  "verdict_225_vs_215": "225 = T85 graded mesh count (tfi_blade_graded.vtk); a stale/graded artifact or mid-write read, not a corruption of the canonical audit. The canonical audit on disk gives 215."
+}

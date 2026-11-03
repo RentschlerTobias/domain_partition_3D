@@ -34,6 +34,14 @@ VTK_HEX_FACES = [(0, 3, 2, 1), (4, 5, 6, 7), (0, 4, 7, 3),
                  (1, 2, 6, 5), (0, 1, 5, 4), (2, 3, 7, 6)]
 
 
+def md5_file(path):
+    h = hashlib.md5()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def file_fingerprint(path):
     st = os.stat(path)
     h = hashlib.sha256()
@@ -44,6 +52,7 @@ def file_fingerprint(path):
         "mtime": st.st_mtime,
         "size": st.st_size,
         "sha256": h.hexdigest(),
+        "md5": md5_file(path),
     }
 
 
@@ -193,6 +202,10 @@ def main():
     # Write audit JSON
     audit = {
         "file": fp,
+        "source": vtk_path.name,
+        "source_md5": fp["md5"],
+        "source_path": str(vtk_path),
+        "audit_md5": md5_file(out_vtk),
         "mesh": {
             "n_points": n_points,
             "n_cells": n_cells,
@@ -206,6 +219,7 @@ def main():
             "n_sJ_lt0": n_sj_neg,
             "n_sJ_lt_0.3": n_sj_lt03,
             "min_sJ": min_sj,
+            "min_sJ_cell_id": int(np.argmin(sj_mins)) if len(sj_mins) else None,
             "max_sJ": max_sj,
             "convention": {
                 "volume": "divergence theorem with VTK hex face winding (6 faces, two triangles per face), /6 (tfi._hex_signed_volume / blade_check.signed_volume style)",

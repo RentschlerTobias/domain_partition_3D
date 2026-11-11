@@ -21,7 +21,7 @@ What it does
 Pass criteria (exit code 0 only if ALL hold)
 --------------------------------------------
   * zero cells with negative (or zero) volume
-  * max non-orthogonality <= 65 deg
+  * max non-orthogonality <= 70 deg (OpenFOAM checkMesh calls > 70 "severe"; decided 2026-11-11)
   * max skewness <= 4
 
 OpenFOAM is v2606 here; the environment is pulled in with
@@ -54,7 +54,7 @@ FOAM_BASHRC = os.environ.get(
 )
 CHECKMESH_ARGS = "-allTopology -allGeometry"
 
-MAX_NON_ORTHOGONALITY = 65.0      # deg
+MAX_NON_ORTHOGONALITY = 70.0      # deg, checkMesh severe limit (was 65)
 MAX_SKEWNESS = 4.0
 VOLUME_EPS = 0.0                  # cells with volume <= this count as bad
 

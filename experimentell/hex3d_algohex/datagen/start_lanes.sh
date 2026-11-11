@@ -1,6 +1,7 @@
 #!/bin/bash
 # Start one lane per core pair: start_lanes.sh  (LANES default "0,1 2,3 4,5"; log lanes.log)
 #   DATAGEN_WORK=<dir with runs/<name>/params.json> LANES="0,1 2,3 4,5" start_lanes.sh
+#   RUN_SAMPLE=run_sample_keepbl.sh selects the keep-BL lane (see run_lane.sh).
 # Stop: touch $DATAGEN_WORK/STOP (running samples finish). Resume: rm STOP and start again.
 H=$(cd "$(dirname "$(readlink -f "$0")")" && pwd); cd ${DATAGEN_WORK:?set DATAGEN_WORK}
 rm -f lane_*.done

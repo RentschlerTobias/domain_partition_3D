@@ -384,10 +384,14 @@ def boundary_layers_kept(run):
     radial domain, including both BL bands [0.5,0.5265] and [1.872,1.9].
 
     Computed from the block vertices (blocks.vtk): min r / max r.  Hub/shroud
-    radii are read from the dtOO case/mesh.msh when available, otherwise
-    derived from the labeled wall quads (hub label 8, shroud label 9).
+    radii and both BL bands are read from the dtOO case/mesh.msh when
+    available (radii = node r range, bands = radial extent of the hub/shroud
+    prism layers), otherwise the radii are derived from the labeled wall
+    quads (hub label 8, shroud label 9) and the bands fall back to the
+    tistos defaults.
     """
     r_hub, r_shroud = HUB_R, SHROUD_R
+    band_hub, band_shroud = BL_BAND_HUB, BL_BAND_SHROUD
     mesh_path = run / "case" / "mesh.msh"
     if mesh_path.exists():
         try:
@@ -396,6 +400,14 @@ def boundary_layers_kept(run):
             if len(NW):
                 r_hub = float(rr.min())
                 r_shroud = float(rr.max())
+            if prisms:
+                rp = rr[np.unique(np.asarray(prisms, int).ravel())]
+                mid = 0.5 * (r_hub + r_shroud)
+                lo, hi = rp[rp < mid], rp[rp >= mid]
+                if len(lo):
+                    band_hub = (r_hub, float(lo.max()))
+                if len(hi):
+                    band_shroud = (float(hi.min()), r_shroud)
         except Exception:
             pass
     else:
@@ -418,8 +430,8 @@ def boundary_layers_kept(run):
     tol = R_TOL
     hub_ok = min_r <= r_hub + tol
     shroud_ok = max_r >= r_shroud - tol
-    hub_band_ok = (min_r <= BL_BAND_HUB[0]) and (max_r >= BL_BAND_HUB[1])
-    shroud_band_ok = (min_r <= BL_BAND_SHROUD[0]) and (max_r >= BL_BAND_SHROUD[1])
+    hub_band_ok = (min_r <= band_hub[0] + tol) and (max_r >= band_hub[1])
+    shroud_band_ok = (min_r <= band_shroud[0]) and (max_r >= band_shroud[1] - tol)
     passes = hub_ok and shroud_ok and hub_band_ok and shroud_band_ok
     return {
         "min_r": round(min_r, 6),
@@ -429,8 +441,8 @@ def boundary_layers_kept(run):
         "radius_tol": tol,
         "hub_radius_ok": bool(hub_ok),
         "shroud_radius_ok": bool(shroud_ok),
-        "bl_band_hub": [BL_BAND_HUB[0], BL_BAND_HUB[1]],
-        "bl_band_shroud": [BL_BAND_SHROUD[0], BL_BAND_SHROUD[1]],
+        "bl_band_hub": [round(band_hub[0], 6), round(band_hub[1], 6)],
+        "bl_band_shroud": [round(band_shroud[0], 6), round(band_shroud[1], 6)],
         "bl_band_hub_inside": bool(hub_band_ok),
         "bl_band_shroud_inside": bool(shroud_band_ok),
         "pass": bool(passes),

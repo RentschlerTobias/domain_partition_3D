@@ -110,6 +110,8 @@ def load_core(run, blocks, G=None):
 def snap(G, P, vlab, csurf):
     Q = P.copy()
     kind = {}
+    target = {}                                       # v -> ("surface", name) | ("curve", id)
+    snap.target = target
     ends = {t: (c.P[0], c.P[-1]) for t, c in G.curves.items()}
     for v, labs in vlab.items():
         names = sorted({LABEL_SURF[l] for l in labs if l in LABEL_SURF})
@@ -119,6 +121,7 @@ def snap(G, P, vlab, csurf):
         if len(names) == 1:
             Q[v] = G.project(names[0], x)[0]
             kind[v] = "surface"
+            target[v] = ("surface", names[0])
             continue
         cs = [t for t, ss in csurf.items() if set(names) <= ss]
         if len(names) >= 3:
@@ -133,8 +136,10 @@ def snap(G, P, vlab, csurf):
                 continue
         if cs:
             cand = np.array([G.curves[t].project(x)[0] for t in cs])
-            Q[v] = cand[np.argmin(np.linalg.norm(cand - x, axis=1))]
+            i = int(np.argmin(np.linalg.norm(cand - x, axis=1)))
+            Q[v] = cand[i]
             kind[v] = "curve"
+            target[v] = ("curve", cs[i])
             continue
         y = x.copy()                                  # no dtOO curve: alternating projection
         for _ in range(30):
@@ -176,6 +181,91 @@ def extend_displacement(P, Q, H, fixed):
     return out
 
 
+def _frames(G, Q, target, free_int):
+    """Per free vertex: its base point and the tangent basis it may move in
+    (3 axes interior, 2 on a surface, 1 on a curve)."""
+    out = []
+    for v in free_int:
+        out.append((v, np.eye(3)))
+    for v, (k, n) in target.items():
+        x = Q[v]
+        if k == "surface":
+            S = G.surfaces[n]
+            _, i = S.kd.query(x)
+            nrm = np.cross(S.B[i] - S.A[i], S.C[i] - S.A[i])
+            nrm /= np.linalg.norm(nrm)
+            t1 = np.cross(nrm, [1.0, 0, 0] if abs(nrm[0]) < 0.9 else [0, 1.0, 0])
+            t1 /= np.linalg.norm(t1)
+            out.append((v, np.array([t1, np.cross(nrm, t1)])))
+        else:
+            C = G.curves[n].P
+            j = int(np.argmin(np.linalg.norm(0.5 * (C[1:] + C[:-1]) - x, axis=1)))
+            t = C[j + 1] - C[j]
+            out.append((v, (t / np.linalg.norm(t))[None, :]))
+    return out
+
+
+def slide_optimize(G, Q, H, target, interior, eps=0.35, rounds=4, verbose=True):
+    """Raise the worst cells by moving interior vertices freely and boundary vertices
+    TANGENTIALLY (surface: 2 dof, curve: 1 dof, corners fixed), re-projecting onto the
+    exact surface/curve after every round. Objective = the one-sided barrier of
+    clean_blocks.untangle, sum max(0, eps - sJ)^2, restricted to the 2-ring around the
+    cells below eps. A round is kept only if (inverted, -min sJ) improves."""
+    from scipy.optimize import minimize
+    v2c = defaultdict(list)
+    for i, h in enumerate(H):
+        for v in h:
+            v2c[int(v)].append(i)
+    movable = set(interior) | set(target)
+    g_best = None
+    for rnd in range(rounds):
+        sj = cb.scaled_jacobians(Q, H)
+        g = (int((sj <= 0).sum()), -float(sj.min()))
+        g_best = g if g_best is None else g_best
+        low = np.where(sj < eps)[0]
+        if not len(low):
+            break
+        seed = {int(v) for c in low for v in H[c]}
+        seed = {int(v) for x in seed for c in v2c[x] for v in H[c]}
+        free = sorted(v for v in seed if v in movable)
+        fr = _frames(G, Q, {v: target[v] for v in free if v in target},
+                     [v for v in free if v not in target])
+        cells = sorted({c for v, _ in fr for c in v2c[v]})
+        Hc = H[cells]
+        sizes = [len(b) for _, b in fr]
+        off = np.r_[0, np.cumsum(sizes)]
+        h0 = np.array([min(np.linalg.norm(Q[H[c][1]] - Q[H[c][0]]) for c in v2c[v]) for v, _ in fr])
+        bounds = [(-0.3 * h0[i], 0.3 * h0[i]) for i, (_, b) in enumerate(fr) for _ in range(len(b))]
+
+        def place(x):
+            X = Q.copy()
+            for i, (v, b) in enumerate(fr):
+                X[v] = Q[v] + x[off[i]:off[i + 1]] @ b
+            return X
+
+        def obj(x):
+            s = cb.scaled_jacobians(place(x), Hc)
+            return float((np.maximum(0.0, eps - s) ** 2).sum())
+
+        res = minimize(obj, np.zeros(off[-1]), method="L-BFGS-B", bounds=bounds,
+                       options={"maxiter": 300})
+        X = place(res.x)
+        for v, (k, n) in target.items():              # back onto the exact geometry
+            if v in free:
+                X[v] = G.project(n, X[v])[0] if k == "surface" else G.curves[n].project(X[v])[0]
+        s2 = cb.scaled_jacobians(X, H)
+        g2 = (int((s2 <= 0).sum()), -float(s2.min()))
+        if verbose:
+            print(f"[b2] slide round {rnd}: {len(free)} vertices ({sum(1 for v in free if v in target)} on the "
+                  f"boundary), {len(cells)} cells: inverted {g[0]} -> {g2[0]}, min sJ {-g[1]:.4f} -> {-g2[1]:.4f}")
+        if g2 < g:
+            Q = X
+            g_best = g2
+        else:
+            break
+    return Q
+
+
 def quality(P, H):
     sj = cb.scaled_jacobians(P, H)
     return {"inverted": int((sj <= 0).sum()), "min_sj": float(sj.min()),
@@ -188,6 +278,7 @@ def main():
     ap.add_argument("--blocks", default=None)
     ap.add_argument("--out", default=None)
     ap.add_argument("--json", default=None)
+    ap.add_argument("--eps", type=float, default=0.35, help="barrier target of the slide optimisation")
     a = ap.parse_args()
     run = Path(a.run)
     blocks = Path(a.blocks) if a.blocks else run / "blocks.vtk"
@@ -199,11 +290,6 @@ def main():
     q0, _ = quality(P, H)
     Q, kind = snap(G, P, vlab, csurf)
     disp = np.linalg.norm(Q - P, axis=1)
-    resid = 0.0                                       # snapped vertex vs every surface it is labelled with
-    for v, labs in vlab.items():
-        for l in labs:
-            if l in LABEL_SURF:
-                resid = max(resid, float(np.linalg.norm(G.project(LABEL_SURF[l], Q[v])[0] - Q[v])))
     qs, _ = quality(Q, H)                              # boundary snapped, interior untouched
     # hierarchical morphing: corners/curves -> surfaces -> interior. A surface vertex
     # first follows the displacement its corners and curves imply (harmonic over the
@@ -221,8 +307,16 @@ def main():
     Q = extend_displacement(P, Q, H, fixed)
     q1, _ = quality(Q, H)
     Q2, moved = cb.untangle(Q, H, f2h, labeller=None, rings=2, verbose=True)
+    qu, _ = quality(Q2, H)
+    interior = [v for v in range(len(P)) if v not in vlab]
+    Q2 = slide_optimize(G, Q2, H, snap.target, interior, eps=a.eps)
     q2, sj = quality(Q2, H)
-    bdrift = max(float(np.linalg.norm(Q2[v] - Q[v])) for v in vlab)
+    resid = 0.0                                       # final vertex vs every surface it is labelled with
+    for v, labs in vlab.items():
+        for l in labs:
+            if l in LABEL_SURF:
+                resid = max(resid, float(np.linalg.norm(G.project(LABEL_SURF[l], Q2[v])[0] - Q2[v])))
+    bdrift = max(float(np.linalg.norm(Q2[v] - Q[v])) for v in vlab)   # tangential slide length
     kinds = defaultdict(int)
     for k in kind.values():
         kinds[k] += 1
@@ -233,7 +327,8 @@ def main():
            "curves_on_surfaces": {int(t): sorted(s) for t, s in csurf.items()},
            "patches": load_core.patches,
            "patches_label_agree_min": min(p["agree"] for p in load_core.patches),
-           "quality_before": q0, "quality_snap_only": qs, "quality_after_snap": q1, "quality_after_untangle": q2,
+           "quality_before": q0, "quality_snap_only": qs, "quality_after_snap": q1, "quality_after_untangle": qu,
+           "quality_after_slide": q2,
            "residual_on_surfaces_max": resid,
            "untangle_moved_vertices": int(moved), "boundary_drift_after_untangle": bdrift,
            "gate": {"inverted_0": q2["inverted"] == 0, "min_sj_ge_0.2": q2["min_sj"] >= 0.2,
@@ -244,7 +339,7 @@ def main():
                                        cell_data={"block_id": [B], "sj": [sj]}))
     js.write_text(json.dumps(rep, indent=1))
     print(json.dumps({k: rep[k] for k in ("snap_kinds", "snap_displacement", "residual_on_surfaces_max", "quality_before",
-                                          "quality_after_snap", "quality_after_untangle", "gate")}, indent=1))
+                                          "quality_after_snap", "quality_after_untangle", "quality_after_slide", "gate")}, indent=1))
     return 0
 
 

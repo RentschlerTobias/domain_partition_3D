@@ -471,6 +471,35 @@ def collapse_sheet(P, hexes, edges):
     return Q, np.array(keep, np.int64), dropped
 
 
+def non_ball_blocks(hexes, blocks):
+    """Blocks whose cell set is not a topological ball: Euler characteristic of
+    the block's boundary quad surface != 2. A block wrapped around the blade
+    hole (keep-BL tistos_s1_0036: one block, no cut face at all) or glued to
+    itself across a cut (0020: 7 self-adjacent cut faces) has a torus-like
+    boundary; no cuboid lattice and no TFI can come out of it."""
+    bad = 0
+    for b in blocks:
+        cnt = Counter()
+        for h in b:
+            c = hexes[h]
+            for fc in HF:
+                cnt[frozenset(int(c[i]) for i in fc)] += 1
+        faces = [k for k, n in cnt.items() if n == 1]
+        V = {v for k in faces for v in k}
+        E = set()
+        for h in b:
+            c = hexes[h]
+            for fc in HF:
+                k = frozenset(int(c[i]) for i in fc)
+                if cnt[k] == 1:
+                    lp = [int(c[i]) for i in fc]
+                    for i in range(4):
+                        E.add(frozenset((lp[i], lp[(i + 1) % 4])))
+        if len(V) - len(E) + len(faces) != 2:
+            bad += 1
+    return bad
+
+
 def _structure_stats(P, hexes, labeller):
     """Block-structure summary of a candidate mesh, without building a full
     BlockStructure (this runs once per sheet per round)."""
@@ -519,6 +548,7 @@ def _structure_stats(P, hexes, labeller):
     sj = scaled_jacobians(P, hexes)
     return {"cells": len(hexes), "blocks": len(blocks), "cuboids": cub,
             "excess": exc, "sing": len(sing),
+            "non_ball": non_ball_blocks(hexes, blocks),
             "tiny": int(sum(1 for s in sizes if s < 10)),
             "inverted": int((sj <= 0).sum()),
             "min_sj": float(sj.min()),

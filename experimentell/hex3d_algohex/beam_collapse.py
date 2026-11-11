@@ -72,6 +72,11 @@ def _ok(st, bar, ceiling, guard, sj_floor):
         return False
     if st["hausdorff"] > ceiling + 1e-9:
         return False
+    if st.get("non_ball", 0) > bar.get("non_ball", 0):
+        # a block that is not a topological ball (wrapped around the blade hole or
+        # glued to itself) cannot become a cuboid; with the keep-BL tolerance 0.1
+        # the beam otherwise walks into 1- and 4-block states (0036, 0020)
+        return False
     if guard == "struct":
         # structure only: inverted cells of the intermediate hex mesh do not
         # count, the TFI refills every block at the end (Gao repairs only then)
@@ -106,6 +111,7 @@ def beam_collapse(P, hexes, labeller, width=6, depth=6, guard="abs",
             f"> {max_base_hausdorff} ({base['blocks']} blocks, {base['cells']} cells)")
     bar = dict(guard_ref) if guard_ref else {"inverted": base["inverted"],
                                              "min_sj": base["min_sj"]}
+    bar.setdefault("non_ball", base.get("non_ball", 0))
     # Hausdorff ceiling: the raw value is itself an accident of the tet
     # meshing (base_a 0.0395, base_b 0.0400) and decided alone over 22
     # versus 75 blocks -- at base_b the 84->22 sheet came in 0.0019 above

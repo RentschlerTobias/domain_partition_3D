@@ -168,7 +168,7 @@ def main():
             if cs:
                 kind = "curve:" + "+".join(sorted(common))
                 for i in range(len(Y)):
-                    cand = np.array([G.curves[t].project(Y[i])[0] for t in cs])
+                    cand = np.array([G.project_curve(G.curves[t], sorted(common), Y[i])[0] for t in cs])
                     Y[i] = cand[np.argmin(np.linalg.norm(cand - Y[i], axis=1))]
         elif len(common) == 1:
             n = next(iter(common))

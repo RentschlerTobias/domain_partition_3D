@@ -1,7 +1,11 @@
-"""Export the true blade wall from the dtOO machine (aS_ru_blade_rot).
+"""Export the true walls from the dtOO machine.
 
-Writes machine_blade.npz (dense parametric samples + span cut curves) and
-machine_blade.vtk (structured surface) into blade/.
+Run in blade/machine_scratch (machine.xml, machineSave.xml, xml/, params.json):
+  machine_blade.npz / .vtk   aS_ru_blade_rot, dense parametric samples + span cuts
+  machine_walls.npz          aS_ru_hub and aS_ru_shroud, dense parametric samples
+                             (keys hub_S/hub_U/hub_V, shroud_S/...), so hub and
+                             shroud are as exact as the blade (the msh facets sit
+                             up to ~0.35 mm inside the cylinders).
 """
 import json, sys, time
 import numpy as np
@@ -71,6 +75,20 @@ for name in ["aS_ru_blade_rot_v0.0", "aS_ru_blade_rot_v0.5", "aS_ru_blade_rot_v1
 
 np.savez("machine_blade.npz", U=U, V=V, S=S,
          umin=umin, umax=umax, vmin=vmin, vmax=vmax, **curves)
+
+walls = {}
+for name, key in (("aS_ru_hub", "hub"), ("aS_ru_shroud", "shroud")):
+    wg = aG.get(name)
+    lo0, hi0, lo1, hi1 = wg.getMin(0), wg.getMax(0), wg.getMin(1), wg.getMax(1)
+    NWU, NWV = 1441, 161          # 0.25 deg: chord error <= 5e-6 at r = 1.9
+    WU, WV = np.linspace(lo0, hi0, NWU), np.linspace(lo1, hi1, NWV)
+    WS = np.empty((NWU, NWV, 3))
+    for i, u in enumerate(WU):
+        for j, v in enumerate(WV):
+            WS[i, j] = pt(wg, u, v)
+    walls.update({f"{key}_S": WS, f"{key}_U": WU, f"{key}_V": WV})
+    print("sampled", name, WS.shape, "range", lo0, hi0, lo1, hi1, flush=True)
+np.savez("machine_walls.npz", **walls)
 
 # legacy VTK structured grid
 out = ["# vtk DataFile Version 3.0",

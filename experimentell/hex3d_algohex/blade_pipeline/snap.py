@@ -31,15 +31,17 @@ import clean_blocks as cb                                            # noqa: E40
 from geometry import Geometry, LABEL_SURF, VOL_FACES                 # noqa: E402
 import quality as qual                                                 # noqa: E402
 
-ON_TOL = 1e-9
+# a msh node lies on a reference surface: exactly for the msh facets, to the
+# sampling chord (<= 5e-6) for the analytic dtOO hub / shroud
+ON_TOL = 1e-5
 
 
 def curve_surfaces(G):
     """Which reference surfaces each dtOO feature curve lies on (all its nodes)."""
-    kds = {n: cKDTree(s.P[np.unique(s.T)]) for n, s in G.surfaces.items()}
     out = {}
     for t, c in G.curves.items():
-        out[t] = {n for n, kd in kds.items() if kd.query(c.P)[0].max() < ON_TOL}
+        out[t] = {n for n in G.surfaces
+                  if np.linalg.norm(G.project(n, c.P) - c.P, axis=1).max() < ON_TOL}
     return out
 
 
@@ -136,7 +138,7 @@ def snap(G, P, vlab, csurf):
                 kind[v] = "corner"
                 continue
         if cs:
-            cand = np.array([G.curves[t].project(x)[0] for t in cs])
+            cand = np.array([G.project_curve(G.curves[t], names, x)[0] for t in cs])
             i = int(np.argmin(np.linalg.norm(cand - x, axis=1)))
             Q[v] = cand[i]
             kind[v] = "curve"
@@ -206,7 +208,7 @@ def _frames(G, Q, target, free_int):
     return out
 
 
-def slide_optimize(G, Q, H, target, interior, eps=0.35, rounds=4, verbose=True):
+def slide_optimize(G, Q, H, target, interior, eps=0.35, rounds=4, verbose=True, csurf_names=None):
     """Raise the worst cells by moving interior vertices freely and boundary vertices
     TANGENTIALLY (surface: 2 dof, curve: 1 dof, corners fixed), re-projecting onto the
     exact surface/curve after every round. Objective = the one-sided barrier of
@@ -253,7 +255,8 @@ def slide_optimize(G, Q, H, target, interior, eps=0.35, rounds=4, verbose=True):
         X = place(res.x)
         for v, (k, n) in target.items():              # back onto the exact geometry
             if v in free:
-                X[v] = G.project(n, X[v])[0] if k == "surface" else G.curves[n].project(X[v])[0]
+                X[v] = G.project(n, X[v])[0] if k == "surface" else \
+                    G.project_curve(G.curves[n], sorted(csurf_names[n]), X[v])[0]
         s2 = cb.scaled_jacobians(X, H)
         g2 = (int((s2 <= 0).sum()), -float(s2.min()))
         if verbose:
@@ -309,7 +312,8 @@ def main():
     Q2, moved = cb.untangle(Q, H, f2h, labeller=None, rings=2, verbose=True)
     qu, _ = quality(Q2, H)
     interior = [v for v in range(len(P)) if v not in vlab]
-    Q2 = slide_optimize(G, Q2, H, snap.target, interior, eps=a.eps)
+    Q2 = slide_optimize(G, Q2, H, snap.target, interior, eps=a.eps,
+                        csurf_names=csurf)
     q2, sj = quality(Q2, H)
     resid = 0.0                                       # final vertex vs every surface it is labelled with
     for v, labs in vlab.items():

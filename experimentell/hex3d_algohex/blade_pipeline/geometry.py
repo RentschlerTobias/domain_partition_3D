@@ -243,9 +243,38 @@ class Geometry:
         self.surfaces["cutout"] = Surface("cutout", P, np.asarray(cut_tris, int))
         npz = run / "blade" / "machine_scratch" / "machine_blade.npz"
         self.blade_S = np.load(npz, allow_pickle=True)["S"] if npz.exists() else None
+        # hub / shroud from the analytic dtOO surfaces when exported (extract_blade.py):
+        # the msh facets sit up to h^2 / 8r inside the cylinders (0.35 mm here), more
+        # than a third of the first BL cell. Only the part of the full revolution near
+        # the msh surface is kept.
+        self.analytic = []
+        wnpz = run / "blade" / "machine_scratch" / "machine_walls.npz"
+        if wnpz.exists():
+            W = np.load(wnpz)
+            for key in ("hub", "shroud"):
+                S = W[f"{key}_S"]
+                nu, nv = S.shape[:2]
+                I, J = np.meshgrid(np.arange(nu - 1), np.arange(nv - 1), indexing="ij")
+                a0 = (I * nv + J).ravel()
+                T = np.r_[np.c_[a0, a0 + nv, a0 + nv + 1], np.c_[a0, a0 + nv + 1, a0 + 1]]
+                X = S.reshape(-1, 3)
+                ref = self.surfaces[key]
+                near = cKDTree(ref.P[np.unique(ref.T)]).query(X[T].mean(1))[0] < 0.1
+                self.surfaces[key] = Surface(key, X, T[near])
+                self.analytic.append(key)
 
     def project(self, name, X):
         return self.surfaces[name].project(X)
+
+    def project_curve(self, curve, names, X, iters=6):
+        """Closest point on a dtOO curve that lies on the surfaces `names`: the msh
+        polyline first, then alternating projection onto those surfaces (the
+        polyline's chords leave a curved surface between its nodes)."""
+        Y = curve.project(X)
+        for _ in range(iters):
+            for n in names:
+                Y = self.project(n, Y)
+        return Y
 
 
 def _block_boundary_vertices(run):
@@ -283,7 +312,7 @@ def main():
     ap.add_argument("--json", default=None)
     a = ap.parse_args()
     G = Geometry(a.run)
-    rep = {"r_hub": G.r_hub, "r_shroud": G.r_shroud,
+    rep = {"r_hub": G.r_hub, "r_shroud": G.r_shroud, "analytic_surfaces": G.analytic,
            "groups": {n: sorted(ts) for n, ts in G.groups.items()},
            "facets": {n: int(len(s.T)) for n, s in G.surfaces.items()},
            "curves": len(G.curves)}

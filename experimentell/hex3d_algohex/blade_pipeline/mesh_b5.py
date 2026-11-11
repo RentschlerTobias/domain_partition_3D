@@ -36,6 +36,7 @@ import tfi                                                            # noqa: E4
 import quality as qual                                                # noqa: E402
 from core_tfi import graded, tfi_param                                # noqa: E402
 from geometry import Geometry                                         # noqa: E402
+from winslow import winslow                                           # noqa: E402
 
 WALLS = ("hub", "shroud")
 
@@ -115,6 +116,7 @@ def main():
     ap.add_argument("--target-h", type=float, default=0.05)
     ap.add_argument("--first", type=float, default=0.0009)
     ap.add_argument("--growth", type=float, default=1.2)
+    ap.add_argument("--winslow", type=int, default=300, help="Winslow iterations per block (0 = off)")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     run = Path(a.run)
@@ -202,6 +204,7 @@ def main():
 
     # ---------------------------------------------------------------- volumes
     pts, hexes, bids = [], [], []
+    wrep = {}
     base = 0
     for r in sorted(lat):
         if r >= ncore:
@@ -231,6 +234,8 @@ def main():
         Xi = tfi_param(np.nan_to_num(X), *par)
         bnd = ~np.isnan(X[..., 0])
         Xi[bnd] = X[bnd]
+        if a.winslow > 0:
+            Xi, wrep[int(r)] = winslow(Xi, iters=a.winslow)
         ni, nj, nk = Xi.shape[:3]
         idx = np.arange(ni * nj * nk).reshape(ni, nj, nk) + base
         pts.append(Xi.reshape(-1, 3))
@@ -253,7 +258,7 @@ def main():
                   "max": float(np.max(hs))} if hs else None
     rep = {"out": str(out), "cells": int(len(Hw)), "points": int(len(Pw)), "watertight": bool(watertight),
            "edges": len(edges), "faces": len(faces), "edge_reprojection_max": erep["max_proj"],
-           "face_correction_max": frep, "quality": qs, "first_cell_height": fc,
+           "face_correction_max": frep, "winslow": wrep, "quality": qs, "first_cell_height": fc,
            "classes": [{"class": ci, "axes": len(classes[ci]), **cc[ci]} for ci in cc],
            "gate": {"watertight": bool(watertight), "inverted_0": qs["inverted"] == 0}}
     import meshio

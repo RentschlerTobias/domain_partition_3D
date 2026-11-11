@@ -93,3 +93,68 @@ def winslow(X, iters=200, omega=0.5, tol=1e-9):
         if np.abs(step).max() < tol:
             break
     return X, {"iters": it + 1, "omega": omega}
+
+
+def winslow2d(X, project=None, iters=300, omega=0.5, every=10, tol=1e-10):
+    """2D Winslow on a structured surface patch X (n0, n1, 3), boundary rows fixed.
+
+    Same scheme as `winslow` in two index directions, written in the 3D
+    embedding (the metric g_ij = x_i . x_j works on a curved patch);
+    `project(points) -> points` puts the interior back onto the exact surface
+    every `every` steps and at the end. Control functions from the initial
+    patch keep the distribution along each grid line (the BL along span edges).
+    A step that flips a quad against the patch's mean normal is undone."""
+    X = np.array(X, float)
+    if min(X.shape[:2]) < 3:
+        return X, {"iters": 0}
+
+    def d(Y, ax):
+        if ax == 0:
+            xp, xm, x0 = Y[2:, 1:-1], Y[:-2, 1:-1], Y[1:-1, 1:-1]
+        else:
+            xp, xm, x0 = Y[1:-1, 2:], Y[1:-1, :-2], Y[1:-1, 1:-1]
+        return 0.5 * (xp - xm), xp - 2 * x0 + xm, xp, xm
+
+    def flips(Y):
+        a = Y[1:, :-1] - Y[:-1, :-1]
+        b = Y[:-1, 1:] - Y[:-1, :-1]
+        c = Y[1:, 1:] - Y[1:, :-1]
+        e = Y[1:, 1:] - Y[:-1, 1:]
+        n1 = np.cross(a, b)
+        n2 = np.cross(c, -e)
+        nm = (n1 + n2).reshape(-1, 3).sum(0)
+        return int(((n1 @ nm) <= 0).sum() + ((n2 @ nm) <= 0).sum())
+
+    P = []
+    for ax in range(2):
+        x1, x2, _, _ = d(X, ax)
+        P.append(-np.einsum("...i,...i", x1, x2) / np.maximum(np.einsum("...i,...i", x1, x1), 1e-30))
+    f0 = flips(X)
+    it = 0
+    for it in range(iters):
+        D = [d(X, 0), d(X, 1)]
+        g11 = np.einsum("...i,...i", D[0][0], D[0][0])
+        g22 = np.einsum("...i,...i", D[1][0], D[1][0])
+        g12 = np.einsum("...i,...i", D[0][0], D[1][0])
+        # contravariant: G11 = g22 / J2, G22 = g11 / J2, G12 = -g12 / J2 (J2 cancels)
+        xc = 0.25 * (X[2:, 2:] - X[2:, :-2] - X[:-2, 2:] + X[:-2, :-2])
+        num = (g22[..., None] * (D[0][2] + D[0][3] + P[0][..., None] * D[0][0])
+               + g11[..., None] * (D[1][2] + D[1][3] + P[1][..., None] * D[1][0])
+               - 2 * g12[..., None] * xc)
+        new = num / (2 * (g11 + g22))[..., None]
+        step = omega * (new - X[1:-1, 1:-1])
+        Xn = X.copy()
+        Xn[1:-1, 1:-1] += step
+        if project is not None and (it % every == every - 1):
+            Xn[1:-1, 1:-1] = project(Xn[1:-1, 1:-1].reshape(-1, 3)).reshape(Xn[1:-1, 1:-1].shape)
+        if flips(Xn) > f0:
+            omega *= 0.5
+            if omega < 1e-3:
+                break
+            continue
+        X = Xn
+        if np.abs(step).max() < tol:
+            break
+    if project is not None:
+        X[1:-1, 1:-1] = project(X[1:-1, 1:-1].reshape(-1, 3)).reshape(X[1:-1, 1:-1].shape)
+    return X, {"iters": it + 1, "omega": omega}

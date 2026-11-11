@@ -36,7 +36,7 @@ import tfi                                                            # noqa: E4
 import quality as qual                                                # noqa: E402
 from core_tfi import graded, tfi_param                                # noqa: E402
 from geometry import Geometry                                         # noqa: E402
-from winslow import winslow                                           # noqa: E402
+from winslow import winslow, winslow2d                                # noqa: E402
 
 WALLS = ("hub", "shroud")
 
@@ -117,6 +117,8 @@ def main():
     ap.add_argument("--first", type=float, default=0.0009)
     ap.add_argument("--growth", type=float, default=1.2)
     ap.add_argument("--winslow", type=int, default=300, help="Winslow iterations per block (0 = off)")
+    ap.add_argument("--winslow2d", type=int, default=300,
+                    help="2D Winslow iterations on boundary faces, on the surface (0 = off)")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     run = Path(a.run)
@@ -198,6 +200,8 @@ def main():
                 Y = G.project_any(name, inner.reshape(-1, 3)).reshape(inner.shape)
                 frep[name] = max(frep.get(name, 0.0), float(np.linalg.norm(Y - inner, axis=-1).max()))
                 F[1:-1, 1:-1] = Y
+            if a.winslow2d > 0 and name is not None and inner.size:
+                F, _ = winslow2d(F, project=lambda X, nm=name: G.project_any(nm, X), iters=a.winslow2d)
             faces[key] = (g.copy(), F, name)
         g0, F, name = faces[key]
         return match(g0, g)(F)

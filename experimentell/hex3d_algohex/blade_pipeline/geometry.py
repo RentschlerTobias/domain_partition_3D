@@ -11,7 +11,9 @@ the entities are named the way tet_prep_v5 does it:
     other boundary entity coplanar with them, i.e. the O-grid footprint),
   - hub / shroud: boundary entities on the radius of GEOM_HUB / GEOM_SHROUD
     (radii read from those entities, never set),
-  - blade: every remaining boundary entity (the wall of the dtOO O-grid).
+  - blade: every remaining boundary entity (the wall of the dtOO O-grid),
+  - cutout: the faces between a dtOO O-grid cell (tet_prep_v5.OGRID_GEOM) and
+    any other cell = the exact outer surface of the removed O-grid (label 7).
 The blade is additionally available as the dense dtOO sample S(u, v) from
 blade/machine_scratch/machine_blade.npz when present.
 
@@ -43,7 +45,8 @@ VOL_FACES = {
 }
 # tet.vtk surface label (tet_prep_v5.S_*) -> reference surface
 LABEL_SURF = {tp5.S_INLET: "inlet", tp5.S_OUTLET: "outlet", tp5.S_PER_A: "periodic_A",
-              tp5.S_PER_B: "periodic_B", tp5.S_HUB: "hub", tp5.S_SHROUD: "shroud"}
+              tp5.S_PER_B: "periodic_B", tp5.S_HUB: "hub", tp5.S_SHROUD: "shroud",
+              tp5.S_OGRID_IFACE: "cutout"}
 
 
 def closest_on_tris(x, A, B, C):
@@ -114,6 +117,22 @@ class Curve:
         return out
 
 
+def _order_quad(P, ids):
+    """Cyclic order of 4 (roughly planar) quad nodes."""
+    ids = np.asarray(list(ids), int)
+    X = P[ids]
+    c = X.mean(0)
+    n = np.cross(X[1] - X[0], X[2] - X[0])
+    if np.linalg.norm(n) < 1e-14:
+        n = np.cross(X[2] - X[0], X[3] - X[0])
+    n /= np.linalg.norm(n)
+    u = X[0] - c
+    u /= np.linalg.norm(u)
+    w = np.cross(n, u)
+    ang = np.arctan2((X - c) @ w, (X - c) @ u)
+    return ids[np.argsort(ang)]
+
+
 def _chain(edges):
     """Order 2-node line elements of one entity into a polyline (node ids)."""
     adj = {}
@@ -140,12 +159,18 @@ class Geometry:
         P = np.asarray(m.points, float)
         self.points = P
         geo = m.cell_data["gmsh:geometrical"]
-        count = {}
-        for c in m.cells:
-            for f in VOL_FACES.get(c.type, ()):
-                for e in c.data[:, list(f)]:
+        count, side = {}, {}
+        for c, g in zip(m.cells, geo):
+            if c.type not in VOL_FACES:
+                continue
+            og = np.isin(np.asarray(g).ravel(), list(tp5.OGRID_GEOM))
+            for f in VOL_FACES[c.type]:
+                for e, o in zip(c.data[:, list(f)], og):
                     k = frozenset(e.tolist())
                     count[k] = count.get(k, 0) + 1
+                    side.setdefault(k, set()).add(bool(o))
+        # the O-grid cut = faces between a dtOO O-grid cell and a non-O-grid cell
+        cut = [list(k) for k, v in side.items() if len(v) == 2]
         # boundary faces per 2D entity (tris + quads, quads split)
         ent_tris, self.curves = {}, {}
         for c, g in zip(m.cells, geo):
@@ -208,6 +233,14 @@ class Geometry:
             self.surfaces[n] = Surface(n, P, T)
             for t in ts:
                 self.entity_surface[t] = n
+        cut_tris = []
+        for k in cut:
+            if len(k) == 3:
+                cut_tris.append(k)
+            else:                                   # frozenset loses the quad order: rebuild it
+                q = _order_quad(P, k)
+                cut_tris += [q[[0, 1, 2]], q[[0, 2, 3]]]
+        self.surfaces["cutout"] = Surface("cutout", P, np.asarray(cut_tris, int))
         npz = run / "blade" / "machine_scratch" / "machine_blade.npz"
         self.blade_S = np.load(npz, allow_pickle=True)["S"] if npz.exists() else None
 
@@ -268,7 +301,7 @@ def main():
         for l in labs:
             n = LABEL_SURF.get(l)
             if n is None:
-                continue                    # 7 = O-grid cut (replaced by the ring), 5/6 none with keep-BL
+                continue                    # 5/6 (BL cuts) do not exist with keep-BL
             dev.setdefault(n, []).append(float(np.linalg.norm(G.project(n, P[v])[0] - P[v])))
     rep["blocks_vtk_deviation"] = {n: {"n": len(d), "max": max(d), "p95": float(np.percentile(d, 95)),
                                        "median": float(np.median(d))} for n, d in dev.items()}

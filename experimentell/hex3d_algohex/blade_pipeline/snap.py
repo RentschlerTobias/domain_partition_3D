@@ -326,6 +326,8 @@ def main():
            "snap_displacement": {"max": float(disp.max()), "p95": float(np.percentile(disp[list(vlab)], 95))},
            "curves_on_surfaces": {int(t): sorted(s) for t, s in csurf.items()},
            "patches": load_core.patches,
+           "vertex_surfaces": {str(v): sorted({LABEL_SURF[l] for l in labs if l in LABEL_SURF})
+                               for v, labs in vlab.items()},
            "patches_label_agree_min": min(p["agree"] for p in load_core.patches),
            "quality_before": q0, "quality_snap_only": qs, "quality_after_snap": q1, "quality_after_untangle": qu,
            "quality_after_slide": q2,

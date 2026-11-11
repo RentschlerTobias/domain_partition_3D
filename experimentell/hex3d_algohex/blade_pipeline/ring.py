@@ -70,6 +70,25 @@ class BladeSurface:
         uv = self.UV[t[0]] + lam[0] * (self.UV[t[1]] - self.UV[t[0]]) + lam[1] * (self.UV[t[2]] - self.UV[t[0]])
         return Q[i], uv
 
+    def edges_le_te(self, window=1.0):
+        """u of the trailing and leading edge: the two windows of largest total
+        turning of the u-lines (averaged over v); TE = the one further downstream
+        (larger z, flow from inlet z_min to outlet z_max)."""
+        t = np.diff(self.S, axis=0)
+        t /= np.linalg.norm(t, axis=2, keepdims=True)
+        tt = np.concatenate([t, t[:1]], axis=0)          # closed: turn across the seam too
+        ang = np.arccos(np.clip((tt[1:] * tt[:-1]).sum(2), -1, 1)).mean(1)   # at U[1:]
+        uu = self.U[1:]
+        per = self.period
+        dist = lambda a, b: np.abs((a - b + per / 2) % per - per / 2)
+        score = np.array([ang[dist(uu, c) < window].sum() for c in uu])
+        c1 = uu[np.argmax(score)]
+        score2 = np.where(dist(uu, c1) > 4 * window, score, -1)
+        c2 = uu[np.argmax(score2)]
+        z = lambda c: self.S[np.argmin(dist(self.U, c)), :, 2].mean()
+        te, le = (c1, c2) if z(c1) > z(c2) else (c2, c1)
+        return float(te), float(le)
+
     def at(self, u, v):
         """Bilinear S(u, v); u periodic."""
         u = self.U[0] + np.mod(u - self.U[0], self.period)
@@ -404,7 +423,22 @@ def main():
     all_q = qual.summary(P2, H2)
     cls = qual.classify(P2, RC)
     worst = np.argsort(cls["sj"])[:5]
+    # surfaces per vertex, by construction: core from B2 (the cutout is interior now),
+    # ring wall = blade (+ hub / shroud on those rows), ring inner rows on hub / shroud
+    vs = {}
+    for v, names in json.loads((run / "blade" / "b2_snap.json").read_text())["vertex_surfaces"].items():
+        n = [x for x in names if x != "cutout"]
+        if n:
+            vs[v] = n
+    for l in range(L):
+        for i in range(nspan):
+            extra = ["hub"] if (i == 0 and hub_row) else ["shroud"] if (i == nspan - 1 and shroud_row) else []
+            for v in lid[l, i]:
+                names = (["blade"] if l == 0 else []) + extra
+                if names:
+                    vs[str(int(v))] = sorted(names)
     rep = {"blocks_in": str(blocks), "blocks_out": str(out),
+           "vertex_surfaces": vs,
            "core_blocks": int(nb), "ring_blocks": list(range(nb, nb + len(split))),
            "ring_block_of_core_side": {str(nb + k): int(b) for k, (b, _) in enumerate(loop)},
            "span_rows": int(nspan), "loop_nodes": int(nloop), "split_positions": split.tolist(),

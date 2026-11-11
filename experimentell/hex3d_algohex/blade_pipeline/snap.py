@@ -29,6 +29,7 @@ sys.path.insert(0, str(HERE))
 
 import clean_blocks as cb                                            # noqa: E402
 from geometry import Geometry, LABEL_SURF, VOL_FACES                 # noqa: E402
+import quality as qual                                                 # noqa: E402
 
 ON_TOL = 1e-9
 
@@ -267,9 +268,8 @@ def slide_optimize(G, Q, H, target, interior, eps=0.35, rounds=4, verbose=True):
 
 
 def quality(P, H):
-    sj = cb.scaled_jacobians(P, H)
-    return {"inverted": int((sj <= 0).sum()), "min_sj": float(sj.min()),
-            "p05_sj": float(np.percentile(sj, 5)), "mean_sj": float(sj.mean())}, sj
+    """quality.summary (inverted = folded, concave reported apart) + corner sJ."""
+    return qual.summary(P, H), cb.scaled_jacobians(P, H)
 
 
 def main():
@@ -331,7 +331,8 @@ def main():
            "quality_after_slide": q2,
            "residual_on_surfaces_max": resid,
            "untangle_moved_vertices": int(moved), "boundary_drift_after_untangle": bdrift,
-           "gate": {"inverted_0": q2["inverted"] == 0, "min_sj_ge_0.2": q2["min_sj"] >= 0.2,
+           "gate": {"inverted_0": q2["inverted"] == 0, "concave_0": q2["concave"] == 0,
+                    "min_sj_ge_0.2": q2["min_sj"] >= 0.2,
                     "residual_lt_1e-6": resid < 1e-6}}
     import meshio
     pd = {"snap_disp": disp, "snap_kind": np.array([{"surface": 1, "curve": 2, "corner": 3}.get(kind.get(v, ""), 4 if v in kind else 0) for v in range(len(P))], float)}

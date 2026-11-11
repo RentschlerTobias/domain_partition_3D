@@ -41,6 +41,16 @@ from geometry import Geometry                                         # noqa: E4
 WALLS = ("hub", "shroud")
 
 
+def lin_weights(n_coarse, s):
+    """(len(s), n_coarse + 1) piecewise-linear weights (no overshoot)."""
+    W = np.zeros((len(s), n_coarse + 1))
+    for r, x in enumerate(s):
+        i = min(int(np.floor(x)), n_coarse - 1)
+        t = x - i
+        W[r, i], W[r, i + 1] = 1 - t, t
+    return W
+
+
 def cr_weights(n_coarse, s):
     """(len(s), n_coarse + 1) uniform Catmull-Rom weights at index params s in
     [0, n_coarse]; reflected ghost nodes at both ends (symmetric under reversal)."""
@@ -125,6 +135,9 @@ def main():
     ap.add_argument("--target-h", type=float, default=0.05)
     ap.add_argument("--first", type=float, default=0.0009)
     ap.add_argument("--growth", type=float, default=1.2)
+    ap.add_argument("--interp", choices=("spline", "linear"), default="spline",
+                    help="coarse-lattice interpolation in (r, theta, z)")
+    ap.add_argument("--no-project", action="store_true", help="diagnostic: skip the surface projection")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     run = Path(a.run)
@@ -180,6 +193,7 @@ def main():
     pts, hexes, bids = [], [], []
     base = 0
     proj_rep = defaultdict(float)
+    proj_blk = {}
     for r in sorted(lat):
         if r >= ncore:
             continue
@@ -198,7 +212,7 @@ def main():
                 f = 1 - f[::-1]
             nc = vert.shape[ax] - 1
             ss.append(f)
-            Ws.append(cr_weights(nc, f * nc))
+            Ws.append((cr_weights if a.interp == "spline" else lin_weights)(nc, f * nc))
         # spline in cylinder coordinates about the machine axis (z): a spline through
         # hub nodes then stays on r = r_hub instead of sagging 13 mm into the hub
         # between coarse nodes 0.3 m apart (that sag sheared the BL cells)
@@ -236,9 +250,12 @@ def main():
                 for n in sorted(names):
                     y = G.project(n, y)[0]
             D[key] = y - x
-            proj_rep[",".join(sorted(names))] = max(proj_rep[",".join(sorted(names))], float(np.linalg.norm(y - x)))
+            kk_ = ",".join(sorted(names))
+            proj_rep[kk_] = max(proj_rep[kk_], float(np.linalg.norm(y - x)))
+            proj_blk[(r, kk_)] = max(proj_blk.get((r, kk_), 0.0), float(np.linalg.norm(y - x)))
         D = tfi_param(D, *ss)                                  # carry the displacement inside
-        F = F + D
+        if not a.no_project:
+            F = F + D
         ni, nj, nk = F.shape[:3]
         idx = np.arange(ni * nj * nk).reshape(ni, nj, nk) + base
         pts.append(F.reshape(-1, 3))
@@ -269,7 +286,9 @@ def main():
     rep = {"blocks": str(blocks), "out": str(out), "core_blocks": ncore,
            "cells": int(len(Hw)), "points": int(len(Pw)), "watertight": bool(watertight),
            "classes": [{"class": ci, "axes": len(classes[ci]), **cls_info[ci]} for ci in cls_info],
-           "projection_max": dict(proj_rep), "quality": qs, "first_cell_height": fc,
+           "projection_max": dict(proj_rep),
+           "projection_max_per_block": {f"{b}:{k}": v for (b, k), v in sorted(proj_blk.items())},
+           "quality": qs, "first_cell_height": fc,
            "gate": {"watertight": bool(watertight), "inverted_0": qs["inverted"] == 0}}
     import meshio
     meshio.write(str(out), meshio.Mesh(Pw, [("hexahedron", Hw)],

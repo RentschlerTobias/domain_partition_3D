@@ -266,6 +266,45 @@ class Geometry:
     def project(self, name, X):
         return self.surfaces[name].project(X)
 
+    def theta_map(self, name):
+        """theta(r, z) of a periodic surface (a graph over the meridian plane:
+        rotational periodicity is circumferential), Clough-Tocher over its msh
+        nodes; theta unwrapped about the surface's mean."""
+        if not hasattr(self, "_theta"):
+            self._theta = {}
+        if name not in self._theta:
+            from scipy.interpolate import CloughTocher2DInterpolator
+            S = self.surfaces[name]
+            ids = np.unique(S.T)
+            X = S.P[ids]
+            th = np.arctan2(X[:, 1], X[:, 0])
+            th0 = float(np.angle(np.exp(1j * th).mean()))
+            th = np.angle(np.exp(1j * (th - th0)))
+            f = CloughTocher2DInterpolator(np.c_[np.hypot(X[:, 0], X[:, 1]), X[:, 2]], th)
+            self._theta[name] = (f, th0)
+        return self._theta[name]
+
+    def project_circumferential(self, name, X):
+        """Move X along the circle about the machine axis onto a periodic surface:
+        r and z stay, only theta changes (normal projection onto a twisted periodic
+        surface also moves r and z, which sheared the BL in B5). Outside the
+        surface's (r, z) hull: normal projection."""
+        X = np.atleast_2d(np.asarray(X, float))
+        f, th0 = self.theta_map(name)
+        r = np.hypot(X[:, 0], X[:, 1])
+        th = f(np.c_[r, X[:, 2]]) + th0
+        out = np.c_[r * np.cos(th), r * np.sin(th), X[:, 2]]
+        bad = ~np.isfinite(th)
+        if bad.any():
+            out[bad] = self.project(name, X[bad])
+        return out
+
+    def project_any(self, name, X):
+        """Circumferential for periodic surfaces, closest point otherwise."""
+        if name.startswith("periodic"):
+            return self.project_circumferential(name, X)
+        return self.project(name, X)
+
     def project_curve(self, curve, names, X, iters=6):
         """Closest point on a dtOO curve that lies on the surfaces `names`: the msh
         polyline first, then alternating projection onto those surfaces (the

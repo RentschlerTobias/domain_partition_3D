@@ -138,6 +138,10 @@ def main():
     ap.add_argument("--interp", choices=("spline", "linear"), default="spline",
                     help="coarse-lattice interpolation in (r, theta, z)")
     ap.add_argument("--no-project", action="store_true", help="diagnostic: skip the surface projection")
+    ap.add_argument("--periodic", choices=("circumferential", "normal"), default="circumferential",
+                    help="how points are put on the periodic surfaces")
+    ap.add_argument("--deviation-vtk", default=None,
+                    help="diagnostic: write the spline-vs-surface distance of every boundary face")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     run = Path(a.run)
@@ -191,6 +195,7 @@ def main():
         info["cells"] = len(fracs[ci]) - 1
 
     pts, hexes, bids = [], [], []
+    dev_pts, dev_val, dev_sid, dev_blk, dev_q = [], [], [], [], []
     base = 0
     proj_rep = defaultdict(float)
     proj_blk = {}
@@ -246,13 +251,34 @@ def main():
             if len(names) >= 3:
                 continue                                       # block corner: coarse node, exact
             y = x.copy()
+            # periodic last: the other surface first (hub / shroud: radial, inlet /
+            # outlet: axial), then the circumferential move onto the periodic one
+            order = sorted(names, key=lambda n: n.startswith("periodic"))
             for _ in range(6 if len(names) == 2 else 1):
-                for n in sorted(names):
-                    y = G.project(n, y)[0]
+                for n in order:
+                    y = (G.project_any if a.periodic == "circumferential" else G.project)(n, y)[0]
             D[key] = y - x
             kk_ = ",".join(sorted(names))
             proj_rep[kk_] = max(proj_rep[kk_], float(np.linalg.norm(y - x)))
             proj_blk[(r, kk_)] = max(proj_blk.get((r, kk_), 0.0), float(np.linalg.norm(y - x)))
+        if a.deviation_vtk:
+            # spline vs exact surface on every constrained boundary face of the block
+            for ax in range(3):
+                for side in (0, 1):
+                    w = face_walls(vert, ax, side) - {"cutout"}
+                    if len(w) != 1:
+                        continue
+                    sl = [slice(None)] * 3
+                    sl[ax] = 0 if side == 0 else -1
+                    Xf, Df = F[tuple(sl)], D[tuple(sl)]
+                    n0, n1 = Xf.shape[:2]
+                    off = sum(len(x) for x in dev_pts)
+                    gi = np.arange(n0 * n1).reshape(n0, n1) + off
+                    dev_pts.append(Xf.reshape(-1, 3))
+                    dev_val.append(np.linalg.norm(Df, axis=-1).ravel())
+                    dev_sid.append(np.full(n0 * n1, sorted(G.surfaces).index(next(iter(w))), float))
+                    dev_blk.append(np.full((n0 - 1) * (n1 - 1), r, float))
+                    dev_q.append(np.c_[gi[:-1, :-1].ravel(), gi[1:, :-1].ravel(), gi[1:, 1:].ravel(), gi[:-1, 1:].ravel()])
         D = tfi_param(D, *ss)                                  # carry the displacement inside
         if not a.no_project:
             F = F + D
@@ -290,6 +316,22 @@ def main():
            "projection_max_per_block": {f"{b}:{k}": v for (b, k), v in sorted(proj_blk.items())},
            "quality": qs, "first_cell_height": fc,
            "gate": {"watertight": bool(watertight), "inverted_0": qs["inverted"] == 0}}
+    import meshio
+    if a.deviation_vtk and dev_pts:
+        import meshio
+        meshio.write(a.deviation_vtk, meshio.Mesh(np.vstack(dev_pts), [("quad", np.vstack(dev_q))],
+                                                  point_data={"deviation": np.concatenate(dev_val),
+                                                              "surface": np.concatenate(dev_sid)},
+                                                  cell_data={"block_id": [np.concatenate(dev_blk)]}))
+        rep["surface_ids"] = {i: n for i, n in enumerate(sorted(G.surfaces))}
+        rep["deviation_per_surface"] = {}
+        sid, val = np.concatenate(dev_sid), np.concatenate(dev_val)
+        for i, n in enumerate(sorted(G.surfaces)):
+            if (sid == i).any():
+                v = val[sid == i]
+                rep["deviation_per_surface"][n] = {"max": float(v.max()), "p95": float(np.percentile(v, 95)),
+                                                   "median": float(np.median(v))}
+        out.with_suffix(".json").write_text(json.dumps(rep, indent=1))
     import meshio
     meshio.write(str(out), meshio.Mesh(Pw, [("hexahedron", Hw)],
                                        cell_data={"block_id": [Bw], "sj": [cl["sj"]],

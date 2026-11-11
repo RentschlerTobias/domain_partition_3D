@@ -37,8 +37,9 @@ import quality as qual                                                # noqa: E4
 from core_tfi import graded, tfi_param                                # noqa: E402
 from geometry import Geometry                                         # noqa: E402
 from winslow import winslow, winslow2d                                # noqa: E402
+from ring import BladeSurface                                         # noqa: E402
 
-WALLS = ("hub", "shroud")
+WALLS = ("hub", "shroud", "blade")
 
 
 def cyl(X):
@@ -54,6 +55,22 @@ def resample(poly, f):
     L = np.r_[0, np.cumsum(np.linalg.norm(np.diff(poly, axis=0), axis=1))]
     t = f * L[-1]
     return np.stack([np.interp(t, L, poly[:, k]) for k in range(3)], -1), float(L[-1])
+
+
+def resample_index(poly, nodes, n):
+    """n cells along a polyline that passes through the coarse `nodes`: uniform in the
+    coarse index, arc length inside every coarse segment."""
+    L = np.r_[0, np.cumsum(np.linalg.norm(np.diff(poly, axis=0), axis=1))]
+    at = [int(np.argmin(np.linalg.norm(poly - x, axis=1))) for x in nodes]
+    at[0], at[-1] = 0, len(poly) - 1
+    nc = len(nodes) - 1
+    out = []
+    for s in np.linspace(0, nc, n + 1):
+        k = min(int(np.floor(s)), nc - 1)
+        t = s - k
+        a0, a1 = L[at[k]], L[at[k + 1]]
+        out.append([np.interp(a0 + t * (a1 - a0), L, poly[:, q]) for q in range(3)])
+    return np.array(out)
 
 
 def coons(B, T, L, R):
@@ -74,21 +91,20 @@ def class_cells(lat, classes, counts, vs, P, first, growth):
     """Cells per class incl. BL layers at hub / shroud ends (as in core_tfi)."""
     out = {}
     for ci, c in enumerate(classes):
-        hub = shroud = False
+        walls = set()
         L = []
         for r, ax in c:
             vert = lat[r][1]
             for side in (0, 1):
                 g = tfi.face_grid(vert, ax, side)
                 common = set.intersection(*[vs.get(int(v), set()) for v in g.ravel()])
-                hub |= "hub" in common
-                shroud |= "shroud" in common
+                walls |= common & set(WALLS)
             L.append(tfi.axis_length(P, vert, ax))
         n = int(counts[ci])
-        if hub or shroud:
+        if walls:
             nbl = int(np.ceil(np.log(max(min(L) / n / first, 1.0)) / np.log(growth)))
-            n += nbl * (int(hub) + int(shroud))
-        out[ci] = {"cells": n, "hub": hub, "shroud": shroud}
+            n += nbl * min(len(walls), 2)
+        out[ci] = {"cells": n, "walls": sorted(walls)}
     return out
 
 
@@ -119,11 +135,13 @@ def main():
     ap.add_argument("--winslow", type=int, default=300, help="Winslow iterations per block (0 = off)")
     ap.add_argument("--winslow2d", type=int, default=300,
                     help="2D Winslow iterations on boundary faces, on the surface (0 = off)")
+    ap.add_argument("--ring", action="store_true", help="B6: mesh the blade ring blocks too")
+    ap.add_argument("--dump-block", type=int, nargs="*", default=None, help="diagnostic: save block arrays")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     run = Path(a.run)
     bd = run / "blade"
-    out = Path(a.out) if a.out else bd / "mesh_b5_core.vtk"
+    out = Path(a.out) if a.out else bd / ("mesh_b6.vtk" if a.ring else "mesh_b5_core.vtk")
     b3 = json.loads((bd / "b3_ring.json").read_text())
     vs = {int(k): set(v) for k, v in b3["vertex_surfaces"].items()}
     ncore = int(b3["core_blocks"])
@@ -135,6 +153,8 @@ def main():
     cof = tfi.class_of_axis(classes)
     cc = class_cells(lat, classes, counts, vs, P, a.first, a.growth)
     G = Geometry(run)
+    bs = BladeSurface(bd / "machine_scratch" / "machine_blade.npz")
+    blade_pts = []
 
     # B4 curves by their coarse node sequence
     e4 = np.load(bd / "edges_b4.npz")
@@ -158,9 +178,16 @@ def main():
             L_ = float(np.sum(np.linalg.norm(np.diff(poly, axis=0), axis=1)))
             lo = any(w in ends[0] and w not in common for w in WALLS)
             hi = any(w in ends[1] and w not in common for w in WALLS)
-            f = graded(n, a.first / L_ if lo else 0, a.first / L_ if hi else 0, a.growth) \
-                if (lo or hi) else np.linspace(0, 1, n + 1)
-            X, _ = resample(poly, f)
+            if lo or hi:
+                f = graded(n, a.first / L_ if lo else 0, a.first / L_ if hi else 0, a.growth)
+                X, _ = resample(poly, f)
+            else:
+                # by coarse index, arc length only inside each coarse segment: keeps the
+                # coarse pairing of opposite edges (wall vs cutout around the TE cap,
+                # made valid in B3) instead of matching two unrelated arc lengths
+                X = resample_index(poly, P[list(ids0)], n)
+                d_ = np.r_[0, np.cumsum(np.linalg.norm(np.diff(X, axis=0), axis=1))]
+                f = d_ / d_[-1]
             X[0], X[-1] = P[ids0[0]], P[ids0[-1]]
             # back onto the constraint (the polyline chords between B4 samples)
             names = [x for x in kind.split(":")[1].split("+")] if ":" in kind else []
@@ -195,6 +222,29 @@ def main():
                 cut = all(np.linalg.norm(G.project("cutout", P[g.ravel()]) - P[g.ravel()], axis=1) < 1e-6)
                 common = {"cutout"} if cut else set()
             name = sorted(common)[0] if len(common) == 1 else None
+            if name == "blade":
+                # on the blade: Coons in the dtOO parameters (u, v) of the 4 edges and
+                # S(u, v) -- exact, and no closest-point jump across the sharp TE
+                uvs = []
+                for E in (Bt, Tp, Lf, Rt):
+                    uv = np.array([bs.foot(x)[1] for x in E])
+                    uvs.append(uv)
+                u0 = uvs[0][0, 0]
+                per = bs.period
+                unwrap = lambda u: u0 + np.mod(u - u0 + per / 2, per) - per / 2
+                for uv in uvs:
+                    uv[:, 0] = unwrap(uv[:, 0])
+                    uv[:, 0] = uv[0, 0] + np.unwrap((uv[:, 0] - uv[0, 0]) * 2 * np.pi / per) * per / (2 * np.pi)
+                z = lambda uv: np.c_[uv, np.zeros(len(uv))]
+                UV = coons(z(uvs[0]), z(uvs[1]), z(uvs[2]), z(uvs[3]))[..., :2]
+                Fb = bs.at(UV[..., 0], np.clip(UV[..., 1], bs.V[0], bs.V[-1]))
+                frep["blade"] = max(frep.get("blade", 0.0), float(np.linalg.norm(Fb[1:-1, 1:-1] - F[1:-1, 1:-1], axis=-1).max()) if F.shape[0] > 2 and F.shape[1] > 2 else 0.0)
+                Fb[0], Fb[-1], Fb[:, 0], Fb[:, -1] = F[0], F[-1], F[:, 0], F[:, -1]
+                F = Fb
+                blade_pts.append(F.reshape(-1, 3))
+                faces[key] = (g.copy(), F, name)
+                g0, F, name = faces[key]
+                return match(g0, g)(F)
             inner = F[1:-1, 1:-1]
             if name is not None and inner.size:
                 Y = G.project_any(name, inner.reshape(-1, 3)).reshape(inner.shape)
@@ -211,7 +261,7 @@ def main():
     wrep = {}
     base = 0
     for r in sorted(lat):
-        if r >= ncore:
+        if r >= ncore and not a.ring:
             continue
         dims, vert = lat[r]
         n = [cc[cof[(r, ax)]]["cells"] for ax in range(3)]
@@ -238,8 +288,12 @@ def main():
         Xi = tfi_param(np.nan_to_num(X), *par)
         bnd = ~np.isnan(X[..., 0])
         Xi[bnd] = X[bnd]
+        if a.dump_block is not None and int(r) in a.dump_block:
+            np.save(bd / f"dump_block{int(r)}_tfi.npy", Xi)
         if a.winslow > 0:
             Xi, wrep[int(r)] = winslow(Xi, iters=a.winslow)
+        if a.dump_block is not None and int(r) in a.dump_block:
+            np.save(bd / f"dump_block{int(r)}_win.npy", Xi)
         ni, nj, nk = Xi.shape[:3]
         idx = np.arange(ni * nj * nk).reshape(ni, nj, nk) + base
         pts.append(Xi.reshape(-1, 3))
@@ -260,6 +314,16 @@ def main():
         hs = [abs(rr[c][~on[c]].mean() - r0) for c in Hw[cnt == 4]]
         fc[nm] = {"cells": len(hs), "min": float(np.min(hs)), "median": float(np.median(hs)),
                   "max": float(np.max(hs))} if hs else None
+    if blade_pts:
+        from scipy.spatial import cKDTree
+        onb = cKDTree(np.vstack(blade_pts)).query(Pw)[0] < 1e-9
+        cnt = onb[Hw].sum(1)
+        hs = []
+        for c in Hw[cnt == 4]:
+            w, o = Pw[c[onb[c]]].mean(0), Pw[c[~onb[c]]].mean(0)
+            hs.append(float(np.linalg.norm(o - w)))
+        fc["blade"] = {"cells": len(hs), "min": float(np.min(hs)), "median": float(np.median(hs)),
+                       "max": float(np.max(hs))} if hs else None
     rep = {"out": str(out), "cells": int(len(Hw)), "points": int(len(Pw)), "watertight": bool(watertight),
            "edges": len(edges), "faces": len(faces), "edge_reprojection_max": erep["max_proj"],
            "face_correction_max": frep, "winslow": wrep, "quality": qs, "first_cell_height": fc,

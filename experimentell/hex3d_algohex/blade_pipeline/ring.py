@@ -151,9 +151,10 @@ def blend_segment(u_foot, u_prop, min_frac, valid=None):
     return 1.0, u_prop
 
 
-def optimize_ring(P, RC, bs, lid, Uf, Vf, hub_shroud, eps=0.3, verbose=True):
+def optimize_ring(P, RC, bs, lid, Uf, Vf, hub_shroud, G=None, eps=0.3, verbose=True):
     """Block-level smoothing of the coarse ring: wall nodes slide ON the blade in
-    (u, v) (u only on hub / shroud rows), inner layer nodes move freely, cutout
+    (u, v) (u only on hub / shroud rows), inner layer nodes move freely (in the
+    tangent plane of hub / shroud on those rows, re-projected at the end), cutout
     nodes (= core) stay. Objective: one-sided barrier sum max(0, eps - sJ)^2 plus
     the same barrier on the 24 centroid tets (so folded cells are pushed out too),
     over the ring cells. Kept only if (bad cells, -min sJ) improves."""
@@ -163,8 +164,22 @@ def optimize_ring(P, RC, bs, lid, Uf, Vf, hub_shroud, eps=0.3, verbose=True):
     wall = lid[0].ravel()
     inner = lid[1:L].ravel()
     fixv = np.zeros((ns, nl), bool)
-    fixv[0] |= bool(np.all(hub_shroud[0]))
-    fixv[-1] |= bool(np.all(hub_shroud[1]))
+    fixv[0] |= bool(hub_shroud[0])
+    fixv[-1] |= bool(hub_shroud[1])
+    # inner nodes on the hub / shroud rows: 2 tangential dof on that surface
+    onsurf = {}
+    for row, name, flag in ((0, "hub", hub_shroud[0]), (ns - 1, "shroud", hub_shroud[1])):
+        if flag:
+            for l in range(1, L):
+                for v in lid[l, row]:
+                    onsurf[int(v)] = name
+    Tb = {}
+    for v, name in onsurf.items():
+        S = G.surfaces[name]
+        _, i = S.kd.query(P[v])
+        n = np.cross(S.B[i] - S.A[i], S.C[i] - S.A[i])
+        n /= np.linalg.norm(n)
+        Tb[v] = n
     u0, v0 = Uf.ravel().copy(), Vf.ravel().copy()
     freev = ~fixv.ravel()
     sc = np.median(np.abs(np.diff(Uf, axis=1)))       # u step ~ one cell
@@ -179,7 +194,17 @@ def optimize_ring(P, RC, bs, lid, Uf, Vf, hub_shroud, eps=0.3, verbose=True):
         v = v0.copy()
         v[freev] += dv * x[nu:nu + nvf]
         X[wall] = bs.at(u, np.clip(v, bs.V[0], bs.V[-1]))
-        X[inner] = Pin0 + h * x[nu + nvf:].reshape(-1, 3)
+        D = h * x[nu + nvf:].reshape(-1, 3)
+        for k, v in enumerate(inner):
+            if int(v) in Tb:                       # drop the normal component
+                n = Tb[int(v)]
+                D[k] -= np.dot(D[k], n) * n
+        X[inner] = Pin0 + D
+        return X
+
+    def reproject(X):
+        for v, name in onsurf.items():
+            X[v] = G.project(name, X[v])[0]
         return X
 
     def score(X):
@@ -197,7 +222,9 @@ def optimize_ring(P, RC, bs, lid, Uf, Vf, hub_shroud, eps=0.3, verbose=True):
     g0 = score(place(x0))
     bnd = [(-0.45, 0.45)] * nu + [(-0.45, 0.45)] * nvf + [(-0.45, 0.45)] * (3 * ni)
     res = minimize(obj, x0, method="L-BFGS-B", bounds=bnd, options={"maxiter": 400})
-    X = place(res.x)
+    X = reproject(place(res.x))
+    P = reproject(P.copy())
+    g0 = score(P)
     g1 = score(X)
     if verbose:
         print(f"[b3] ring smoothing: bad cells {g0[0]} -> {g1[0]}, min sJ {-g0[1]:.4f} -> {-g1[1]:.4f}")
@@ -310,10 +337,17 @@ def main():
     if sgn < 0:
         Uf = -Uf
     # hub / shroud rows end exactly on the blade's v = 0 / 1 edge
-    rr = np.hypot(P[ids][..., 0], P[ids][..., 1])
+    # (detected by projection onto the reference hub / shroud: the facetted msh
+    # surface sits ~2e-4 inside the analytic cylinder, so no radius test)
+    from geometry import Geometry
+    G = Geometry(run)
+    on = lambda name, X: bool(np.all(np.linalg.norm(G.project(name, X) - X, axis=1) < 1e-8))
+    hub_row, shroud_row = on("hub", P[ids[0]]), on("shroud", P[ids[-1]])
     Vf = V.copy()
-    Vf[0] = bs.V[0] if abs(rr[0].mean() - np.hypot(*bs.S[0, 0, :2])) < 1e-6 else V[0]
-    Vf[-1] = bs.V[-1] if abs(rr[-1].mean() - np.hypot(*bs.S[0, -1, :2])) < 1e-6 else V[-1]
+    if hub_row:
+        Vf[0] = bs.V[0]
+    if shroud_row:
+        Vf[-1] = bs.V[-1]
     W = bs.at(Uf, Vf)                                  # (nspan, nloop, 3) wall nodes
 
     # ring points: layer 0 = wall, layer L = cutout (existing core ids)
@@ -347,8 +381,7 @@ def main():
         ring_cells.append(cells)
         ring_bid += [nb + k] * len(cells)
     RC = np.vstack(ring_cells)
-    P2 = optimize_ring(P2, RC, bs, lid, Uf, Vf, hub_shroud=(Vf[0] == bs.V[0], Vf[-1] == bs.V[-1]),
-                       eps=a.eps)
+    P2 = optimize_ring(P2, RC, bs, lid, Uf, Vf, hub_shroud=(hub_row, shroud_row), G=G, eps=a.eps)
     W = P2[lid[0]]
     H2 = np.vstack([H, RC])
     B2 = np.r_[B, ring_bid]
@@ -361,6 +394,13 @@ def main():
         q, _ = bs.foot(x)
         wall_res.append(float(np.linalg.norm(q - x)))
     ring_q = qual.summary(P2, RC)
+    hs_dev = {}
+    for row, name, flag in ((0, "hub", hub_row), (nspan - 1, "shroud", shroud_row)):
+        if flag:
+            X = P2[lid[1:, row].ravel()]
+            hs_dev[name + "_inner_nodes"] = float(np.linalg.norm(G.project(name, X) - X, axis=1).max())
+            X = P2[lid[0, row]]
+            hs_dev[name + "_wall_nodes"] = float(np.linalg.norm(G.project(name, X) - X, axis=1).max())
     all_q = qual.summary(P2, H2)
     cls = qual.classify(P2, RC)
     worst = np.argsort(cls["sj"])[:5]
@@ -372,6 +412,7 @@ def main():
            "conformal_outer_face": core_cut == ring_outer,
            "t_nodes": len(core_cut ^ ring_outer),
            "wall_residual_max": max(wall_res),
+           "hub_shroud_rows": {"hub": hub_row, "shroud": shroud_row, "deviation_max": hs_dev},
            "gap_cutout_blade": {"min": float(gap.min()), "median": float(np.median(gap)), "max": float(gap.max())},
            "u_blend_weight": {"per_segment_max": weights.max(0).tolist(), "per_row": weights.tolist()},
            "quality_ring": ring_q, "quality_all": all_q,
@@ -388,7 +429,7 @@ def main():
                                                   "inverted": [cl["inverted"].astype(float)],
                                                   "concave": [cl["concave"].astype(float)]}))
     js.write_text(json.dumps(rep, indent=1))
-    print(json.dumps({k: rep[k] for k in ("ring_block_of_core_side", "span_rows", "loop_nodes", "t_nodes",
+    print(json.dumps({k: rep[k] for k in ("ring_block_of_core_side", "span_rows", "loop_nodes", "t_nodes", "hub_shroud_rows",
                                           "wall_residual_max", "gap_cutout_blade", "quality_ring", "gate")},
                      indent=1))
     print("u-blend max per segment:", np.round(weights.max(0), 2).tolist())

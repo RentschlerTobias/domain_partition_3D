@@ -503,7 +503,9 @@ def solve_block_divisions(lat, classes, P, target_h, h_map=None,
               f"lower bounds")
 
     for ci, c in enumerate(classes):
-        assert counts[ci] >= lb[ci], f"class {ci} below its lower bound"
+        # a pinned class keeps its existing count, which may lie below h
+        assert ci in pinned or counts[ci] >= lb[ci], \
+            f"class {ci} below its lower bound"
     # what `OPPOSITE` would have constrained: inside a lattice the two faces
     # normal to an axis are spanned by the same two axes, so the family is
     # vacuous. Asserted rather than argued.
@@ -1174,6 +1176,11 @@ if __name__ == "__main__":
     ap.add_argument("--frozen", action="append", default=[],
                     help="alias for --pin-class: pin a block axis: "
                          "BLOCK,AXIS=COUNT (repeatable)")
+    ap.add_argument("--pin-layers-from", type=int, default=None,
+                    help="pin axis 2 of every block with id >= this to its "
+                         "existing count (wall-normal layers of an appended "
+                         "O-ring). Off by default: the core blocks of a "
+                         "plain AlgoHex structure carry ids >= 12 as well.")
     a = ap.parse_args()
     if a.apply_divisions:
         a.solve_divisions = True
@@ -1188,12 +1195,13 @@ if __name__ == "__main__":
         classes = direction_classes(lat, f2h, H, B)
         check_conformity(lat, classes)
         frozen = frozen_from_missing(lat, H, f2h, B)
-        # auto-detect ring blocks (S1 ids >= 12, or a wall-normal axis whose
-        # count differs from its class siblings) and pin their wall-normal
-        # axis to the block's existing layer count.
-        for _r in lat:
-            if int(_r) >= 12:
-                frozen.setdefault((_r, 2), int(lat[_r][0][2]))
+        # ring blocks appended after the core (ids >= --pin-layers-from) keep
+        # their wall-normal layer count. Opt-in: block ids carry no meaning in
+        # a plain AlgoHex structure, which can have 40 core blocks.
+        if a.pin_layers_from is not None:
+            for _r in lat:
+                if int(_r) >= a.pin_layers_from:
+                    frozen.setdefault((_r, 2), int(lat[_r][0][2]))
         # explicit pins from the CLI
         def _parse_pin(spec):
             if "=" not in spec:
@@ -1220,6 +1228,10 @@ if __name__ == "__main__":
                     print(f"[tfi] WARNING: overriding pin ({r},{ax}) "
                           f"{frozen[(r,ax)]} -> {count}")
                 frozen[(r, ax)] = count
+        if a.require_lattices and missing:
+            print(f"[tfi] REJECTED: {len(missing)} block(s) have no lattice "
+                  f"and cannot be refilled -- {missing}")
+            raise SystemExit(3)
         if frozen:
             # What pinning costs, in full. A block that cannot be refilled
             # forces its neighbours' faces to keep their counts, and class
@@ -1241,10 +1253,6 @@ if __name__ == "__main__":
                     f"   <-- {100 * (pinned[ci] - free[ci]) / free[ci]:+.0f} %"
                 print(f"[tfi]   class {ci:3d} ({len(classes[ci]):3d} axes): "
                       f"pinned {pinned[ci]:4d}, free {free[ci]:4d}{mark}")
-        if a.require_lattices and missing:
-            print(f"[tfi] REJECTED: {len(missing)} block(s) have no lattice "
-                  f"and cannot be refilled -- {missing}")
-            raise SystemExit(3)
         counts = solve_block_divisions(lat, classes, P, a.target_h,
                                        frozen_counts=frozen, bound=a.bound)
         rows = class_table(lat, classes, counts, P, a.target_h)

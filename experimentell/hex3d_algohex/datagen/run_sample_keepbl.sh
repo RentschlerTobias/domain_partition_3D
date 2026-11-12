@@ -40,7 +40,7 @@ st ogrid $TO_TFI $PY ogrid_extrude.py "$R/blocks.vtk" \
     --msh "$R/case/mesh.msh" --input-vtk "$R/tet.vtk" \
     --out "$R/blade/blocks_blade.vtk" --json "$R/blade/blade_s1.json"
 st tfi_blade $TO_TFI $PY tfi.py "$R/blade/blocks_blade.vtk" \
-    --input-vtk "$R/tet.vtk" --target-h 0.05 --pin-class 10=10 \
+    --input-vtk "$R/tet.vtk" --target-h 0.05 --pin-class 10=10 --pin-layers-from 12 \
     --solve-divisions --apply-divisions --out "$R/blade/tfi_blade.vtk"
 fi
 st tfi $TO_TFI $PY tfi.py "$R/blocks.vtk" --input-vtk "$R/tet.vtk" --target-h 0.05 --require-lattices \

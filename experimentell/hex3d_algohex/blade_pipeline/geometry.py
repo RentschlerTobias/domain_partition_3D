@@ -234,11 +234,13 @@ class Geometry:
             for t in ts:
                 self.entity_surface[t] = n
         cut_tris = []
+        self.cut_quads = []
         for k in cut:
             if len(k) == 3:
                 cut_tris.append(k)
             else:                                   # frozenset loses the quad order: rebuild it
                 q = _order_quad(P, k)
+                self.cut_quads.append(q)
                 cut_tris += [q[[0, 1, 2]], q[[0, 2, 3]]]
         self.surfaces["cutout"] = Surface("cutout", P, np.asarray(cut_tris, int))
         npz = run / "blade" / "machine_scratch" / "machine_blade.npz"
@@ -265,6 +267,42 @@ class Geometry:
 
     def project(self, name, X):
         return self.surfaces[name].project(X)
+
+    def cutout_grid(self):
+        """The cutout as the structured grid it is in the dtOO O-grid: S[i, k] with i
+        around the blade (closed: S[-1] == S[0]) and k from hub to shroud. Rows are
+        marched from the node loop on the hub across the quad faces: every node has
+        two neighbours in its row, one below and one above. None if the cutout is not
+        such a quad grid (then the caller has no (s, t) parameters)."""
+        if not self.cut_quads:
+            return None
+        P = self.points
+        adj = {}
+        for q in self.cut_quads:
+            for a_, b_ in zip(q, np.roll(q, -1)):
+                adj.setdefault(int(a_), set()).add(int(b_))
+                adj.setdefault(int(b_), set()).add(int(a_))
+        r = np.hypot(P[:, 0], P[:, 1])
+        rtol = 1e-6 * self.r_shroud
+        hub = {v for v in adj if abs(r[v] - self.r_hub) < rtol}
+        if not hub:
+            return None
+        row = _chain([(a_, b_) for a_ in hub for b_ in adj[a_] if b_ in hub and a_ < b_])
+        rows, prev = [row], set()
+        while not all(abs(r[v] - self.r_shroud) < rtol for v in rows[-1]):
+            cur = set(rows[-1])
+            nxt = []
+            for v in rows[-1]:
+                up = [w for w in adj[v] if w not in cur and w not in prev]
+                if len(up) != 1:
+                    return None
+                nxt.append(up[0])
+            prev = cur
+            rows.append(nxt)
+            if len(rows) > len(adj):
+                return None
+        G = P[np.array(rows)]                                  # (K, N, 3)
+        return np.concatenate([G, G[:, :1]], axis=1).transpose(1, 0, 2)
 
     def theta_map(self, name):
         """theta(r, z) of a periodic surface (a graph over the meridian plane:

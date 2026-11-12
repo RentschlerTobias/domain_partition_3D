@@ -40,11 +40,14 @@ CUT_LABEL = 7          # tet_prep_v5.S_OGRID_IFACE
 
 
 class BladeSurface:
-    """The dtOO blade sample S[i, j] = S(U[i], V[j]) as triangles with (u, v)."""
+    """The dtOO blade sample S[i, j] = S(U[i], V[j]) as triangles with (u, v), u
+    periodic. Also any other closed structured surface given as arrays (the cutout)."""
 
-    def __init__(self, npz):
-        d = np.load(npz, allow_pickle=True)
-        self.S, self.U, self.V = d["S"], d["U"], d["V"]
+    def __init__(self, npz=None, S=None, U=None, V=None):
+        if npz is not None:
+            d = np.load(npz, allow_pickle=True)
+            S, U, V = d["S"], d["U"], d["V"]
+        self.S, self.U, self.V = S, U, V
         nu, nv = self.S.shape[:2]
         I, J = np.meshgrid(np.arange(nu - 1), np.arange(nv - 1), indexing="ij")
         a = (I * nv + J).ravel()

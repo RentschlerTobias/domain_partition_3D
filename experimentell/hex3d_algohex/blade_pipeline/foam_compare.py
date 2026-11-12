@@ -9,7 +9,8 @@ Per case, from the dtOO function objects (postProcessing/) averaged over the las
   Mz       torque about the machine axis on RU_BLADE (forces, rhoInf = --rho)
   P_hyd    rho * dptot * Q,  P_shaft = |Mz| * omega,  eta = P_shaft / P_hyd
   y+       per wall patch (min / max / mean at the last write)
-plus the final initial residuals from log.simpleFoam and the cell count.
+plus the final initial residuals from log.simpleFoam, the cell count, the wall time and
+the iteration from which the torque stays within 2 % / 0.5 % (100-iteration windows).
 """
 import argparse
 import json
@@ -23,6 +24,18 @@ def series(case, fo, fname, col=1):
     f = sorted((case / "postProcessing" / fo).glob(f"*/{fname}"))[-1]
     rows = [ln.split() for ln in f.read_text().splitlines() if ln.strip() and not ln.startswith("#")]
     return np.array([[float(r[0]), float(r[col])] for r in rows])
+
+
+def settle(s, tol, win=100):
+    """First iteration from which every window of `win` iterations stays within
+    tol * |final mean| (None: never within the run)."""
+    t, v = s[:, 0], s[:, 1]
+    ref = abs(v[-win:].mean())
+    ok = [np.ptp(v[i:i + win]) < tol * ref for i in range(len(v) - win + 1)]
+    for i in range(len(ok)):
+        if all(ok[i:]):
+            return int(t[i])
+    return None
 
 
 def stat(s, last):
@@ -44,7 +57,10 @@ def main():
         q, qs = stat(series(c, "Q_ru_in", "surfaceFieldValue.dat"), a.last)
         pi, pis = stat(series(c, "ptot_ru_in", "surfaceFieldValue.dat"), a.last)
         po, pos = stat(series(c, "ptot_ru_out", "surfaceFieldValue.dat"), a.last)
-        mz, mzs = stat(series(c, "forces", "moment.dat", col=3), a.last)
+        ms = series(c, "forces", "moment.dat", col=3)
+        mz, mzs = stat(ms, a.last)
+        r["Mz_settled_2pct"] = settle(ms, 0.02)
+        r["Mz_settled_0.5pct"] = settle(ms, 0.005)
         r.update({"Q": abs(q), "Q_spread": qs, "ptot_in": pi, "ptot_out": po, "dptot": pi - po,
                   "dptot_spread": pis + pos, "Mz": mz, "Mz_spread": mzs})
         r["P_hyd"] = a.rho * r["dptot"] * r["Q"]
@@ -60,15 +76,18 @@ def main():
         r["final_initial_residuals"] = {m.group(1): float(m.group(2)) for m in
                                         re.finditer(r"Solving for (\w+), Initial residual = ([0-9.eE+-]+)", tail)}
         r["iterations"] = int(tmax)
+        w = re.search(r"wall=([0-9.]+)s", log)
+        r["wall_s"] = float(w.group(1)) if w else None
         m = re.search(r"nCells:\s*(\d+)|cells:\s*(\d+)", (c / "log.checkMesh").read_text()) if (c / "log.checkMesh").exists() else None
         r["cells"] = int(m.group(1) or m.group(2)) if m else None
         out[c.name] = r
-    keys = ["cells", "iterations", "Q", "Q_spread", "dptot", "dptot_spread", "Mz", "Mz_spread", "P_hyd", "P_shaft", "eta"]
+    keys = ["cells", "iterations", "wall_s", "Q", "Q_spread", "dptot", "dptot_spread", "Mz", "Mz_spread",
+            "Mz_settled_2pct", "Mz_settled_0.5pct", "P_hyd", "P_shaft", "eta"]
     names = list(out)
-    print(f"{'':16}" + "".join(f"{n:>16}" for n in names) + (f"{'diff b-a %':>14}" if len(names) == 2 else ""))
+    print(f"{'':18}" + "".join(f"{n:>16}" for n in names) + (f"{'diff b-a %':>14}" if len(names) == 2 else ""))
     for k in keys:
         vals = [out[n][k] for n in names]
-        row = f"{k:16}" + "".join(f"{v:16.6g}" if isinstance(v, (int, float)) and v is not None else f"{str(v):>16}" for v in vals)
+        row = f"{k:18}" + "".join(f"{v:16.6g}" if isinstance(v, (int, float)) and v is not None else f"{str(v):>16}" for v in vals)
         if len(names) == 2 and all(isinstance(v, (int, float)) for v in vals) and vals[0]:
             row += f"{100 * (vals[1] - vals[0]) / abs(vals[0]):14.2f}"
         print(row)

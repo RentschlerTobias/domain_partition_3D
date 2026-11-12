@@ -169,9 +169,45 @@ def _work_path(p, backend="docker"):
     return f"{WORK}/{rel}"
 
 
+# HexMeshing falls back to a non-quantized map when the seamless map has
+# flipped tets; the HexEx extraction that follows then runs 4-8 h or returns a
+# mesh with holes. That path never produced a usable sample (0 of ~30 in the
+# tistos runs: every timeout and every "off the input surface" beam reject
+# went through it), so the run is stopped as soon as HexMeshing announces it.
+FAIL_FAST_MARK = "Parameterizing without quantization"
+FAIL_FAST_EXIT = 3
+
+
+def _run_watched(cmd, log, log_path, mark, poll=10.0):
+    """subprocess.run, but terminate when `mark` appears in the log.
+    Returns (returncode, stopped_by_mark)."""
+    proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
+    pos = 0
+    while True:
+        try:
+            proc.wait(timeout=poll)
+            return proc.returncode, False
+        except subprocess.TimeoutExpired:
+            pass
+        if mark:
+            log.flush()
+            with open(log_path, "r", errors="replace") as f:
+                f.seek(max(0, pos - len(mark)))
+                chunk = f.read()
+                pos = f.tell()
+            if mark in chunk:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=60)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+                return FAIL_FAST_EXIT, True
+
+
 def run_hexmeshing(extra_args=(), tag="", in_vtk=None, prefix="T1_9",
                    cpus=None, backend="docker", image=None, out_dir=None,
-                   checkpoints=False):
+                   checkpoints=False, fail_fast=True):
     """``tag`` suffixes every output so concurrent runs cannot clobber each
     other -- though note that two AlgoHex runs must never overlap anyway
     (~6 GB peak each; concurrency is what killed v7 and v8).
@@ -222,11 +258,14 @@ def run_hexmeshing(extra_args=(), tag="", in_vtk=None, prefix="T1_9",
     for attempt in range(1, attempts + 1):
         t0 = time.time()
         with open(log_path, "w") as log:
-            proc = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT)
+            rc, stopped = _run_watched(cmd, log, log_path, FAIL_FAST_MARK if fail_fast else None)
         dt = time.time() - t0
         note = f" (attempt {attempt}/{attempts})" if attempts > 1 else ""
-        print(f"[run_algohex] exit={proc.returncode} in {dt:.1f}s, log: {log_path}{note}")
-        if (proc.returncode != 0 and attempt < attempts
+        if stopped:
+            print(f"[run_algohex] FAIL-FAST: invalid seamless map ({FAIL_FAST_MARK!r}), "
+                  f"HexMeshing stopped after {dt:.1f}s")
+        print(f"[run_algohex] exit={rc} in {dt:.1f}s, log: {log_path}{note}")
+        if (rc != 0 and attempt < attempts
                 and "Could not acquire rootfs lock" in log_path.read_text()):
             delay = random.uniform(2.0, 12.0) * attempt
             print(f"[run_algohex] rootfs lock busy, retrying in {delay:.0f}s")
@@ -238,7 +277,7 @@ def run_hexmeshing(extra_args=(), tag="", in_vtk=None, prefix="T1_9",
     print("[run_algohex] --- log tail ---")
     print("\n".join(tail))
 
-    return proc.returncode, out_ovm, json_out, log_path
+    return rc, out_ovm, json_out, log_path
 
 
 def resolve_backend(backend):
@@ -293,6 +332,9 @@ if __name__ == "__main__":
                     help="HexMeshing binary to run (default HEXMESHING_BIN "
                          "environ or 'HexMeshing' on PATH); a second build "
                          "with extra AlgoHex flags can be selected this way")
+    ap.add_argument("--no-fail-fast", action="store_true",
+                    help=f"keep running after HexMeshing reports {FAIL_FAST_MARK!r} "
+                         f"(default: stop there, exit {FAIL_FAST_EXIT})")
     ap.add_argument("rest", nargs=argparse.REMAINDER,
                     help="extra flags passed straight to HexMeshing")
     a = ap.parse_args()
@@ -304,6 +346,6 @@ if __name__ == "__main__":
     rc, out_ovm, json_out, log_path = run_hexmeshing(
         extra, tag=a.tag, in_vtk=a.in_vtk, prefix=a.prefix, cpus=a.cpus,
         backend=backend, image=a.image, out_dir=a.out_dir,
-        checkpoints=a.checkpoints)
+        checkpoints=a.checkpoints, fail_fast=not a.no_fail_fast)
     print(f"[run_algohex] hex mesh: {out_ovm}")
     sys.exit(rc)

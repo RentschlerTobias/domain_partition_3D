@@ -14,6 +14,8 @@ BW=${BEAM_WORKERS:-4}; N=${ALGOHEX_N:-2000}; HTOL=${BEAM_HAUSDORFF:-0.1}; BWID=$
 TO_DTOO=${TO_DTOO:-1800} TO_TET_PREP=${TO_TET_PREP:-900} TO_ALGOHEX=${TO_ALGOHEX:-14400}
 TO_BEAM=${TO_BEAM:-7200} TO_TFI=${TO_TFI:-600} TO_EXPORT=${TO_EXPORT:-600}
 TH=${THREADS:-$(nproc)}; BLADE=${BLADE_STAGES:-0}
+# HexMeshing build (run_algohex.py reads HEXMESHING_BIN); a patched build is selected per lane this way
+export HEXMESHING_BIN=${HEXMESHING_BIN:-HexMeshing}
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OSLO_LOCK_PATH=/tmp FOAM_SIGFPE=0
 export PYTHONDONTWRITEBYTECODE=1
 [ -f "$R/sample.npz" ] && { echo "skip $name"; exit 0; }

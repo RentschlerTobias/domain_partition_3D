@@ -61,7 +61,10 @@ def write_boundary(pm, patches, n_internal):
                        f"        neighbourPatch  {AMI_PARTNER[name]};\n"
                        "        transform       rotational;\n"
                        "        rotationAxis    (0 0 1);\n"
-                       "        rotationCentre  (0 0 0);\n")
+                       "        rotationCentre  (0 0 0);\n"
+                       # faces the partner side does not cover take their own cell's
+                       # value instead of 0 (non-conformal periodic sides)
+                       "        lowWeightCorrection 0.2;\n")
         out.append(f"        nFaces          {nf};\n        startFace       {start};\n    }}\n")
         start += nf
     out.append(")\n")

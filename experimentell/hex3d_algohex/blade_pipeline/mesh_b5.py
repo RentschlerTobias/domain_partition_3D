@@ -40,6 +40,12 @@ from winslow import winslow, winslow2d                                # noqa: E4
 from ring import BladeSurface, blend_segment                         # noqa: E402
 
 WALLS = ("hub", "shroud", "blade")
+# reference surface -> OpenFOAM patch, as dtOO names them (xml/ru_gridMesh.xml): the
+# channel region R_0 has its faces in dtGmshModel order SOUTH, NORTH, FRONT, BACK,
+# WEST, EAST = msh entities 1..6 = hub, shroud, inlet, outlet, periodic_B, periodic_A;
+# R_0->WEST is RU_PERIOPS, R_0->EAST is RU_PERIOSS
+PATCHES = {"hub": "RU_HUB", "shroud": "RU_SHROUD", "blade": "RU_BLADE", "inlet": "RU_INLET",
+           "outlet": "RU_OUTLET", "periodic_B": "RU_PERIOPS", "periodic_A": "RU_PERIOSS"}
 
 
 def cyl(X):
@@ -607,8 +613,9 @@ def main():
     if a.ring:
         for r in sorted(lat):
             if r >= ncore:
-                blocks[r], _ = build_block(r)
+                blocks[r], sides[r] = build_block(r)
     pts, hexes, bids = [], [], []
+    bq, bpatch = [], []
     wrep = {}
     base = 0
     for r in sorted(blocks):
@@ -619,6 +626,11 @@ def main():
             np.save(bd / f"dump_block{int(r)}_win.npy", Xi)
         ni, nj, nk = Xi.shape[:3]
         idx = np.arange(ni * nj * nk).reshape(ni, nj, nk) + base
+        for sl, _g, name, _n in sides[r][0]:
+            if name in PATCHES:
+                G2 = idx[sl]
+                bq.append(np.c_[G2[:-1, :-1].ravel(), G2[1:, :-1].ravel(), G2[1:, 1:].ravel(), G2[:-1, 1:].ravel()])
+                bpatch += [list(PATCHES).index(name)] * ((G2.shape[0] - 1) * (G2.shape[1] - 1))
         pts.append(Xi.reshape(-1, 3))
         hexes.append(tfi.block_cells(idx))
         bids += [r] * ((ni - 1) * (nj - 1) * (nk - 1))
@@ -653,10 +665,17 @@ def main():
            "classes": [{"class": ci, "axes": len(classes[ci]), **cc[ci]} for ci in cc],
            "gate": {"watertight": bool(watertight), "inverted_0": qs["inverted"] == 0}}
     import meshio
-    meshio.write(str(out), meshio.Mesh(Pw, [("hexahedron", Hw)],
-                                       cell_data={"block_id": [np.array(bids)], "sj": [cl["sj"]],
-                                                  "inverted": [cl["inverted"].astype(float)],
-                                                  "concave": [cl["concave"].astype(float)]}))
+    # boundary quads with their patch (index into PATCHES, names in field_data)
+    Qw = remap[np.vstack(bq)]
+    nq = len(Qw)
+    zq = np.zeros(nq)
+    meshio.write(str(out), meshio.Mesh(Pw, [("hexahedron", Hw), ("quad", Qw)],
+                                       cell_data={"block_id": [np.array(bids), np.full(nq, -1)],
+                                                  "sj": [cl["sj"], zq],
+                                                  "inverted": [cl["inverted"].astype(float), zq],
+                                                  "concave": [cl["concave"].astype(float), zq],
+                                                  "patch": [np.full(len(Hw), -1), np.array(bpatch)]},
+                                       field_data={v: np.array([i, 2]) for i, v in enumerate(PATCHES.values())}))
     out.with_suffix(".json").write_text(json.dumps(rep, indent=1))
     # entities for B6 (the ring meshes against the same cutout faces)
     fin = {(k[0] if isinstance(k, tuple) else k): v for k, v in faces.items()

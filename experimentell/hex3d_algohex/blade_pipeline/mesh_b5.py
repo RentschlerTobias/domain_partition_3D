@@ -615,7 +615,7 @@ def main():
             if r >= ncore:
                 blocks[r], sides[r] = build_block(r)
     pts, hexes, bids = [], [], []
-    bq, bpatch = [], []
+    bq, bpatch, bqid = [], [], []
     wrep = {}
     base = 0
     for r in sorted(blocks):
@@ -631,6 +631,7 @@ def main():
                 G2 = idx[sl]
                 bq.append(np.c_[G2[:-1, :-1].ravel(), G2[1:, :-1].ravel(), G2[1:, 1:].ravel(), G2[:-1, 1:].ravel()])
                 bpatch += [list(PATCHES).index(name)] * ((G2.shape[0] - 1) * (G2.shape[1] - 1))
+                bqid += [r] * ((G2.shape[0] - 1) * (G2.shape[1] - 1))
         pts.append(Xi.reshape(-1, 3))
         hexes.append(tfi.block_cells(idx))
         bids += [r] * ((ni - 1) * (nj - 1) * (nk - 1))
@@ -665,17 +666,20 @@ def main():
            "classes": [{"class": ci, "axes": len(classes[ci]), **cc[ci]} for ci in cc],
            "gate": {"watertight": bool(watertight), "inverted_0": qs["inverted"] == 0}}
     import meshio
-    # boundary quads with their patch (index into PATCHES, names in field_data)
+    # boundary quads with their patch (index into PATCHES) and the block_id / quality of
+    # the block cell they bound (-1 patch on the hexes)
     Qw = remap[np.vstack(bq)]
-    nq = len(Qw)
-    zq = np.zeros(nq)
+    hk = {}
+    for ci, h in enumerate(Hw[:, [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]]
+                           .reshape(-1, 4).tolist()):
+        hk.setdefault(tuple(sorted(h)), ci // 6)
+    qc = np.array([hk[tuple(sorted(q))] for q in Qw.tolist()])
     meshio.write(str(out), meshio.Mesh(Pw, [("hexahedron", Hw), ("quad", Qw)],
-                                       cell_data={"block_id": [np.array(bids), np.full(nq, -1)],
-                                                  "sj": [cl["sj"], zq],
-                                                  "inverted": [cl["inverted"].astype(float), zq],
-                                                  "concave": [cl["concave"].astype(float), zq],
-                                                  "patch": [np.full(len(Hw), -1), np.array(bpatch)]},
-                                       field_data={v: np.array([i, 2]) for i, v in enumerate(PATCHES.values())}))
+                                       cell_data={"block_id": [np.array(bids), np.array(bqid)],
+                                                  "sj": [cl["sj"], cl["sj"][qc]],
+                                                  "inverted": [cl["inverted"].astype(float), cl["inverted"][qc].astype(float)],
+                                                  "concave": [cl["concave"].astype(float), cl["concave"][qc].astype(float)],
+                                                  "patch": [np.full(len(Hw), -1), np.array(bpatch)]}))
     out.with_suffix(".json").write_text(json.dumps(rep, indent=1))
     # entities for B6 (the ring meshes against the same cutout faces)
     fin = {(k[0] if isinstance(k, tuple) else k): v for k, v in faces.items()

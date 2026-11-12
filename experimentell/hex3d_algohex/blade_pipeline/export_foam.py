@@ -2,8 +2,8 @@
 
     export_foam.py <mesh.vtk> --case <dir> [--json report.json]
 
-Input: the hexahedra and the boundary quads of mesh_b5.py (cell data "patch" on the
-quads = index into mesh_b5.PATCHES: RU_HUB, RU_SHROUD, RU_BLADE, RU_INLET, RU_OUTLET,
+Input: the hexahedra and boundary quads of mesh_b5.py (cell data "patch" on the quads
+= index into mesh_b5.PATCHES: RU_HUB, RU_SHROUD, RU_BLADE, RU_INLET, RU_OUTLET,
 RU_PERIOPS, RU_PERIOSS -- the names dtOO gives them, so the dtOO OpenFOAM setup
 (xml/tistos_ru_of.xml: walls, mapped inlet, cyclicAMI pair, function objects) applies
 unchanged). Every boundary face of the hex complex must carry exactly one patch.

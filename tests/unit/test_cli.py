@@ -20,3 +20,10 @@ def test_plugins_lists_every_kind(capsys):
 def test_no_command_prints_help(capsys):
     assert cli.main([]) == 0
     assert "usage: hexdp" in capsys.readouterr().out
+
+
+def test_describe_prints_json(capsys):
+    import json
+
+    assert cli.main(["plugins", "ops", "--describe"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"ops": []}

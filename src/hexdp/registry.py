@@ -60,11 +60,12 @@ def names(kind: str) -> list[str]:
     return [e.name for e in entries(kind)]
 
 
-def load(kind: str, name: str, **kwargs: Any) -> Any:
+def load(kind: str, name: str, validate: bool = True, **kwargs: Any) -> Any:
     """Import and return the plugin ``name`` of ``kind``.
 
     A class is instantiated with ``kwargs``; any other object (a module-level
-    instance or a factory result) is returned as it is.
+    instance or a factory result) is returned as it is. With ``validate`` the
+    object is checked against its contract (``hexdp.contracts``).
     """
     matches = [ep for ep in metadata.entry_points(group=group(kind)) if ep.name == name]
     if not matches:
@@ -77,4 +78,11 @@ def load(kind: str, name: str, **kwargs: Any) -> Any:
         obj = matches[0].load()
     except Exception as exc:  # report which plugin broke, not just the import error
         raise PluginError(f"{kind} plugin '{name}' ({matches[0].value}) does not load: {exc}") from exc
-    return obj(**kwargs) if isinstance(obj, type) else obj
+    plugin = obj(**kwargs) if isinstance(obj, type) else obj
+    if validate:
+        from hexdp.contracts import validate as check
+
+        problems = check(kind, plugin)
+        if problems:
+            raise PluginError(f"{kind} plugin '{name}' breaks its contract: {'; '.join(problems)}")
+    return plugin

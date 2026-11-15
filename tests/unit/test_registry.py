@@ -23,6 +23,7 @@ def fake_entry_points(monkeypatch):
             _ep("broken", "tests.unit.plugins_fixture:DoesNotExist"),
             _ep("twice", "tests.unit.plugins_fixture:DummyStrategy"),
             _ep("twice", "tests.unit.plugins_fixture:DummyStrategy"),
+            _ep("sloppy", "tests.unit.plugins_fixture:NoParams"),
         ]
     }
     monkeypatch.setattr(registry.metadata, "entry_points", lambda group: table.get(group, []))
@@ -38,7 +39,7 @@ def test_unknown_kind_is_rejected():
 
 
 def test_entries_are_listed_without_importing(fake_entry_points):
-    assert registry.names("strategies") == ["broken", "dummy", "twice", "twice"]
+    assert registry.names("strategies") == ["broken", "dummy", "sloppy", "twice", "twice"]
     assert registry.names("ops") == []
 
 
@@ -48,7 +49,7 @@ def test_load_instantiates_a_class_with_kwargs(fake_entry_points):
 
 
 def test_unknown_name_lists_the_known_ones(fake_entry_points):
-    with pytest.raises(registry.PluginError, match="known: broken, dummy, twice"):
+    with pytest.raises(registry.PluginError, match="known: broken, dummy, sloppy, twice"):
         registry.load("strategies", "sweep")
 
 
@@ -60,3 +61,9 @@ def test_broken_plugin_names_itself(fake_entry_points):
 def test_duplicate_registration_is_an_error(fake_entry_points):
     with pytest.raises(registry.PluginError, match="more than once"):
         registry.load("strategies", "twice")
+
+
+def test_contract_is_checked_on_load(fake_entry_points):
+    with pytest.raises(registry.PluginError, match="breaks its contract.*params.*'run'"):
+        registry.load("strategies", "sloppy")
+    assert registry.load("strategies", "sloppy", validate=False).name == "noparams"

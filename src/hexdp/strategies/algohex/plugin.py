@@ -7,6 +7,8 @@ workspace. A stage whose output already exists in the workspace is reused, so a 
 
 from __future__ import annotations
 
+import shutil
+
 from hexdp.contracts import ParamSpec, Score
 from hexdp.core.geometry import Source
 from hexdp.io.blocks_vtk import read_blocks_vtk
@@ -32,6 +34,9 @@ class AlgoHexStrategy:
     }
 
     def applicable(self, geo, features):
+        if geo.path and str(geo.path).lower().endswith(".vtk"):
+            return Score(0.4, ["general topology: no sweep direction or symmetry needed",
+                               "input is already an AlgoHex tet mesh with feature tags (no tet_prep)"])
         if geo.source is not Source.MSH or not geo.path:
             return Score.no("tet_prep reads a gmsh .msh (the dtOO hybrid mesh)", missing=("dtOO .msh input",))
         return Score(0.4, ["general topology: no sweep direction or symmetry needed",
@@ -40,6 +45,9 @@ class AlgoHexStrategy:
     def run(self, geo, features, params, ctx):
         ws = ctx.workspace
         tet, ovm, blocks = ws / "tet.vtk", ws / "hex_hex_x.ovm", ws / "blocks.vtk"
+        if not tet.exists() and str(geo.path).lower().endswith(".vtk"):
+            shutil.copyfile(geo.path, tet)               # an AlgoHex input already (HexMe): used as it is
+            ctx.decide("algohex", "input is an AlgoHex tet mesh", [str(geo.path)])
         if not tet.exists():
             args = ["--msh", geo.path, "--out-dir", ws, "--out", tet.name, "--size-max", params["size_max"]]
             if params["keep_prisms"]:

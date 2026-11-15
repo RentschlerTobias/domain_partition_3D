@@ -86,3 +86,27 @@ def test_exact_projection_respects_trimming(cylinder):
     cap = next(t for t, s in g.surfaces.items() if np.ptp(s.nodes[:, 2]) < 1e-9 and s.nodes[0, 2] > 0.5)
     R, _, exact = g.project_exact(np.array([[2.0, 0.0, 1.2]]), surfaces=[cap])
     assert np.hypot(R[0, 0], R[0, 1]) <= 0.5 + 1e-6
+
+
+def test_vtk_tet_mesh_with_entity_ids(tmp_path):
+    """An AlgoHex-style input (gmsh VTK with an integer entity field) loads with its entities."""
+    gmsh = pytest.importorskip("gmsh")
+    gmsh.initialize()
+    gmsh.option.setNumber("General.Terminal", 0)
+    gmsh.model.occ.addBox(0, 0, 0, 1, 1, 1)
+    gmsh.model.occ.synchronize()
+    gmsh.option.setNumber("Mesh.MeshSizeMax", 0.3)
+    gmsh.model.mesh.generate(3)
+    gmsh.option.setNumber("Mesh.SaveAll", 1)
+    gmsh.write(str(tmp_path / "box.msh"))
+    gmsh.finalize()
+    import meshio
+    m = meshio.read(tmp_path / "box.msh")                  # HexMe layout: one integer field per entity
+    cells = [(c.type, c.data) for c in m.cells if c.type in ("vertex", "line", "triangle", "tetra")]
+    ids = [d for c, d in zip(m.cells, m.cell_data["gmsh:geometrical"]) if c.type in ("vertex", "line", "triangle", "tetra")]
+    meshio.write(tmp_path / "box.vtk", meshio.Mesh(m.points, cells, cell_data={"CellEntityIds": ids}), binary=False)
+    g = load(tmp_path / "box.vtk")
+    assert len(g.surfaces) == 6 and sorted(c.kind.value for c in g.curves.values()) == ["sharp"] * 12
+    assert any("VTK tet mesh" in n for n in g.notes)
+    from hexdp.strategies.algohex.plugin import AlgoHexStrategy
+    assert "no tet_prep" in AlgoHexStrategy().applicable(g, []).reasons[1]

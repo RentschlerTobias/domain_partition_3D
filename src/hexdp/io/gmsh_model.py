@@ -5,6 +5,9 @@
                               exact closest points through ``closest_on_cad_faces``
     .stl                      no entities: surfaces are segmented by gmsh classifySurfaces (angle) and
                               the result is marked in ``Geometry.notes``
+    .vtk                      a tet mesh with an integer cell field per entity (AlgoHex input format,
+                              e.g. HexMe 'CellEntityIds' or tet_prep 'color'): converted to .msh with the
+                              field as entity and physical tags
 
 gmsh is a process-global library; every function here opens and closes its own session.
 """
@@ -64,6 +67,10 @@ def load(path, mesh_size: float | None = None, stl_angle_deg: float = 40.0, shar
             gmsh.model.occ.synchronize()
             source, notes = Source.CAD, []
             _mesh_surfaces(gmsh, mesh_size)
+        elif suf == ".vtk":
+            tmp = _vtk_to_msh(path)
+            gmsh.open(str(tmp))
+            source, notes = Source.MSH, [f"VTK tet mesh: entities from cell field '{tmp.stem.split('__')[-1]}'"]
         elif suf == ".stl":
             gmsh.merge(str(path))
             gmsh.model.mesh.classifySurfaces(np.radians(stl_angle_deg), True, False, np.pi)
@@ -75,6 +82,25 @@ def load(path, mesh_size: float | None = None, stl_angle_deg: float = 40.0, shar
         geo = _collect(gmsh, source, str(path), notes)
     classify_curves(geo, sharp_deg=sharp_deg)
     return geo
+
+
+def _vtk_to_msh(path):
+    """Write a gmsh 2.2 copy of a VTK tet mesh whose integer cell field tags the entities."""
+    import tempfile
+
+    import meshio
+
+    m = meshio.read(path)
+    field = next((k for k, v in m.cell_data.items() if np.asarray(v[0]).dtype.kind in "iu"), None)
+    if field is None:
+        raise ValueError(f"{path}: no integer cell field to take the entities from")
+    keep = [(c, np.asarray(d).ravel().astype(int)) for c, d in zip(m.cells, m.cell_data[field])
+            if c.type in ("vertex", "line", "triangle", "tetra")]
+    out = meshio.Mesh(m.points, [(c.type, c.data) for c, _ in keep],
+                      cell_data={"gmsh:physical": [d for _, d in keep], "gmsh:geometrical": [d for _, d in keep]})
+    tmp = Path(tempfile.mkdtemp(prefix="hexdp_vtk_")) / f"{Path(path).stem}__{field}.msh"
+    meshio.write(tmp, out, file_format="gmsh22", binary=False)
+    return tmp
 
 
 def _mesh_surfaces(gmsh, mesh_size):

@@ -6,6 +6,7 @@ Environment:
     HEXDP_DATA        input data root (datasets, geometries); readable
     HEXDP_MCP_ROOT    job workspaces (default ./hexdp_mcp_runs); readable and writable
     HEXDP_MCP_CPUS    CPU list for jobs (default "0-7"), HEXDP_MCP_CORES core count (default 8)
+    HEXDP_MCP_TIMEOUT time limit per job stage in seconds (default 7200)
 
 Workflow of an agent:
     list_inputs -> open_geometry -> inspect_geometry / render_geometry -> detect_features ->
@@ -54,6 +55,7 @@ class State:
         self.root = Path(os.environ.get("HEXDP_MCP_ROOT", "hexdp_mcp_runs")).resolve()
         self.cpus = os.environ.get("HEXDP_MCP_CPUS", "0-7")
         self.cores = int(os.environ.get("HEXDP_MCP_CORES", "8"))
+        self.timeout = float(os.environ.get("HEXDP_MCP_TIMEOUT", "7200"))      # per stage, seconds
         self.root.mkdir(parents=True, exist_ok=True)
         self.geos: dict[str, dict] = {}       # geo_id -> {"geo", "path", "features", "detectors"}
         self.blocks: dict[str, dict] = {}     # bs_id -> {"bs", "geo_id", "origin"}
@@ -271,7 +273,7 @@ def run_strategy(geo_id: str, strategy: str, params: dict | None = None, ops: li
             "detectors": detectors if detectors is not None else entry.get("detectors", []),
             "ops": ops or [], "exporters": ["vtk"], "workspace": str(ws),
             "reuse": [str(s.readable(r)) for r in reuse or []],
-            "resources": {"cores": s.cores, "cpu_list": s.cpus}}
+            "resources": {"cores": s.cores, "cpu_list": s.cpus, "timeout_s": s.timeout}}
     if discretiser:
         case["discretiser"] = {"name": discretiser, "params": discretiser_params or {}}
     if filler:

@@ -83,5 +83,7 @@ literature/
 stl_files/
 msh_files/
 data/charite/
+# HexMe benchmark (1.5 GB zip, third-party data)
+data/hexme/
 *.stl
 *.mp4

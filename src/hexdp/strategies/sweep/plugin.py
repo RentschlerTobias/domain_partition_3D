@@ -7,8 +7,8 @@ deg plus a quarter butterfly on the axis, TFI fill (sweep3d).
 ``cgrid``: as ``sweep`` plus C-layers around thin walls (baffles): wall detection and sections in the
 wall CAD (wall_faces, pythonOCC) -> C-grid layout and sweep (sweep3d_c).
 
-Both currently assume a rotational sector 0..90 deg (the 45 deg split of the butterfly); the sweep
-detector of step 3 will decide whether a domain is sweepable. Stage outputs in the workspace are reused.
+Both sweep about the z axis over a 0..90 deg sector (the 45 deg split of the butterfly); applicable()
+checks that with the result of the ``sweep`` detector. Stage outputs in the workspace are reused.
 """
 
 from __future__ import annotations
@@ -30,13 +30,26 @@ SWEEP_PARAMS = {
 
 
 def _sweep_score(geo, features, name):
+    import numpy as np
+
+    rej = next((f for f in features if f.kind == "sweep_rejected"), None)
+    if rej is not None:                     # the geometric reason first: it holds for any source
+        return Score.no("sweep test failed: " + "; ".join(rej.reasons[1:]))
     if geo.source is not Source.CAD:
         return Score.no(f"{name} slices exact CAD faces (STEP/BREP)", missing=("CAD domain solid",))
     sw = next((f for f in features if f.kind == "sweep"), None)
-    if sw is not None:
-        return Score(0.8 * sw.confidence, ["sweep test passed: sections are similar over phi"] + sw.reasons)
-    return Score(0.1, ["no sweep test available yet: assumes a rotational 0-90 deg sector"],
-                 missing=["sweep feature (detector, plan step 3)"])
+    if sw is None:
+        return Score(0.1, ["no sweep test result: assumes a rotational 0-90 deg sector"],
+                     missing=["sweep feature (add the 'sweep' detector)"])
+    a, p = np.array(sw.data["axis_direction"]), np.array(sw.data["axis_point"])
+    scale = float(np.linalg.norm(np.subtract(*geo.bbox())))
+    if abs(abs(a[2]) - 1) > 1e-3 or np.linalg.norm(p[:2]) > 1e-3 * scale:
+        return Score.no(f"{name} sweeps about the z axis through the origin; the axis is {np.round(a, 3).tolist()} "
+                        f"through {np.round(p, 3).tolist()}", missing=("transform to the z axis",))
+    if abs(sw.data["angular_span_deg"] - 90.0) > 0.5:
+        return Score.no(f"{name} needs a 90 deg sector (45 deg mid section), the domain spans "
+                        f"{sw.data['angular_span_deg']:.1f} deg")
+    return Score(round(0.8 * sw.confidence + 0.1, 3), ["sweep test passed"] + sw.reasons)
 
 
 def prepare_sections_and_layout(geo, params, ctx):

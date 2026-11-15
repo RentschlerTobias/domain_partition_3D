@@ -44,7 +44,14 @@ def test_applicable_says_what_is_missing(box):
     assert AlgoHexStrategy().applicable(msh, []).ok
     sw = SweepStrategy().applicable(cad, [])
     assert sw.ok and sw.value < 0.2 and any("sweep feature" in m for m in sw.missing)
-    assert SweepStrategy().applicable(cad, [Feature("sweep", confidence=1.0, reasons=["similar sections"])]).value == 0.8
+    on_z = {"axis_direction": [0, 0, 1], "axis_point": [0, 0, 0], "angular_span_deg": 90.0}
+    assert SweepStrategy().applicable(cad, [Feature("sweep", on_z, confidence=1.0, reasons=["x", "y"])]).value == 0.9
+    tilted = dict(on_z, axis_direction=[1, 0, 0])
+    assert "z axis" in SweepStrategy().applicable(cad, [Feature("sweep", tilted, 1.0)]).reasons[0]
+    half = dict(on_z, angular_span_deg=180.0)
+    assert not SweepStrategy().applicable(cad, [Feature("sweep", half, 1.0)]).ok
+    rej = SweepStrategy().applicable(cad, [Feature("sweep_rejected", on_z, 0.0, reasons=["n", "surfaces change"])])
+    assert not rej.ok and "surfaces change" in rej.reasons[0]
     assert not SweepStrategy().applicable(msh, []).ok
     cg = CGridStrategy().applicable(cad, [])
     assert cg.ok and any("thin_wall" in m for m in cg.missing)

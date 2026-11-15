@@ -26,6 +26,10 @@ dev = ["pytest>=8"]
 hexdp = "hexdp.cli:main"
 
 # Plugin groups: the built-in plugins; external packages add their own entries to the same groups.
+[project.entry-points."hexdp.detectors"]
+rotation_axis = "hexdp.detect.rotation:RotationAxisDetector"
+sweep = "hexdp.detect.rotation:SweepDetector"
+
 [project.entry-points."hexdp.strategies"]
 algohex = "hexdp.strategies.algohex.plugin:AlgoHexStrategy"
 sweep = "hexdp.strategies.sweep.plugin:SweepStrategy"

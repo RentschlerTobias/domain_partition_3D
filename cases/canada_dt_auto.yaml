@@ -1,0 +1,8 @@
+name: canada_dt_auto
+description: canada draft tube, strategy chosen by the detectors (expected - sweep)
+geometry: ${HEXDP_DATA}/canada/domain.brep
+detectors: [sweep]
+strategy: auto
+exporters: [vtk]
+resources: {cores: 8, cpu_list: "0-7"}
+reference: {blocks: 72, min_sj: 0.0588}

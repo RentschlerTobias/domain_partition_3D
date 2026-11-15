@@ -56,3 +56,30 @@ def test_canada_draft_tube_cgrid():
     assert (s["blocks"], s["fine_cells"], s["boundary_faces"]) == (100, 292212, 184)
     assert s["min_sj_fine"] == pytest.approx(0.0353, abs=1e-4)
     assert s["issues"] == {}
+
+
+def _choose(geo_path):
+    from hexdp.contracts import Context
+    from hexdp.detect.rotation import SweepDetector
+    from hexdp.pipeline.chain import Stage, choose_strategy, detect
+    from hexdp.strategies.algohex.plugin import AlgoHexStrategy
+    from hexdp.strategies.sweep.plugin import CGridStrategy, SweepStrategy
+    import tempfile
+
+    geo = load(geo_path)
+    ctx = Context(Path(tempfile.mkdtemp()))
+    feats = detect(geo, [Stage(SweepDetector())], ctx)
+    st, scores = choose_strategy(geo, feats, [Stage(AlgoHexStrategy()), Stage(SweepStrategy()), Stage(CGridStrategy())], ctx)
+    return st.plugin.name, feats, scores
+
+
+def test_auto_choice_canada_is_the_sweep():
+    name, feats, scores = _choose(need(CANADA / "blocking_study" / "dt_baffle" / "in_a" / "domain.brep"))
+    assert [f.kind for f in feats] == ["sweep"] and name == "sweep"
+    assert not scores["algohex"].ok and scores["cgrid"].value < scores["sweep"].value
+
+
+def test_auto_choice_tistos_is_algohex():
+    name, feats, scores = _choose(need(TISTOS / "case" / "mesh.msh"))
+    assert [f.kind for f in feats] == ["sweep_rejected"] and name == "algohex"
+    assert not scores["sweep"].ok and "sweep test failed" in scores["sweep"].reasons[0]

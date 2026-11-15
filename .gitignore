@@ -75,3 +75,13 @@ data/dataset/*/*/*
 # The tee'd per-job .log files in experimentell/hex3d_algohex/logs/ ARE tracked on purpose.
 /*.out
 experimentell/hex3d_algohex/logs/*.out
+
+# Confidential / large inputs that were purged from the history (2026-11-14): never re-add.
+# Charite heart geometry (STL, derived meshes, videos) and literature PDFs.
+# Tracked turbine STLs (data/T1_9/*.stl) are unaffected; new ones need `git add -f`.
+literature/
+stl_files/
+msh_files/
+data/charite/
+*.stl
+*.mp4

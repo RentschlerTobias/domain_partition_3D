@@ -73,7 +73,7 @@ def run_case(case: Case, fresh: bool = False) -> dict:
         raise FileExistsError(f"workspace not empty: {ws}")
     ws.mkdir(parents=True, exist_ok=True)
     st = status(ws)
-    if st.get("state") == "running":
+    if st.get("state") == "running" and st.get("pid") != os.getpid():
         raise RuntimeError(f"case '{case.name}' is already running (pid {st.get('pid')}) in {ws}")
     t0 = time.time()
     _write(ws / "status.json", {"state": "running", "pid": os.getpid(), "start": t0, "case": str(case.path)})

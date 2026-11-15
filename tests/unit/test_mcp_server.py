@@ -80,6 +80,8 @@ def test_full_session_on_a_box(data):
             "filler": P + "LinearFiller"}))
         jid = job["job_id"]
         assert jid.startswith("boxstrategy_")
+        second = await s.call_tool("run_strategy", {"geo_id": gid, "strategy": P + "BoxStrategy"})
+        assert second.is_error and "still running" in second.content[0].text   # one computation at a time
         for _ in range(120):
             st = payload(await s.call_tool("job_status", {"job_id": jid}))
             if st["state"] in ("done", "failed", "died"):

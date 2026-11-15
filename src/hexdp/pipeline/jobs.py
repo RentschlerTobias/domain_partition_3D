@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from hexdp.pipeline.case import load_case
@@ -18,6 +20,9 @@ def start(case_file) -> Path:
         raise RuntimeError(f"already running (pid {st.get('pid')}): {case.workspace}")
     case.workspace.mkdir(parents=True, exist_ok=True)
     with open(case.workspace / "run.out", "ab") as out:
-        subprocess.Popen([sys.executable, "-m", "hexdp.cli", "run", str(case.path)], stdout=out,
-                         stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
+        proc = subprocess.Popen([sys.executable, "-m", "hexdp.cli", "run", str(case.path)], stdout=out,
+                                stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
+    # running from this moment on, not only once the child has written its own status
+    (case.workspace / "status.json").write_text(json.dumps(
+        {"state": "running", "pid": proc.pid, "start": time.time(), "case": str(case.path)}))
     return case.workspace

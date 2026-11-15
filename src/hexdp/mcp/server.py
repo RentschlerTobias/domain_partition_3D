@@ -14,8 +14,8 @@ Workflow of an agent:
     evaluate / render_blocks / render_quality -> block_op -> export -> record_decision
 
 Guards: inputs are read only below HEXDP_DATA, HEXDP_MCP_ROOT or the working directory; paths
-containing 'charite' are refused (confidential data); jobs run with the configured CPU list; there is
-no network tool. Large data stay files: tools return ids, paths and small JSON.
+containing 'charite' are refused (confidential data); jobs run with the configured CPU list and only one
+computation (job or block_op) runs at a time; there is no network tool. Large data stay files: tools return ids, paths and small JSON.
 """
 
 from __future__ import annotations
@@ -46,7 +46,8 @@ geometry allows. Typical order: open_geometry, inspect_geometry, detect_features
 poll job_status), job_result, evaluate, optionally block_op ('block_collapse'), export. Explain every
 choice with record_decision. Strategies: 'sweep' (rotational sectors, CAD input), 'cgrid' (sweep with
 C-layers at thin walls, needs param wall_cad), 'algohex' (general topology, dtOO .msh input; AlgoHex can
-take hours - reuse an existing hex_hex_x.ovm via the 'reuse' argument when one is available)."""
+take hours - reuse an existing hex_hex_x.ovm via the 'reuse' argument when one is available).
+Only one computation runs at a time: run_strategy and block_op are refused while a job is running."""
 
 
 class State:
@@ -84,6 +85,20 @@ class State:
         if bs_id not in self.blocks:
             raise KeyError(f"unknown bs_id '{bs_id}' (known: {sorted(self.blocks)})")
         return self.blocks[bs_id]
+
+    def running_jobs(self) -> list[str]:
+        """Jobs under the root whose process is still alive."""
+        from hexdp.pipeline.runner import status
+
+        return [d.name for d in self.root.iterdir()
+                if d.is_dir() and (d / "status.json").exists() and status(d).get("state") == "running"]
+
+    def require_idle(self, what: str) -> None:
+        """One computation at a time on the job CPU list (the core budget must not depend on the agent)."""
+        busy = self.running_jobs()
+        if busy:
+            raise RuntimeError(f"{what} refused: job {busy[0]} is still running on CPUs {self.cpus}; "
+                               "wait for it (job_status) before starting another computation")
 
     def job_dir(self, job_id) -> Path:
         d = (self.root / job_id).resolve()
@@ -266,6 +281,7 @@ def run_strategy(geo_id: str, strategy: str, params: dict | None = None, ops: li
     s = state()
     entry = s.geo(geo_id)
     registry.load("strategies", strategy)                      # fail early on an unknown name
+    s.require_idle("run_strategy")
     job = name or _new_id(re.sub(r"\W+", "_", strategy.split(":")[-1]).lower())
     ws = s.root / job
     ws.mkdir(parents=True, exist_ok=False)
@@ -375,6 +391,7 @@ def block_op(bs_id: str, op: str, params: dict | None = None) -> dict:
         raise ValueError("this block structure has no open geometry; open_geometry with the job's geometry first")
     geo = s.geo(entry["geo_id"])["geo"]
     plugin = registry.load("ops", op)
+    s.require_idle("block_op")
     sc = plugin.applicable(entry["bs"], geo)
     if not sc.ok:
         return {"applied": False, "reasons": sc.reasons, "missing": sc.missing}

@@ -1,0 +1,2 @@
+#!/bin/bash
+d=$1; c=$2; cd /work/canada/pilot/bisect/$d && rm -rf case && cp -rL /work/canada/case case && cp /work/canada/pilot/gen_mesh_multi.py case/ && cd case && timeout 900 taskset -c $c /opt/venv-dtoo/bin/python gen_mesh_multi.py ../params.json gv_gridGmsh:../gv.msh > ../dtoo.log 2>&1; rc=$?; r=OK; [ $rc -eq 124 ] && r=HANG; [ $rc -ne 0 ] && [ $rc -ne 124 ] && r="FAIL $(grep -h 'condition:' ../dtoo.log | tail -1 | cut -c1-60)"; echo "$d $r" >> /work/canada/pilot/bisect/results.txt; rm -rf /work/canada/pilot/bisect/$d/case

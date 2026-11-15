@@ -1,5 +1,18 @@
 # domain_partition_3D
 
+## hexdp package (in progress)
+
+`src/hexdp` is the installable package that the code in `experimentell/` is moving into: hexahedral
+block-structure generation and domain partition with plugins (detectors, strategies, ops, discretisers,
+fillers, exporters, interfaces, registered as entry points) and, later, an MCP server for agents.
+
+```bash
+pip install -e . --no-build-isolation      # in the environment that has numpy, scipy, meshio, networkx
+hexdp --version
+hexdp plugins
+pytest tests
+```
+
 ## The 3D pipeline at a glance
 
 ![The 3D pipeline in nine steps](docs/figures/hexmesh/00_pipeline_steps.png)

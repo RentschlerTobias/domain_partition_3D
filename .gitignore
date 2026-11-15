@@ -35,6 +35,11 @@ html_files/
 .omo/
 .opencode/
 
+# Python packaging (hexdp)
+build/
+dist/
+*.egg-info/
+
 # Local binary deps / envs
 gmsh_pkg/
 .venv/

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hexdp"
+version = "0.1.0"
+description = "Hexahedral block-structure generation and domain partition, with plugins and an MCP server"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Tobias Rentschler", email = "tobias.rentschler@ihs.uni-stuttgart.de" }]
+dependencies = [
+    "numpy>=2.0",
+    "scipy>=1.12",
+    "meshio>=5.3",
+    "networkx>=3.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+gmsh = ["gmsh>=4.12"]
+mcp = ["mcp>=1.0"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+hexdp = "hexdp.cli:main"
+
+# Plugin groups. Built-in plugins register here as they migrate in (step 1.4);
+# external packages add their own entries to the same groups.
+# [project.entry-points."hexdp.strategies"]
+# algohex = "hexdp.strategies.algohex:AlgoHexStrategy"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider"

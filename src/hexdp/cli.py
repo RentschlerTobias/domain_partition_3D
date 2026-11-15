@@ -8,7 +8,7 @@
     hexdp status CASE.yaml                         state of the case's workspace
     hexdp eval CASE.yaml ... [--rerun] [--json F]  run / collect several cases, print a table
 
-The ``mcp`` command (the MCP server) follows in step 1.6.
+    hexdp mcp                                      the MCP server (stdio) for agents
 """
 
 import argparse
@@ -100,6 +100,8 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--rerun", action="store_true", help="run again even if a finished report exists")
     e.add_argument("--json", default=None, help="write the rows as JSON")
     e.set_defaults(func=_eval)
+    m = sub.add_parser("mcp", help="run the MCP server (stdio)")
+    m.set_defaults(func=lambda a: __import__("hexdp.mcp.server", fromlist=["main"]).main() or 0)
     return p
 
 

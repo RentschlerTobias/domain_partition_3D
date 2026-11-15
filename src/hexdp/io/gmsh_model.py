@@ -36,7 +36,8 @@ def gmsh_session():
 
     own = not gmsh.isInitialized()
     if own:
-        gmsh.initialize()
+        # no SIGINT handler: gmsh may run in a worker thread (MCP server), where signals cannot be set
+        gmsh.initialize(interruptible=False)
     gmsh.option.setNumber("General.Terminal", 0)
     gmsh.option.setNumber("General.Verbosity", 1)
     try:

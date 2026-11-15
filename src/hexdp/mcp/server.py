@@ -1,0 +1,406 @@
+"""MCP server: the hexdp tools for an agent (stdio transport).
+
+    hexdp mcp            (or: python -m hexdp.mcp.server)
+
+Environment:
+    HEXDP_DATA        input data root (datasets, geometries); readable
+    HEXDP_MCP_ROOT    job workspaces (default ./hexdp_mcp_runs); readable and writable
+    HEXDP_MCP_CPUS    CPU list for jobs (default "0-7"), HEXDP_MCP_CORES core count (default 8)
+
+Workflow of an agent:
+    list_inputs -> open_geometry -> inspect_geometry / render_geometry -> detect_features ->
+    list_strategies -> run_strategy (background job) -> job_status / job_log -> job_result ->
+    evaluate / render_blocks / render_quality -> block_op -> export -> record_decision
+
+Guards: inputs are read only below HEXDP_DATA, HEXDP_MCP_ROOT or the working directory; paths
+containing 'charite' are refused (confidential data); jobs run with the configured CPU list; there is
+no network tool. Large data stay files: tools return ids, paths and small JSON.
+"""
+
+from __future__ import annotations
+
+import functools
+import json
+import os
+import re
+import time
+import uuid
+from pathlib import Path
+
+import numpy as np
+import yaml
+from mcp.server.mcpserver import Image, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
+
+from hexdp import __version__, registry
+from hexdp.contracts import Context, describe, resolve_params
+from hexdp.core.geometry import PatchRole, RoleSource
+
+GEOMETRY_SUFFIXES = {".msh", ".step", ".stp", ".iges", ".igs", ".brep", ".stl", ".vtk"}
+
+INSTRUCTIONS = """hexdp builds hexahedral block structures (domain partitions) for CFD meshes.
+Goal for a geometry: a valid block structure (no inverted cells, conforming) with as few blocks as the
+geometry allows. Typical order: open_geometry, inspect_geometry, detect_features (detectors
+'rotation_axis', 'sweep'), list_strategies (scores with reasons), run_strategy (a background job;
+poll job_status), job_result, evaluate, optionally block_op ('block_collapse'), export. Explain every
+choice with record_decision. Strategies: 'sweep' (rotational sectors, CAD input), 'cgrid' (sweep with
+C-layers at thin walls, needs param wall_cad), 'algohex' (general topology, dtOO .msh input; AlgoHex can
+take hours - reuse an existing hex_hex_x.ovm via the 'reuse' argument when one is available)."""
+
+
+class State:
+    def __init__(self):
+        self.data = Path(os.environ.get("HEXDP_DATA", os.getcwd())).resolve()
+        self.root = Path(os.environ.get("HEXDP_MCP_ROOT", "hexdp_mcp_runs")).resolve()
+        self.cpus = os.environ.get("HEXDP_MCP_CPUS", "0-7")
+        self.cores = int(os.environ.get("HEXDP_MCP_CORES", "8"))
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.geos: dict[str, dict] = {}       # geo_id -> {"geo", "path", "features", "detectors"}
+        self.blocks: dict[str, dict] = {}     # bs_id -> {"bs", "geo_id", "origin"}
+
+    def readable(self, p) -> Path:
+        p = Path(os.path.expandvars(str(p))).expanduser()
+        p = (p if p.is_absolute() else self.data / p).resolve()
+        if "charite" in str(p).lower():
+            raise PermissionError("Charité data are confidential and not available to agents")
+        roots = [self.data, self.root, Path(os.getcwd()).resolve()]
+        if not any(p == r or r in p.parents for r in roots):
+            raise PermissionError(f"{p} is outside the allowed roots {[str(r) for r in roots]}")
+        if not p.exists():
+            raise FileNotFoundError(str(p))
+        return p
+
+    def geo(self, geo_id):
+        if geo_id not in self.geos:
+            raise KeyError(f"unknown geo_id '{geo_id}'; open_geometry first (known: {sorted(self.geos)})")
+        return self.geos[geo_id]
+
+    def bs(self, bs_id):
+        if bs_id not in self.blocks:
+            raise KeyError(f"unknown bs_id '{bs_id}' (known: {sorted(self.blocks)})")
+        return self.blocks[bs_id]
+
+    def job_dir(self, job_id) -> Path:
+        d = (self.root / job_id).resolve()
+        if self.root not in d.parents or not d.is_dir():
+            raise KeyError(f"unknown job '{job_id}'")
+        return d
+
+
+S: State | None = None
+server = MCPServer(name="hexdp", version=__version__, instructions=INSTRUCTIONS)
+
+
+def tool(fn):
+    """Register fn as an MCP tool; expected errors reach the agent as their message (the SDK hides the
+    message of an unexpected exception)."""
+    @functools.wraps(fn)
+    def wrapped(*a, **kw):
+        try:
+            return fn(*a, **kw)
+        except ToolError:
+            raise
+        except (PermissionError, FileNotFoundError, KeyError, ValueError, FileExistsError, RuntimeError) as exc:
+            msg = exc.args[0] if isinstance(exc, KeyError) and exc.args else str(exc)
+            raise ToolError(f"{type(exc).__name__}: {msg}") from exc
+    return server.tool()(wrapped)
+
+
+def state() -> State:
+    global S
+    if S is None:
+        S = State()
+    return S
+
+
+def _new_id(prefix):
+    return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
+
+def _jsonable(x, depth=0):
+    if isinstance(x, dict):
+        return {str(k): _jsonable(v, depth + 1) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        if len(x) > 60:
+            return [_jsonable(v, depth + 1) for v in x[:60]] + [f"... {len(x) - 60} more"]
+        return [_jsonable(v, depth + 1) for v in x]
+    if isinstance(x, np.generic):
+        return x.item()
+    if isinstance(x, np.ndarray):
+        return _jsonable(x.tolist(), depth)
+    return x
+
+
+# --------------------------------------------------------------------------------------------- inputs
+@tool
+def list_inputs(subdir: str = "", pattern: str = "*") -> dict:
+    """List geometry files (and case YAMLs) below HEXDP_DATA/subdir, recursively (max 200)."""
+    s = state()
+    base = s.readable(subdir) if subdir else s.data
+    out = []
+    for p in sorted(base.rglob(pattern)):
+        if p.is_file() and (p.suffix.lower() in GEOMETRY_SUFFIXES or p.suffix in (".yaml", ".yml")):
+            if "charite" in str(p).lower():
+                continue
+            out.append({"path": str(p.relative_to(s.data)) if s.data in p.parents else str(p),
+                        "size_mb": round(p.stat().st_size / 1e6, 2)})
+            if len(out) >= 200:
+                break
+    return {"root": str(base), "files": out}
+
+
+@tool
+def open_geometry(path: str, mesh_size: float | None = None) -> dict:
+    """Load a geometry (.msh, .step/.stp/.brep/.iges, .stl) -> geo_id and a summary."""
+    from hexdp.io.gmsh_model import load
+
+    s = state()
+    p = s.readable(path)
+    geo = load(p, mesh_size=mesh_size)
+    gid = _new_id("geo")
+    s.geos[gid] = {"geo": geo, "path": str(p), "features": []}
+    return {"geo_id": gid, "path": str(p), "summary": _jsonable(geo.summary())}
+
+
+@tool
+def inspect_geometry(geo_id: str) -> dict:
+    """Surfaces (tag, name, role and its source, area, bbox) and curves by kind."""
+    g = state().geo(geo_id)["geo"]
+    surfaces = []
+    for t, srf in sorted(g.surfaces.items()):
+        lo, hi = srf.nodes.min(0), srf.nodes.max(0)
+        surfaces.append({"tag": t, "name": srf.name, "role": srf.role.value, "role_source": srf.role_source.value,
+                         "area": round(srf.area, 6), "bbox": [np.round(lo, 4).tolist(), np.round(hi, 4).tolist()]})
+    kinds = {}
+    for c in g.curves.values():
+        kinds.setdefault(c.kind.value, []).append(c.tag)
+    return {"summary": _jsonable(g.summary()), "surfaces": surfaces, "curves_by_kind": kinds}
+
+
+@tool
+def set_roles(geo_id: str, roles: dict[str, str]) -> dict:
+    """Set patch roles by surface tag or name: {"12": "inlet", "RU_BLADE": "wall"}. Roles: wall, inlet,
+    outlet, periodic, interface, symmetry, unknown."""
+    g = state().geo(geo_id)["geo"]
+    done = {}
+    for key, role in roles.items():
+        tags = [t for t, srf in g.surfaces.items() if str(t) == str(key) or srf.name == key]
+        if not tags:
+            raise KeyError(f"no surface with tag or name '{key}'")
+        g.set_role(tags, PatchRole(role), RoleSource.MANUAL)
+        done[key] = tags
+    return {"set": done, "roles": _jsonable(g.summary()["roles"])}
+
+
+@tool
+def render_geometry(geo_id: str, elev: float = 25, azim: float = -60) -> Image:
+    """PNG of the boundary coloured by patch role, feature curves in black."""
+    from hexdp.viz.render import render_geometry as rg
+
+    return Image(data=rg(state().geo(geo_id)["geo"], elev=elev, azim=azim), format="png")
+
+
+# --------------------------------------------------------------------------------------------- plugins
+@tool
+def list_plugins(kind: str | None = None) -> dict:
+    """Registered plugins with their doc and parameter schema (kinds: detectors, strategies, ops,
+    discretisers, fillers, exporters, interfaces)."""
+    kinds = [kind] if kind else list(registry.KINDS)
+    return {k: [describe(registry.load(k, n)) for n in registry.names(k)] for k in kinds}
+
+
+@tool
+def detect_features(geo_id: str, detectors: list[str] | None = None) -> dict:
+    """Run detectors (default: all registered) and keep their features for list_strategies / run_strategy."""
+    s = state()
+    entry = s.geo(geo_id)
+    names = detectors or registry.names("detectors")
+    ctx = Context(s.root / "_detect" / geo_id, cores=1)
+    feats = []
+    for n in names:
+        d = registry.load("detectors", n)
+        feats += d.detect(entry["geo"], resolve_params(d.params, {}), ctx)
+    entry["features"] = feats
+    entry["detectors"] = list(names)
+    return {"features": [{"kind": f.kind, "confidence": f.confidence, "reasons": f.reasons,
+                          "data": _jsonable({k: v for k, v in f.data.items() if k not in ("rms_rel_facet",)})}
+                         for f in feats]}
+
+
+@tool
+def list_strategies(geo_id: str) -> dict:
+    """Every registered strategy with its applicability score, reasons and what it is missing, best first
+    (uses the features of the last detect_features)."""
+    entry = state().geo(geo_id)
+    rows = []
+    for n in registry.names("strategies"):
+        st = registry.load("strategies", n)
+        sc = st.applicable(entry["geo"], entry["features"])
+        rows.append({"name": n, "score": sc.value, "applicable": sc.ok, "reasons": sc.reasons, "missing": sc.missing})
+    rows.sort(key=lambda r: -r["score"])
+    return {"features_used": [f.kind for f in entry["features"]], "strategies": rows}
+
+
+# --------------------------------------------------------------------------------------------- jobs
+@tool
+def run_strategy(geo_id: str, strategy: str, params: dict | None = None, ops: list[str] | None = None,
+                 discretiser: str | None = None, discretiser_params: dict | None = None,
+                 filler: str | None = None, filler_params: dict | None = None, reuse: list[str] | None = None,
+                 detectors: list[str] | None = None, name: str | None = None) -> dict:
+    """Start a blocking job in the background: strategy (name), its params, optional ops (e.g.
+    ["block_collapse"]), filler (e.g. "tfi"), files to reuse in the workspace (e.g. an existing
+    hex_hex_x.ovm). Returns job_id; poll job_status."""
+    from hexdp.pipeline.jobs import start
+
+    s = state()
+    entry = s.geo(geo_id)
+    registry.load("strategies", strategy)                      # fail early on an unknown name
+    job = name or _new_id(re.sub(r"\W+", "_", strategy.split(":")[-1]).lower())
+    ws = s.root / job
+    ws.mkdir(parents=True, exist_ok=False)
+    case = {"name": job, "geometry": entry["path"], "strategy": [{"name": strategy, "params": params or {}}],
+            "detectors": detectors if detectors is not None else entry.get("detectors", []),
+            "ops": ops or [], "exporters": ["vtk"], "workspace": str(ws),
+            "reuse": [str(s.readable(r)) for r in reuse or []],
+            "resources": {"cores": s.cores, "cpu_list": s.cpus}}
+    if discretiser:
+        case["discretiser"] = {"name": discretiser, "params": discretiser_params or {}}
+    if filler:
+        case["filler"] = {"name": filler, "params": filler_params or {}}
+    roles = {str(t): srf.role.value for t, srf in entry["geo"].surfaces.items() if srf.role_source is RoleSource.MANUAL}
+    if roles:
+        case["roles"] = roles
+    cf = ws / "case.yaml"
+    cf.write_text(yaml.safe_dump(case, sort_keys=False))
+    start(cf)
+    return {"job_id": job, "workspace": str(ws), "case": case}
+
+
+@tool
+def job_status(job_id: str) -> dict:
+    """State of a job (running / done / failed / died), elapsed time, last log line of the active stage."""
+    from hexdp.pipeline.runner import status
+
+    d = state().job_dir(job_id)
+    st = status(d)
+    logs = sorted((p for p in d.glob("*.log")), key=lambda p: p.stat().st_mtime)
+    last = ""
+    if logs:
+        lines = [ln for ln in logs[-1].read_text(errors="replace").splitlines() if ln.strip()]
+        last = lines[-1][:300] if lines else ""
+    st["elapsed_s"] = round((st.get("end") or time.time()) - st["start"], 1) if st.get("start") else None
+    return {"job_id": job_id, **_jsonable(st), "active_log": logs[-1].name if logs else None, "last_line": last}
+
+
+@tool
+def job_log(job_id: str, log: str | None = None, tail: int = 40) -> dict:
+    """Tail of a job log (default: the most recent one); lists the available logs."""
+    d = state().job_dir(job_id)
+    logs = sorted((p for p in d.glob("*.log")), key=lambda p: p.stat().st_mtime)
+    pick = d / log if log else (logs[-1] if logs else d / "run.out")
+    text = pick.read_text(errors="replace").splitlines()[-tail:] if pick.exists() else []
+    return {"logs": [p.name for p in logs], "log": pick.name, "lines": text}
+
+
+@tool
+def job_result(job_id: str) -> dict:
+    """Report of a finished job and a bs_id of its block structure (for evaluate / render / block_op)."""
+    from hexdp.io.blocks_vtk import read_blocks_vtk
+
+    s = state()
+    d = s.job_dir(job_id)
+    rep_file = d / "report.json"
+    if not rep_file.exists():
+        return {"job_id": job_id, "state": "running or not started", "hint": "poll job_status"}
+    rep = json.loads(rep_file.read_text())
+    out = {k: rep.get(k) for k in ("state", "strategy", "scores", "timings", "blocks", "outputs", "error", "time_s")}
+    if rep.get("state") == "done":
+        vtk = (rep.get("outputs") or {}).get("vtk", [None])[0]
+        bs = read_blocks_vtk(vtk) if vtk else None
+        if bs is not None:
+            bid = _new_id("bs")
+            geo_id = next((g for g, e in s.geos.items() if e["path"] == rep.get("geometry")), None)
+            s.blocks[bid] = {"bs": bs, "geo_id": geo_id, "origin": job_id}
+            out["bs_id"] = bid
+    return {"job_id": job_id, **_jsonable(out)}
+
+
+# --------------------------------------------------------------------------------------------- blocks
+@tool
+def evaluate(bs_id: str, max_issues: int = 20) -> dict:
+    """Block-structure summary (blocks, cells, min scaled Jacobian, sheets) and the first issues
+    (inverted cells, hanging vertices, T-junctions, sheet count mismatches)."""
+    bs = state().bs(bs_id)["bs"]
+    issues = bs.check()
+    return {"summary": _jsonable(bs.summary()),
+            "issues": [{"kind": i.kind, "message": i.message, "where": list(i.where)} for i in issues[:max_issues]],
+            "issues_total": len(issues)}
+
+
+@tool
+def render_blocks(bs_id: str, elev: float = 25, azim: float = -60, highlight: list[int] | None = None) -> Image:
+    """PNG of the block edges coloured by block (highlighted blocks in red)."""
+    from hexdp.viz.render import render_blocks as rb
+
+    return Image(data=rb(state().bs(bs_id)["bs"], elev=elev, azim=azim, highlight=tuple(highlight or ())),
+                 format="png")
+
+
+@tool
+def render_quality(bs_id: str) -> Image:
+    """PNG histogram of the fine-cell scaled Jacobian."""
+    from hexdp.viz.render import render_quality as rq
+
+    return Image(data=rq(state().bs(bs_id)["bs"]), format="png")
+
+
+@tool
+def block_op(bs_id: str, op: str, params: dict | None = None) -> dict:
+    """Apply an op (e.g. 'block_collapse') to a block structure, synchronously in its own workspace
+    (block_collapse on the canada draft tube takes ~1 min). Returns the new bs_id and summary."""
+    s = state()
+    entry = s.bs(bs_id)
+    if entry["geo_id"] is None:
+        raise ValueError("this block structure has no open geometry; open_geometry with the job's geometry first")
+    geo = s.geo(entry["geo_id"])["geo"]
+    plugin = registry.load("ops", op)
+    sc = plugin.applicable(entry["bs"], geo)
+    if not sc.ok:
+        return {"applied": False, "reasons": sc.reasons, "missing": sc.missing}
+    ctx = Context(s.root / _new_id(f"op_{op}"), cores=s.cores, cpu_list=s.cpus)
+    new = plugin.apply(entry["bs"], geo, resolve_params(plugin.params, params or {}), ctx)
+    bid = _new_id("bs")
+    s.blocks[bid] = {"bs": new, "geo_id": entry["geo_id"], "origin": f"{op}({bs_id})"}
+    return {"applied": True, "bs_id": bid, "workspace": str(ctx.workspace), "reasons": sc.reasons,
+            "before": entry["bs"].n_blocks, "summary": _jsonable(new.summary())}
+
+
+@tool
+def export(bs_id: str, format: str = "vtk", name: str | None = None) -> dict:
+    """Write a block structure with an exporter ('vtk', 'foam'); returns the written paths."""
+    s = state()
+    bs = s.bs(bs_id)["bs"]
+    ex = registry.load("exporters", format)
+    ctx = Context(s.root / "_export", cores=1, cpu_list=s.cpus)
+    paths = ex.write(bs, ctx.path(name or bs_id), resolve_params(ex.params, {}), ctx)
+    return {"written": [str(p) for p in paths]}
+
+
+@tool
+def record_decision(job_or_geo_id: str, text: str) -> dict:
+    """Write the reasoning behind a choice into the job's (or geometry's) decision notes."""
+    s = state()
+    d = s.root / job_or_geo_id if (s.root / job_or_geo_id).is_dir() else s.root / "_notes" / job_or_geo_id
+    d.mkdir(parents=True, exist_ok=True)
+    f = d / "agent_decisions.md"
+    with open(f, "a") as fh:
+        fh.write(f"- {time.strftime('%Y-%m-%d %H:%M:%S')}: {text.strip()}\n")
+    return {"file": str(f)}
+
+
+def main():
+    server.run("stdio")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,8 @@
+name: canada_dt_sweep_collapse
+description: canada draft tube sweep followed by the CAD-guarded block-sheet collapse
+geometry: ${HEXDP_DATA}/canada/domain.brep
+strategy: sweep
+ops: [block_collapse]
+exporters: [vtk]
+resources: {cores: 8, cpu_list: "0-7"}
+reference: {blocks: 70, min_sj: 0.0588}

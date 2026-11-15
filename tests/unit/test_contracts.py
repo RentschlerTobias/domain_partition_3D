@@ -84,7 +84,8 @@ def test_whole_chain_on_a_box(box_step, tmp_path):
     assert stages == ["detect", "strategy", "op", "export"]
     strat = log[1]
     assert strat["choice"] == "box" and strat["alternatives"] == {"never": 0.0, "box": 0.5}
-    assert (tmp_path / "ws" / "vtk.vtk").exists()
+    assert (tmp_path / "ws" / "out" / "vtk.vtk").exists() and res.outputs["vtk"]
+    assert set(res.timings) >= {"detect", "strategy:box", "op:split_i", "fill:linear", "export:vtk"}
 
 
 def test_chain_explains_when_nothing_applies(box_step, tmp_path):

@@ -26,4 +26,5 @@ def test_describe_prints_json(capsys):
     import json
 
     assert cli.main(["plugins", "ops", "--describe"]) == 0
-    assert json.loads(capsys.readouterr().out) == {"ops": []}
+    ops = json.loads(capsys.readouterr().out)["ops"]
+    assert all({"name", "doc", "params"} <= set(o) for o in ops)

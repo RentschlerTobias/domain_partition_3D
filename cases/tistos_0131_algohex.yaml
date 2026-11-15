@@ -1,0 +1,9 @@
+name: tistos_0131_algohex
+description: tistos runner sample 0131, keep-BL AlgoHex chain, TFI fill (datagen settings)
+geometry: ${HEXDP_DATA}/tistos_s1_0131/case/mesh.msh
+strategy: algohex
+reuse: ["${HEXDP_DATA}/tistos_s1_0131/hex_hex_x.ovm"]
+filler: {name: tfi, params: {target_h: 0.05}}
+exporters: [vtk]
+resources: {cores: 8, cpu_list: "0-7"}
+reference: {blocks: 12, min_sj: 0.0481}

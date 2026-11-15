@@ -12,7 +12,7 @@ lazily: listing a group imports nothing, so a plugin with a heavy runtime
 """
 
 from dataclasses import dataclass
-from importlib import metadata
+from importlib import import_module, metadata
 from typing import Any
 
 KINDS = (
@@ -67,6 +67,13 @@ def load(kind: str, name: str, validate: bool = True, **kwargs: Any) -> Any:
     instance or a factory result) is returned as it is. With ``validate`` the
     object is checked against its contract (``hexdp.contracts``).
     """
+    if ":" in name:                                   # direct reference "package.module:Object"
+        mod, _, attr = name.partition(":")
+        try:
+            obj = getattr(import_module(mod), attr)
+        except Exception as exc:
+            raise PluginError(f"{kind} plugin '{name}' does not load: {exc}") from exc
+        return _finish(kind, name, obj, validate, kwargs)
     matches = [ep for ep in metadata.entry_points(group=group(kind)) if ep.name == name]
     if not matches:
         known = ", ".join(names(kind)) or "none registered"
@@ -78,6 +85,10 @@ def load(kind: str, name: str, validate: bool = True, **kwargs: Any) -> Any:
         obj = matches[0].load()
     except Exception as exc:  # report which plugin broke, not just the import error
         raise PluginError(f"{kind} plugin '{name}' ({matches[0].value}) does not load: {exc}") from exc
+    return _finish(kind, name, obj, validate, kwargs)
+
+
+def _finish(kind, name, obj, validate, kwargs):
     plugin = obj(**kwargs) if isinstance(obj, type) else obj
     if validate:
         from hexdp.contracts import validate as check

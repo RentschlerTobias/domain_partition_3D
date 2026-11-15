@@ -1,0 +1,7 @@
+name: canada_dt_cgrid
+description: canada draft tube sweep with C-layers around the thin walls (rings, lip) as baffles
+geometry: ${HEXDP_DATA}/canada/domain.brep
+strategy: {name: cgrid, params: {wall_cad: "${HEXDP_DATA}/canada/cad_blk.stp"}}
+exporters: [vtk]
+resources: {cores: 8, cpu_list: "0-7"}
+reference: {blocks: 100, min_sj: 0.0353}

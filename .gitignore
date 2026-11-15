@@ -99,3 +99,6 @@ data/charite/
 data/hexme/
 *.stl
 *.mp4
+
+# hexdp case workspaces
+cases/runs/

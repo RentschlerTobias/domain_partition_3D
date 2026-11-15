@@ -1,0 +1,7 @@
+name: canada_dt_sweep
+description: canada draft tube, 2.5D phi sweep of the collapsed r-z layout (90 deg sector)
+geometry: ${HEXDP_DATA}/canada/domain.brep
+strategy: sweep
+exporters: [vtk]
+resources: {cores: 8, cpu_list: "0-7"}
+reference: {blocks: 72, min_sj: 0.0588}

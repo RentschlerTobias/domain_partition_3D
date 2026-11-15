@@ -76,6 +76,19 @@ def structured_grids(P, H, bid):
 BLOCK_FIELDS = ("block", "block_id", "blocks", "BlockId")
 
 
+def merge_coincident(P, H):
+    """Some writers store the nodes on block interfaces once per block. Coincident points (exactly equal
+    coordinates) become one node, so neighbouring blocks share their faces again. Returns (P, H, merged)."""
+    _, first, inv = np.unique(P, axis=0, return_index=True, return_inverse=True)
+    if len(first) == len(P):
+        return P, H, 0
+    keep = np.sort(first)                       # keep the first occurrence, in file order
+    new_id = np.empty(len(first), np.int64)
+    new_id[np.argsort(first)] = np.arange(len(first))
+    old_to_new = new_id[inv.reshape(-1)]
+    return P[keep], old_to_new[H], len(P) - len(keep)
+
+
 def read_blocks_vtk(path, field: str | None = None) -> BlockStructure:
     """Hex VTK with a per-cell block id -> BlockStructure with coarse topology, cell counts and fine grids.
     ``field`` defaults to the first of BLOCK_FIELDS present."""
@@ -89,8 +102,14 @@ def read_blocks_vtk(path, field: str | None = None) -> BlockStructure:
     H = np.vstack([c.data for c in m.cells if c.type == "hexahedron"]).astype(np.int64)
     bid = np.concatenate([d for d, c in zip(m.cell_data[field], m.cells) if c.type == "hexahedron"]).astype(int)
     P = np.asarray(m.points, float)
+    P, H, merged = merge_coincident(P, H)
     grids, _ = structured_grids(P, H, bid)
-    return from_grids(P, grids)
+    bs = from_grids(P, grids)
+    bs.meta["source"] = str(path)
+    if merged:
+        bs.meta["merged_coincident_points"] = merged
+    bs.meta["block_field"] = field
+    return bs
 
 
 def from_grids(P, grids) -> BlockStructure:

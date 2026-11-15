@@ -80,6 +80,7 @@ class Context:
     workspace: Path
     cores: int = 1
     timeout_s: float | None = None
+    cpu_list: str | None = None        # taskset CPU list for subprocesses, e.g. "0-7"
     decisions: list[Decision] = field(default_factory=list)
 
     def __post_init__(self):

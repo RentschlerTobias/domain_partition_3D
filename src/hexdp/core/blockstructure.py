@@ -71,6 +71,7 @@ class BlockStructure:
     interfaces: list[Interface] = field(default_factory=list)
     fine_points: np.ndarray | None = None
     grids: list[np.ndarray] | None = None
+    meta: dict = field(default_factory=dict)   # provenance: source file, inputs a later stage needs
 
     def __post_init__(self):
         self.points = np.asarray(self.points, float).reshape(-1, 3)
@@ -255,6 +256,7 @@ class BlockStructure:
             "interfaces": [{"kind": i.kind, "faces_a": [ek(f) for f in i.faces_a],
                             "faces_b": [ek(f) for f in i.faces_b], "transform": i.transform}
                            for i in self.interfaces],
+            "meta": {k: v for k, v in self.meta.items() if isinstance(v, (str, int, float, bool))},
         }
 
     @classmethod
@@ -270,6 +272,7 @@ class BlockStructure:
                        for k, v in d.get("face_info", {}).items()},
             interfaces=[Interface(i["kind"], [key(f) for f in i["faces_a"]], [key(f) for f in i["faces_b"]],
                                   i.get("transform")) for i in d.get("interfaces", [])],
+            meta=dict(d.get("meta", {})),
         )
 
     def save(self, path) -> None:

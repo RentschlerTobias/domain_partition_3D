@@ -76,6 +76,13 @@ data/dataset/*/*/*
 /*.out
 experimentell/hex3d_algohex/logs/*.out
 
+# data/: local only by default (Charite, HexMe, literature, ...); only these are versioned
+data/*
+!data/T1_9/
+!data/dataset/
+!data/random_tistos/
+!data/tistos_domain_partition/
+
 # Confidential / large inputs that were purged from the history (2026-11-14): never re-add.
 # Charite heart geometry (STL, derived meshes, videos) and literature PDFs.
 # Tracked turbine STLs (data/T1_9/*.stl) are unaffected; new ones need `git add -f`.

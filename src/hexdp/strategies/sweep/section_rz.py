@@ -19,7 +19,7 @@ from OCC.Core.GCPnts import GCPnts_UniformAbscissa
 from OCC.Core.BRepExtrema import BRepExtrema_DistShapeShape
 from OCC.Core.BRepTools import BRepTools_WireExplorer
 
-SRC = "/work/canada/blocking_study/dt_baffle/in_a/domain.brep"
+SRC = os.environ.get("HEXDP_DOMAIN_BREP", "domain.brep")   # the domain solid; --brep overrides
 def items(sh, t):
     e = TopExp_Explorer(sh, t); o = []
     while e.More(): o.append(e.Current()); e.Next()
@@ -92,9 +92,15 @@ def section(deg, solid, sfaces, free):
     return {"phi": deg, "loops": loops, "slits": slits}
 
 if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="r-z sections of the domain solid at the given phi (deg) -> sections/")
+    ap.add_argument("phi", type=float, nargs="+")
+    ap.add_argument("--brep", default=SRC)
+    a = ap.parse_args()
+    SRC = a.brep
     os.makedirs("sections", exist_ok=True)
     solid, sf, fr = load()
-    for deg in map(float, sys.argv[1:]):
+    for deg in a.phi:
         degc = min(max(deg, 1e-4), 90 - 1e-4)   # exactly 0/90 coincides with the symmetry planes
         S = section(degc, solid, sf, fr); S["phi"] = deg
         json.dump(S, open(f"sections/sec_{deg:05.1f}.json", "w"))

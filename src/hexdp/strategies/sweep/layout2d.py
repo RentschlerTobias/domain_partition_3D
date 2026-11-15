@@ -23,7 +23,9 @@ import json, glob, math, itertools, collections, sys, os, time
 import numpy as np
 import scipy.sparse as sp, scipy.sparse.linalg as spl
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+# Default data directory (sections/, layout_final.json): the working directory, as the scripts are run
+# from their case directory. New code passes paths explicitly.
+HERE = os.getcwd()
 M_RES = 400            # samples per segment for the mean section
 
 

@@ -18,10 +18,11 @@ Generic construction (no labels / face numbers):
 """
 import sys, os, json, glob, collections
 import numpy as np
-sys.path.insert(0, "/work/canada/blocking_study/sweep_phi")
-from layout2d import *
+from hexdp.strategies.sweep.layout2d import *
 
-CG = os.path.dirname(os.path.abspath(__file__))
+# default C-grid data directory (walls/, walls.json): the working directory; the sweep data
+# (sections/, layout_final.json) one level up, as in the case layout sweep_phi/cgrid
+CG = os.getcwd()
 DELTA = 0.03          # layer thickness
 N_L = 12              # layer cells
 TIP_TANGENT = True
@@ -59,16 +60,18 @@ def grading(h1, delta, n):
 
 
 class CGrid:
-    def __init__(self, h=0.1):
-        self.secs = load_sections()
+    def __init__(self, h=0.1, sweep_dir=None, cgrid_dir=None):
+        sweep_dir = sweep_dir or os.path.dirname(os.path.abspath(cgrid_dir or CG))
+        cgrid_dir = cgrid_dir or CG
+        self.secs = load_sections(f"{sweep_dir}/sections/sec_*.json")
         self.phis = np.array([p for p, _ in self.secs])
         secs5 = [s for s in self.secs if abs(s[0] / 5 - round(s[0] / 5)) < 1e-9]
         ml = mean_loops(secs5); ab = abstract(ml)
-        merges = [tuple(x) for x in json.load(open(f"{HERE}/layout_final.json"))["merges"]]
+        merges = [tuple(x) for x in json.load(open(f"{sweep_dir}/layout_final.json"))["merges"]]
         self.lay = lay = Layout(ml, ab, merges); self.nb2 = lay.arrangement()
         self.E = E = lay.edge_list()
-        self.walls = {phi: json.load(open(f"{CG}/walls/wall_{phi:05.1f}.json"))["walls"] for phi in self.phis}
-        self.wmeta = json.load(open(f"{CG}/walls.json"))
+        self.walls = {phi: json.load(open(f"{cgrid_dir}/walls/wall_{phi:05.1f}.json"))["walls"] for phi in self.phis}
+        self.wmeta = json.load(open(f"{cgrid_dir}/walls.json"))
         self.m0 = Mesh2D(lay, h)                         # slit model (for the strip separatrix positions)
         self.find_chains()
         self.m = Mesh2D(lay, h, extra_cuts=self.extra_cuts, extra_b=self.extra_bnodes)

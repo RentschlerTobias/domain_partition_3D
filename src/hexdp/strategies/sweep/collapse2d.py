@@ -3,15 +3,28 @@ A chord = the band of blocks between two neighbouring parallel coordinate lines 
 Collapsing it = merging the two coordinate groups (both get the mean physical coordinate).
 Accepted if: parameter polygon valid, arrangement rectangular + T-junction free, block count drops, and the
 Winslow re-fit of the sections at the guard phis has 0 inverted quads and min sJ >= GUARD.
-usage: python3 collapse2d.py [guard_sJ] [h]  -> layout_final.json, collapse_log.json, layout_*.png"""
-import sys, json, time, multiprocessing as mp
-sys.path.insert(0, "/work/canada/blocking_study/sweep_phi")
-from layout2d import *
+usage: python3 collapse2d.py [guard_sJ] [h] [--dir CASE] [--out DIR] [--workers N]  -> layout_final.json
+(CASE holds sections/; default: the working directory; DIR default CASE)"""
+import argparse
+import json
+import multiprocessing as mp
+import os
+import sys
+import time
 
-GUARD = float(sys.argv[1]) if len(sys.argv) > 1 else 0.1
-H = float(sys.argv[2]) if len(sys.argv) > 2 else 0.15
-secs = load_sections(); ml = mean_loops(secs); ab = abstract(ml)
-CHECK = [k for k, (phi, _) in enumerate(secs) if phi in (0.0, 10.0, 20.0, 30.0, 45.0, 60.0, 90.0)]
+from hexdp.strategies.sweep.layout2d import *  # noqa: F401,F403
+
+# Module state used by the guard workers (fork): set by setup() before the pool starts.
+GUARD = 0.1
+H = 0.15
+secs = ml = ab = CHECK = None
+
+
+def setup(case_dir=".", guard_sj=0.1, h=0.15):
+    global GUARD, H, secs, ml, ab, CHECK
+    GUARD, H = guard_sj, h
+    secs = load_sections(f"{case_dir}/sections/sec_*.json"); ml = mean_loops(secs); ab = abstract(ml)
+    CHECK = [k for k, (phi, _) in enumerate(secs) if phi in (0.0, 10.0, 20.0, 30.0, 45.0, 60.0, 90.0)]
 
 
 def evaluate(merges):
@@ -68,12 +81,14 @@ def neutral_pass(merges, log):
     return merges
 
 
-if __name__ == "__main__":
+def run(case_dir=".", out=None, guard_sj=0.1, h=0.15, workers=8):
+    """Greedy chord collapse of the section layout of ``case_dir``; writes layout_final.json to ``out``."""
+    setup(case_dir, guard_sj, h)
     merges = []; log = []
     lay, nb = evaluate(merges)
     print(f"initial: {nb} blocks, {len(lay.rays)} rays", flush=True)
     log.append(dict(step=0, blocks=nb, merges=[]))
-    pool = mp.Pool(8)
+    pool = mp.Pool(workers)
     merges = neutral_pass(merges, log)
     while True:
         lay, nb = evaluate(merges)
@@ -103,5 +118,21 @@ if __name__ == "__main__":
     merges = neutral_pass(merges, log)
     lay, nb = evaluate(merges)
     json.dump(dict(guard=GUARD, h=H, merges=[[int(x) for x in m_] for m_ in merges], blocks=nb, log=log),
-              open(f"{HERE}/layout_final.json", "w"), indent=1)
+              open(f"{out or case_dir}/layout_final.json", "w"), indent=1)
     print("final", nb, "blocks")
+    return dict(merges=merges, blocks=nb, log=log)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="2D chord collapse of the swept section layout")
+    ap.add_argument("guard_sj", type=float, nargs="?", default=0.1)
+    ap.add_argument("h", type=float, nargs="?", default=0.15)
+    ap.add_argument("--dir", default=os.getcwd())
+    ap.add_argument("--out", default=None)
+    ap.add_argument("--workers", type=int, default=8)
+    a = ap.parse_args(argv)
+    run(a.dir, a.out, a.guard_sj, a.h, a.workers)
+
+
+if __name__ == "__main__":
+    main()

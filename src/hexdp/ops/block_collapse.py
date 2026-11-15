@@ -25,8 +25,7 @@ usage: python block_collapse.py --vtk in.vtk --cad cad.npz --out DIR [--h 0.15 -
 import sys, os, json, time, argparse, collections, math, itertools
 import numpy as np
 from multiprocessing import get_context
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bstruct import *
+from hexdp.ops.bstruct import *
 
 
 class Reject(Exception):

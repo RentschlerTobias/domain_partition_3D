@@ -27,6 +27,9 @@ def data(tmp_path_factory):
     gmsh.model.occ.synchronize()
     gmsh.write(str(d / "box.step"))
     gmsh.finalize()
+    (d.parent / "elsewhere").mkdir(exist_ok=True)
+    (d.parent / "elsewhere" / "ring.stl").write_text("solid x\nendsolid x\n")
+    (d / "linked").symlink_to(d.parent / "elsewhere")          # data roots are often symlinked directories
     (d / "charite_secret").mkdir()
     (d / "charite_secret" / "lv.stl").write_text("solid x\nendsolid x\n")
     return d
@@ -61,7 +64,7 @@ def test_full_session_on_a_box(data):
         assert {"open_geometry", "detect_features", "list_strategies", "run_strategy", "job_status", "job_result",
                 "evaluate", "render_blocks", "export", "record_decision"} <= tools
         files = payload(await s.call_tool("list_inputs", {}))["files"]
-        assert [f["path"] for f in files] == ["box.step"]             # the charite file is not listed
+        assert [f["path"] for f in files] == ["box.step", "linked/ring.stl"]   # charite is not listed
         g = payload(await s.call_tool("open_geometry", {"path": "box.step"}))
         gid = g["geo_id"]
         assert g["summary"]["surfaces"] == 6
@@ -104,9 +107,13 @@ def test_guards(data):
         r1 = await s.call_tool("open_geometry", {"path": "charite_secret/lv.stl"})
         r2 = await s.call_tool("open_geometry", {"path": "/etc/hostname"})
         r3 = await s.call_tool("evaluate", {"bs_id": "bs_nope"})
-        return r1, r2, r3
+        r4 = await s.call_tool("open_geometry", {"path": "../../../../etc/hostname"})
+        r5 = await s.call_tool("list_inputs", {"subdir": "linked"})
+        return r1, r2, r3, r4, r5
 
-    r1, r2, r3 = asyncio.run(_session_run(data, fn))
+    r1, r2, r3, r4, r5 = asyncio.run(_session_run(data, fn))
+    assert r4.is_error and "outside the allowed roots" in r4.content[0].text
+    assert not r5.is_error                                   # a symlinked data directory is readable
     assert r1.is_error and "confidential" in r1.content[0].text
     assert r2.is_error and "outside the allowed roots" in r2.content[0].text
     assert r3.is_error and "unknown bs_id" in r3.content[0].text

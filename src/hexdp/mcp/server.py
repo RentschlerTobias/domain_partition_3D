@@ -59,12 +59,15 @@ class State:
         self.blocks: dict[str, dict] = {}     # bs_id -> {"bs", "geo_id", "origin"}
 
     def readable(self, p) -> Path:
+        """The path as seen below an allowed root (symlinked data directories are allowed, as the
+        administrator put them there); '..' is normalised away before the check."""
         p = Path(os.path.expandvars(str(p))).expanduser()
-        p = (p if p.is_absolute() else self.data / p).resolve()
-        if "charite" in str(p).lower():
+        p = Path(os.path.normpath(p if p.is_absolute() else self.data / p))
+        real = p.resolve()
+        if "charite" in str(p).lower() or "charite" in str(real).lower():
             raise PermissionError("Charité data are confidential and not available to agents")
         roots = [self.data, self.root, Path(os.getcwd()).resolve()]
-        if not any(p == r or r in p.parents for r in roots):
+        if not any(q == r or r in q.parents for r in roots for q in (p, real)):
             raise PermissionError(f"{p} is outside the allowed roots {[str(r) for r in roots]}")
         if not p.exists():
             raise FileNotFoundError(str(p))
@@ -137,12 +140,18 @@ def list_inputs(subdir: str = "", pattern: str = "*") -> dict:
     """List geometry files (and case YAMLs) below HEXDP_DATA/subdir, recursively (max 200)."""
     s = state()
     base = s.readable(subdir) if subdir else s.data
+    import fnmatch
+
+    found = []
+    for dirpath, dirnames, filenames in os.walk(base, followlinks=True):   # data dirs are often symlinks
+        dirnames[:] = sorted(d for d in dirnames if not d.startswith(".") and d != "runs" and "charite" not in d.lower())
+        found += [Path(dirpath) / f for f in sorted(filenames) if fnmatch.fnmatch(f, pattern)]
     out = []
-    for p in sorted(base.rglob(pattern)):
+    for p in found:
         if p.is_file() and (p.suffix.lower() in GEOMETRY_SUFFIXES or p.suffix in (".yaml", ".yml")):
             if "charite" in str(p).lower():
                 continue
-            out.append({"path": str(p.relative_to(s.data)) if s.data in p.parents else str(p),
+            out.append({"path": str(p.relative_to(s.data)) if str(p).startswith(str(s.data) + os.sep) else str(p),
                         "size_mb": round(p.stat().st_size / 1e6, 2)})
             if len(out) >= 200:
                 break

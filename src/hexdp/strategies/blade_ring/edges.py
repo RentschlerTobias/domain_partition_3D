@@ -25,14 +25,11 @@ from pathlib import Path
 
 import numpy as np
 
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent))
-sys.path.insert(0, str(HERE))
 
-import tfi                                                            # noqa: E402
-from geometry import Geometry                                         # noqa: E402
-from ring import BladeSurface                                         # noqa: E402
-from snap import curve_surfaces                                       # noqa: E402
+from hexdp.fill import tfi as tfi
+from hexdp.strategies.blade_ring.geometry import Geometry
+from hexdp.strategies.blade_ring.ring import BladeSurface
+from hexdp.strategies.blade_ring.snap import curve_surfaces
 
 TOL_FACET = 1e-7       # on a msh reference surface (nodes were projected there)
 TOL_BLADE = 1e-4       # on the bilinear S(u, v) sample (B3 gate)

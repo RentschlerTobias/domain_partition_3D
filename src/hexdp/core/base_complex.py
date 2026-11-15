@@ -26,10 +26,9 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO / "experimentell" / "hex3d_algohex"))
+from hexdp._legacy import REPO
 
-import ovm_io                                                         # noqa: E402
+from hexdp.io import ovm as ovm_io
 
 # the 6 faces and 12 edges of a hex in VTK_HEXAHEDRON ordering
 HEX_FACES = ((0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4),
@@ -258,7 +257,7 @@ if __name__ == "__main__":
     for i, b in enumerate(blocks):
         for h in b:
             bid[h] = i
-    import export_vtk as ev
+    from hexdp.io import vtk_export as ev
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     ev.write_vtk(a.out, P, hexes, [12] * len(hexes), bid, "block_id",
                  f"base complex: {len(blocks)} blocks")

@@ -23,12 +23,9 @@ from pathlib import Path
 
 import numpy as np
 
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / "datagen"))
 
-import check_mesh_openfoam as cmo                                     # noqa: E402
-sys.path.insert(0, str(HERE))
-from mesh_b5 import PATCHES                                           # noqa: E402
+from hexdp.quality import check_mesh_openfoam as cmo
+from hexdp.strategies.blade_ring.mesh_b5 import PATCHES
 
 PATCH_TYPE = {"RU_HUB": "wall", "RU_SHROUD": "wall", "RU_BLADE": "wall",
               "RU_INLET": "patch", "RU_OUTLET": "patch",

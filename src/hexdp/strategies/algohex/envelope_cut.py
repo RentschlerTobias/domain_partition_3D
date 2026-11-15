@@ -34,12 +34,10 @@ from pathlib import Path
 import numpy as np
 from scipy.spatial import cKDTree
 
-HEX = Path(__file__).resolve().parent
-sys.path.insert(0, str(HEX.parent.parent)); sys.path.insert(0, str(HEX))
 from dp3d.extraction import parse_msh                       # noqa: E402
-import tet_prep as tp                                       # noqa: E402
-import tet_prep_v2 as v2                                    # noqa: E402
-import tet_prep_v5 as v5                                    # noqa: E402
+from hexdp.strategies.algohex import tet_prep_v1 as tp
+from hexdp.strategies.algohex import tet_prep_v2 as v2
+from hexdp.strategies.algohex import tet_prep as v5
 
 # mmg is not in the container: git clone https://github.com/MmgTools/mmg, cmake
 # -DUSE_SCOTCH=OFF -DUSE_ELAS=OFF -DUSE_VTK=OFF, make install; point MMG3D at mmg3d_O3

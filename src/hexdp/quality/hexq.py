@@ -19,8 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import clean_blocks as cb                                            # noqa: E402
+from hexdp.core import clean_blocks as cb
 
 # VTK hex faces, outward winding
 FACES = np.array([(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4),

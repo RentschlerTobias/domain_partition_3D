@@ -15,11 +15,9 @@ from pathlib import Path
 import numpy as np
 import meshio
 
-HEX = Path(__file__).resolve().parent
-sys.path.insert(0, str(HEX.parent.parent)); sys.path.insert(0, str(HEX))
-import tet_prep as tp                                       # noqa: E402
-import tet_prep_v2 as v2                                    # noqa: E402
-import envelope_cut as ec                                   # noqa: E402
+from hexdp.strategies.algohex import tet_prep_v1 as tp
+from hexdp.strategies.algohex import tet_prep_v2 as v2
+from hexdp.strategies.algohex import envelope_cut as ec
 
 VOLFACES = {"tetra": ((0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)),
             "hexahedron": ((0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)),

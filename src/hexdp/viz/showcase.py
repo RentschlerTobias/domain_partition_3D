@@ -24,13 +24,11 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO))
-sys.path.insert(0, str(REPO / "experimentell" / "hex3d_algohex"))
+from hexdp._legacy import REPO
 
-import base_complex as bc                                             # noqa: E402
-import clean_blocks as cb                                             # noqa: E402
-import ovm_io                                                         # noqa: E402
+from hexdp.core import base_complex as bc
+from hexdp.core import clean_blocks as cb
+from hexdp.io import ovm as ovm_io
 
 OUT = REPO / "output" / "hex3d_algohex" / "showcase"
 DATA = REPO / "data" / "T1_9"
@@ -226,7 +224,7 @@ SURF_COLORS = {1: "#4477AA", 2: "#EE6677", 3: "#228833", 4: "#CCBB44",
 
 def step01_input_surfaces(tag="v11"):
     """The labelled boundary AlgoHex is given. One colour per surface."""
-    import tet_prep_v5 as v5
+    from hexdp.strategies.algohex import tet_prep as v5
     P, cells = read_algohex_vtk(DATA / "T1_9_tet_v5.vtk")
     tri, ids = cells["triangle"]
     s = tri_surface(P, tri, surface_id=ids)
@@ -341,7 +339,7 @@ def step04_singular_graph(tag="v11"):
 
     Nothing in this branch exported this before -- it existed only as a
     printed table -- and it is the object `FRAMEFIELD_PLAN.md` (removed doc, git show a583e59:experimentell/hex3d_algohex/FRAMEFIELD_PLAN.md) is about."""
-    import tet_prep as tp
+    from hexdp.strategies.algohex import tet_prep_v1 as tp
     P, H = hexmesh(HEX / f"T1_9_hex_{tag}.ovm")
     topo = bc.build_topology(H)
     sing, val, arcs, bnd = _singular_graph(P, H, topo)
@@ -435,7 +433,7 @@ def step07_sheets(tag="v11"):
 
 
 def _structure(tag, input_vtk):
-    import tet_prep_v5 as v5
+    from hexdp.strategies.algohex import tet_prep as v5
     P0, tri0, tid0 = cb.read_input_surface(input_vtk)
     lab = cb.SurfaceLabeller(P0, tri0, tid0, v5.NAMES)
     return cb.BlockStructure(HEX / f"T1_9_hex_{tag}.ovm", lab, fill=True)
@@ -467,7 +465,7 @@ def step08_blocks_raw(tag="v11"):
 
 def step09_postprocessing(tag="v11"):
     """What the cut-set cleanup can and cannot do, as n_block_faces."""
-    import tet_prep_v5 as v5
+    from hexdp.strategies.algohex import tet_prep as v5
     S, before, after, v = cb.postprocess(
         HEX / f"T1_9_hex_{tag}.ovm", DATA / "T1_9_tet_v5.vtk", v5.NAMES,
         verbose=False)
@@ -500,7 +498,7 @@ def step10_sheet_collapse(tag="v11", sheets=(6, 15, 17)):
     Replays the sheets the greedy search selected (v11: 6, 15, 17) instead of
     re-running the search, which costs ~15 min per round for a result already
     recorded in PROGRESS.md."""
-    import tet_prep_v5 as v5
+    from hexdp.strategies.algohex import tet_prep as v5
     P0, tri0, tid0 = cb.read_input_surface(DATA / "T1_9_tet_v5.vtk")
     lab = cb.SurfaceLabeller(P0, tri0, tid0, v5.NAMES)
     S = cb.BlockStructure(HEX / f"T1_9_hex_{tag}.ovm", lab, fill=True)

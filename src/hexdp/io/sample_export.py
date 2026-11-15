@@ -26,10 +26,10 @@ from pathlib import Path
 
 import numpy as np
 
-import block_edges as be
-import tfi
+from hexdp.core import block_edges as be
+from hexdp.fill import tfi as tfi
 
-REPO = Path(__file__).resolve().parent.parent.parent
+from hexdp._legacy import REPO
 
 # VTK hex corner order, as (i, j, k) in {0, 1}^3 -- the same convention
 # `tfi.block_cells` uses, so a block written here refills without a relabel.
@@ -115,7 +115,7 @@ def surface_arrays(tet_vtk):
     point cloud at any density with any tie-break follows from it in seconds
     at load time, which is where decision E was deferred to anyway.
     """
-    import clean_blocks as cb
+    from hexdp.core import clean_blocks as cb
     P, tri, tid = cb.read_input_surface(str(tet_vtk))
     return np.asarray(P, float), np.asarray(tri, np.int64), np.asarray(tid, int)
 
@@ -402,7 +402,7 @@ if __name__ == "__main__":
     if a.curve_postprocess:
         if "surface_tris" not in data:
             raise SystemExit("--curve-postprocess needs --tet (labelled surface)")
-        import curve_postprocess
+        from hexdp.fill import curve_postprocess as curve_postprocess
         data.update(curve_postprocess.postprocess(data))
     p = write(out, data)
     size = p.stat().st_size

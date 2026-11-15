@@ -18,12 +18,10 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO))
-sys.path.insert(0, str(REPO / "experimentell" / "hex3d_algohex"))
+from hexdp._legacy import REPO
 
 from dp3d.extraction import parse_msh                                 # noqa: E402
-import tet_prep as tp                                                 # noqa: E402
+from hexdp.strategies.algohex import tet_prep_v1 as tp
 
 MSH = REPO / "data" / "T1_9" / "T1_9_ru_gridGmsh.msh"
 OUT = REPO / "output" / "hex3d_algohex" / "vtk"
@@ -144,7 +142,7 @@ def export_topological(nodes, elements):
 
 def export_tet_and_features(vtk_in):
     """Re-export the AlgoHex input split into volume + feature curves."""
-    import plot_stages as ps
+    from hexdp.viz import plot_stages as ps
     P, cells, ty, co = ps.read_vtk(vtk_in)
     tets = [(cells[c], co[c]) for c in range(len(cells)) if ty[c] == 10]
     lines = [(cells[c], co[c]) for c in range(len(cells)) if ty[c] == 3]
@@ -164,7 +162,7 @@ def export_tet_and_features(vtk_in):
 
 
 def export_hexmesh(ovm, out_name, title):
-    import ovm_io
+    from hexdp.io import ovm as ovm_io
     if not Path(ovm).exists():
         return
     P, e, f, poly = ovm_io.read_ovm(ovm)

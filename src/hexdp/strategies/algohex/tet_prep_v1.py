@@ -20,8 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO))
+from hexdp._legacy import REPO
 from dp3d.extraction import parse_msh, write_stl                          # noqa: E402
 
 MSH = REPO / "data" / "T1_9" / "T1_9_ru_gridGmsh.msh"

@@ -13,14 +13,11 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import sys
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(HERE.parent.parent))
 
-import base_complex as bc
-import clean_blocks as cb
-import tfi
-import blade_check
+from hexdp.core import base_complex as bc
+from hexdp.core import clean_blocks as cb
+from hexdp.fill import tfi as tfi
+from hexdp.quality import blade_check as blade_check
 
 
 DEFAULT_VTK = Path("/work/datagen_keepbl/runs/tistos_s1_0131/blade/tfi_blade.vtk")

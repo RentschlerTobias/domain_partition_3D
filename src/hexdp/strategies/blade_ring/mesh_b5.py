@@ -28,16 +28,13 @@ from pathlib import Path
 
 import numpy as np
 
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent))
-sys.path.insert(0, str(HERE))
 
-import tfi                                                            # noqa: E402
-import quality as qual                                                # noqa: E402
-from core_tfi import graded, tfi_param                                # noqa: E402
-from geometry import Geometry                                         # noqa: E402
-from winslow import winslow, winslow2d                                # noqa: E402
-from ring import BladeSurface, blend_segment                         # noqa: E402
+from hexdp.fill import tfi as tfi
+from hexdp.quality import hexq as qual
+from hexdp.strategies.blade_ring.core_tfi import graded, tfi_param
+from hexdp.strategies.blade_ring.geometry import Geometry
+from hexdp.fill.winslow import winslow, winslow2d
+from hexdp.strategies.blade_ring.ring import BladeSurface, blend_segment
 
 WALLS = ("hub", "shroud", "blade")
 # reference surface -> OpenFOAM patch, as dtOO names them (xml/ru_gridMesh.xml): the

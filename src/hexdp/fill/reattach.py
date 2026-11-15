@@ -38,16 +38,14 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO))
-sys.path.insert(0, str(REPO / "experimentell" / "hex3d_algohex"))
+from hexdp._legacy import REPO
 
 from dp3d.extraction import parse_msh                                 # noqa: E402
 import dp3d.tmesh as tm                                               # noqa: E402
-import base_complex as bc                                             # noqa: E402
-import clean_blocks as cb                                             # noqa: E402
-from clean_blocks import BlockStructure                               # noqa: E402
-import ovm_io                                                         # noqa: E402
+from hexdp.core import base_complex as bc
+from hexdp.core import clean_blocks as cb
+from hexdp.core.clean_blocks import BlockStructure
+from hexdp.io import ovm as ovm_io
 
 MSH = REPO / "data" / "T1_9" / "T1_9_ru_gridGmsh.msh"
 OUT = REPO / "output" / "hex3d_algohex"
@@ -288,7 +286,7 @@ def _part_structure(P, H, B):
     """BlockStructure for a part with no labelled input mesh: label its
     boundary by feature angle, which is exact enough for the O-grid (a box
     complex) and for the one-cell-thick boundary-layer slabs."""
-    from clean_blocks import BlockStructure as BS
+    from hexdp.core.clean_blocks import BlockStructure as BS
     S = BS.__new__(BS)
     S.P, S.hexes = np.asarray(P), np.asarray(H)
     S.f2h, S.e2h = bc.build_topology(S.hexes)
@@ -308,7 +306,7 @@ def assemble(blocks_vtk, out_vtk, n_layers=1, first_height=8.9e-4,
     """Read a postprocessed AlgoHex block mesh, re-attach both parts, write
     the combined structure with a global `block_id`."""
     import meshio
-    import tet_prep_v5 as v5
+    from hexdp.strategies.algohex import tet_prep as v5
     m = meshio.read(blocks_vtk)
     hx = np.vstack([b.data for b in m.cells if b.type == "hexahedron"])
     bid = np.concatenate([np.asarray(d).ravel() for b, d in
@@ -346,7 +344,7 @@ def assemble(blocks_vtk, out_vtk, n_layers=1, first_height=8.9e-4,
     # disconnected, which no solver and no block merge can work with.
     P = np.vstack([S.P, Po, Pb])
     H = np.vstack([S.hexes, Ho + len(S.P), Hb + len(S.P) + len(Po)])
-    import tfi
+    from hexdp.fill import tfi as tfi
     n_before = len(P)
     P, remap = tfi.weld(P)
     H = remap[H]
@@ -391,7 +389,7 @@ def assemble(blocks_vtk, out_vtk, n_layers=1, first_height=8.9e-4,
     segs = remap[segs]
     cid = np.concatenate(cid) if len(cid) else np.zeros(0, np.int64)
 
-    import export_vtk as ev
+    from hexdp.io import vtk_export as ev
     out_vtk = Path(out_vtk)
     out_vtk.parent.mkdir(parents=True, exist_ok=True)
     ev.write_vtk(str(out_vtk), P, H, [12] * len(H), B, "block_id",

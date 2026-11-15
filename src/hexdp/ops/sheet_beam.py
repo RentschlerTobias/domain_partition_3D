@@ -32,13 +32,11 @@ from collections import defaultdict
 
 import numpy as np
 
-sys.path[:0] = ["/work/dp3d_datagen",
-                "/work/dp3d_datagen/experimentell/hex3d_algohex"]
-import base_complex as bc                                            # noqa: E402
-import clean_blocks as cb                                            # noqa: E402
-import ovm_io                                                        # noqa: E402
+from hexdp.core import base_complex as bc
+from hexdp.core import clean_blocks as cb
+from hexdp.io import ovm as ovm_io
 import meshio
-import tet_prep_v5 as v5  # noqa: E402
+from hexdp.strategies.algohex import tet_prep as v5
 
 OUT = "/work/vtk/12_sheet_beam"
 CSV_OUT = "/work/analysis/sheet_beam_results.csv"

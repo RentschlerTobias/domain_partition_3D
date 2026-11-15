@@ -28,9 +28,9 @@ from pathlib import Path
 
 import numpy as np
 
-import tfi
+from hexdp.fill import tfi as tfi
 
-REPO = Path(__file__).resolve().parent.parent.parent
+from hexdp._legacy import REPO
 DEFAULT_BLOCKS = (REPO / "output" / "hex3d_algohex" / "deliverable"
                   / "T1_9_blocks_v11.vtk")
 

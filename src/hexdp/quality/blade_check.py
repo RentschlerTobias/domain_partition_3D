@@ -25,13 +25,10 @@ from pathlib import Path
 
 import numpy as np
 
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(HERE.parent.parent))
 
-import base_complex as bc          # noqa: E402
-import clean_blocks as cb          # noqa: E402
-import tfi                         # noqa: E402
+from hexdp.core import base_complex as bc
+from hexdp.core import clean_blocks as cb
+from hexdp.fill import tfi as tfi
 
 
 DEFAULT_RUN = Path("/work/datagen_keepbl/runs/tistos_s1_0131")
@@ -83,7 +80,7 @@ def core_blocks(run):
 def surface_labeller(run):
     """The labeller that names the core's boundary faces, so the block
     faces can be checked against the physical surfaces."""
-    import tet_prep_v5 as v5
+    from hexdp.strategies.algohex import tet_prep as v5
     P, tri, tid = cb.read_input_surface(str(run / "tet.vtk"))
     return cb.SurfaceLabeller(P, tri, tid, v5.NAMES)
 
@@ -93,8 +90,6 @@ def check(cond, msg, failures):
     if not cond:
         failures.append(msg)
     return bool(cond)
-
-
 
 
 def signed_volume(pts):

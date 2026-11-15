@@ -27,14 +27,11 @@ from pathlib import Path
 import numpy as np
 from scipy.spatial import cKDTree
 
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent))
-sys.path.insert(0, str(HERE))
 
-import tfi                                                            # noqa: E402
-import quality as qual                                                # noqa: E402
-import clean_blocks as cb                                             # noqa: E402
-from geometry import closest_on_tris                                 # noqa: E402
+from hexdp.fill import tfi as tfi
+from hexdp.quality import hexq as qual
+from hexdp.core import clean_blocks as cb
+from hexdp.strategies.blade_ring.geometry import closest_on_tris
 
 CUT_LABEL = 7          # tet_prep_v5.S_OGRID_IFACE
 
@@ -361,7 +358,7 @@ def main():
     # hub / shroud rows end exactly on the blade's v = 0 / 1 edge
     # (detected by projection onto the reference hub / shroud: the facetted msh
     # surface sits ~2e-4 inside the analytic cylinder, so no radius test)
-    from geometry import Geometry
+    from hexdp.strategies.blade_ring.geometry import Geometry
     G = Geometry(run)
     on = lambda name, X: bool(np.all(np.linalg.norm(G.project(name, X) - X, axis=1) < 1e-8))
     hub_row, shroud_row = on("hub", P[ids[0]]), on("shroud", P[ids[-1]])

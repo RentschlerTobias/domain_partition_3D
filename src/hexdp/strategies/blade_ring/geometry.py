@@ -32,10 +32,8 @@ from pathlib import Path
 import numpy as np
 from scipy.spatial import cKDTree
 
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent))
 
-import tet_prep_v5 as tp5                                             # noqa: E402
+from hexdp.strategies.algohex import tet_prep as tp5
 
 VOL_FACES = {
     "hexahedron": [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)],

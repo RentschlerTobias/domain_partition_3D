@@ -31,12 +31,10 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO))
-sys.path.insert(0, str(REPO / "experimentell" / "hex3d_algohex"))
+from hexdp._legacy import REPO
 
 from dp3d.extraction import parse_msh                                 # noqa: E402
-import tet_prep as tp                                                 # noqa: E402
+from hexdp.strategies.algohex import tet_prep_v1 as tp
 
 MSH = REPO / "data" / "T1_9" / "T1_9_ru_gridGmsh.msh"
 OUT = REPO / "output" / "hex3d_algohex"

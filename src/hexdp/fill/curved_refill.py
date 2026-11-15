@@ -52,12 +52,10 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO))
-sys.path.insert(0, str(REPO / "experimentell" / "hex3d_algohex"))
+from hexdp._legacy import REPO
 
-import clean_blocks as cb                                              # noqa: E402
-import tfi                                                             # noqa: E402
+from hexdp.core import clean_blocks as cb
+from hexdp.fill import tfi as tfi
 
 
 def _cubic_axis(Q, frac, axis):

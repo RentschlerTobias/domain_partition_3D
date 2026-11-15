@@ -42,7 +42,7 @@ from multiprocessing import get_context
 
 import numpy as np
 
-import clean_blocks as cb
+from hexdp.core import clean_blocks as cb
 
 _G = {}
 
@@ -203,7 +203,7 @@ def patch(width=6, depth=6, guard="abs", sj_floor=0.05, workers=6, hausdorff_tol
 if __name__ == "__main__":
     import argparse
     import sys
-    import tet_prep_v5 as v5
+    from hexdp.strategies.algohex import tet_prep as v5
     ap = argparse.ArgumentParser()
     ap.add_argument("ovm")
     ap.add_argument("--input-vtk", required=True)
@@ -240,7 +240,7 @@ if __name__ == "__main__":
         # collapse): BlockStructure otherwise reads .ovm only. The block IDs
         # are discarded -- the blocks follow from the sheets.
         import meshio
-        import ovm_io
+        from hexdp.io import ovm as ovm_io
         _m = meshio.read(a.ovm)
         _H = np.vstack([c.data for c in _m.cells if c.type == "hexahedron"]).astype(np.int64)
         _P = np.asarray(_m.points, float)

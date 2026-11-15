@@ -27,13 +27,11 @@ from pathlib import Path
 import numpy as np
 from scipy.spatial import cKDTree
 
-HERE = Path(__file__).resolve().parent
-sys.path[:0] = [str(HERE), str(HERE.parent.parent)]
 
-import base_complex as bc                                             # noqa: E402
-import clean_blocks as cb                                             # noqa: E402
-import ovm_io                                                         # noqa: E402
-import reattach as ra                                                 # noqa: E402
+from hexdp.core import base_complex as bc
+from hexdp.core import clean_blocks as cb
+from hexdp.io import ovm as ovm_io
+from hexdp.fill import reattach as ra
 from dp3d.extraction import parse_msh                                 # noqa: E402
 
 HEX_EDGES = [(0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4),
@@ -43,7 +41,6 @@ HEX_FACE_LOOPS = [(0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4),
                   (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]
 # VTK cell type of a hexahedron (the "12" in the write_vtk calls)
 VTK_HEXAHEDRON = 12
-
 
 
 class OgridMap:
@@ -269,7 +266,7 @@ def interface_faces(S):
     does that from the owning hex instead of from the axis, which is robust
     against any lattice handedness.
     """
-    import tfi
+    from hexdp.fill import tfi as tfi
     sid = {k for k, v in S.surf_names.items() if v == "ogrid_interface"}
     B = np.empty(len(S.hexes), int)
     for r, cells in S.cells_of().items():
@@ -831,7 +828,7 @@ def diagnose_twist(run_dir, verbose=True):
         }
     
     # Find inverted cells
-    import clean_blocks as cb_local
+    from hexdp.core import clean_blocks as cb_local
     sj = cb_local.scaled_jacobians(P, H)
     inverted_mask = sj <= 0
     inverted_indices = np.where(inverted_mask)[0]
@@ -869,7 +866,7 @@ if __name__ == "__main__":
     import argparse
     import json
     import meshio
-    import tet_prep_v5 as v5
+    from hexdp.strategies.algohex import tet_prep as v5
     ap = argparse.ArgumentParser()
     ap.add_argument("blocks")
     ap.add_argument("--msh", required=True)
@@ -925,7 +922,7 @@ if __name__ == "__main__":
     sj = cb.scaled_jacobians(P, Hall)
     print(f"[ogrid] core + O-grid: {len(Hall)} hexes, {int(Ball.max()) + 1} "
           f"blocks, {int((sj <= 0).sum())} inverted")
-    import export_vtk as ev
+    from hexdp.io import vtk_export as ev
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     # the fourth argument of write_vtk is the VTK CELL TYPE, not a sub-domain
     # label: VTK_HEXAHEDRON is 12. The sub-domain (block) ids travel in the

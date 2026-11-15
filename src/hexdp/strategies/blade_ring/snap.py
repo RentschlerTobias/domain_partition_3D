@@ -23,13 +23,10 @@ from pathlib import Path
 import numpy as np
 from scipy.spatial import cKDTree
 
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent))
-sys.path.insert(0, str(HERE))
 
-import clean_blocks as cb                                            # noqa: E402
-from geometry import Geometry, LABEL_SURF, VOL_FACES                 # noqa: E402
-import quality as qual                                                 # noqa: E402
+from hexdp.core import clean_blocks as cb
+from hexdp.strategies.blade_ring.geometry import Geometry, LABEL_SURF, VOL_FACES
+from hexdp.quality import hexq as qual
 
 # a msh node lies on a reference surface: exactly for the msh facets, to the
 # sampling chord (<= 5e-6) for the analytic dtOO hub / shroud
@@ -74,7 +71,7 @@ def load_core(run, blocks, G=None):
     # leaves the boundary up to its Hausdorff tolerance (0.1) off the input surface,
     # and there the nearest-triangle rule mislabels single quads (0005: a hub quad at
     # z = 1.77 read as the O-grid cut, which then dragged its vertex 7 cm).
-    import tfi
+    from hexdp.fill import tfi as tfi
     lat, missing = tfi.lattices(P, H, B, {frozenset(k): v for k, v in f2h.items()}, verbose=False)
     if missing:
         raise SystemExit(f"[b2] blocks without lattice: {missing}")

@@ -25,7 +25,7 @@ import sys
 import time
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent.parent
+from hexdp._legacy import REPO
 IN_VTK = REPO / "data" / "T1_9" / "T1_9_tet.vtk"
 OUT_DIR = REPO / "output" / "hex3d_algohex"
 

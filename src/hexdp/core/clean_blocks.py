@@ -72,12 +72,11 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO / "experimentell" / "hex3d_algohex"))
+from hexdp._legacy import REPO
 
-import base_complex as bc                                             # noqa: E402
-import block_faces as bfx                                             # noqa: E402
-import ovm_io                                                         # noqa: E402
+from hexdp.core import base_complex as bc
+from hexdp.core import block_faces as bfx
+from hexdp.io import ovm as ovm_io
 
 HF = bc.HEX_FACES
 OUT = REPO / "output" / "hex3d_algohex"
@@ -2274,7 +2273,7 @@ def write_block_edges_vtk(path, P, segs, cid, title):
 
 
 def write_blocks(S, path, title="cleaned blocks"):
-    import export_vtk as ev
+    from hexdp.io import vtk_export as ev
     cells = S.cells_of()
     order = {r: i for i, r in enumerate(sorted(cells))}
     bid = np.zeros(len(S.hexes), int)
@@ -2332,7 +2331,7 @@ def read_blocks_vtk(path, input_vtk):
     UNMERGED `T1_9_tet_v5.vtk`, or the three cut surfaces come back as one
     label and reattach can no longer tell hub from shroud."""
     import meshio
-    import tet_prep_v5 as v5
+    from hexdp.strategies.algohex import tet_prep as v5
     m = meshio.read(path)
     hx = np.vstack([b.data for b in m.cells if b.type == "hexahedron"])
     bid = np.concatenate([np.asarray(d).ravel() for b, d in
@@ -2345,7 +2344,7 @@ def read_blocks_vtk(path, input_vtk):
 
 if __name__ == "__main__":
     import argparse
-    import tet_prep_v5 as v5
+    from hexdp.strategies.algohex import tet_prep as v5
     ap = argparse.ArgumentParser()
     ap.add_argument("ovm", nargs="?", default=str(OUT / "T1_9_hex_v9.ovm"))
     ap.add_argument("--input-vtk",
@@ -2411,7 +2410,7 @@ if __name__ == "__main__":
             print(f"[clean_blocks] kinks after:  median {np.median(allB):.1f} "
                   f"deg, p95 {np.percentile(allB, 95):.1f}, "
                   f"{int((allB > 30).sum())} above 30 deg")
-            import export_vtk as ev
+            from hexdp.io import vtk_export as ev
             ev.write_vtk(a.edges_only, St.P, St.hexes, [12] * len(St.hexes),
                          bid, "block_id", f"{len(St.cells_of())} blocks")
         print(f"[clean_blocks] {len(St.cells_of())} blocks, {len(segs)} block-"

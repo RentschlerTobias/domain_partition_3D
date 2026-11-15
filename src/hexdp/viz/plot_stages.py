@@ -18,12 +18,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt                                       # noqa: E402
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection, Line3DCollection  # noqa: E402
 
-REPO = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO / "experimentell" / "hex3d_algohex"))
+from hexdp._legacy import REPO
 OUT = REPO / "output" / "hex3d_algohex"
 PLOTS = OUT / "plots"
 
-import tet_prep as tp                                                 # noqa: E402
+from hexdp.strategies.algohex import tet_prep_v1 as tp
 
 PATCH_COLORS = {
     1: ("#4C72B0", "hub (r=0.5)"),
@@ -188,7 +187,7 @@ def plot_tagging_comparison(v1_vtk, v3_vtk, out_png):
 
 
 def plot_hexmesh(ovm_path, out_png, title):
-    import ovm_io
+    from hexdp.io import ovm as ovm_io
     P, edges, faces, polys = ovm_io.read_ovm(ovm_path)
     hexes, _ = ovm_io.ovm_to_cells(P, edges, faces, polys)
     vols = np.array([ovm_io._hex_volume(P[c]) for c in hexes])
@@ -249,7 +248,7 @@ def main():
                      "(invalid IGM -> holes)")
     cyl = OUT / "cylinder_hex.ovm"
     if cyl.exists():
-        import ovm_io
+        from hexdp.io import ovm as ovm_io
         Pc, ec, fc, pc = ovm_io.read_ovm(cyl)
         hx, _ = ovm_io.ovm_to_cells(Pc, ec, fc, pc)
         vc = np.array([ovm_io._hex_volume(Pc[c]) for c in hx])

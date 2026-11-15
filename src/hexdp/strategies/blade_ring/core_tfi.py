@@ -30,13 +30,10 @@ from pathlib import Path
 
 import numpy as np
 
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent))
-sys.path.insert(0, str(HERE))
 
-import tfi                                                            # noqa: E402
-import quality as qual                                                # noqa: E402
-from geometry import Geometry                                         # noqa: E402
+from hexdp.fill import tfi as tfi
+from hexdp.quality import hexq as qual
+from hexdp.strategies.blade_ring.geometry import Geometry
 
 WALLS = ("hub", "shroud")
 

@@ -35,12 +35,11 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO / "experimentell" / "hex3d_algohex"))
+from hexdp._legacy import REPO
 
-import base_complex as bc                                             # noqa: E402
-import ovm_io                                                         # noqa: E402
-import tet_prep as tp                                                 # noqa: E402
+from hexdp.core import base_complex as bc
+from hexdp.io import ovm as ovm_io
+from hexdp.strategies.algohex import tet_prep_v1 as tp
 
 HF = bc.HEX_FACES
 
@@ -213,7 +212,7 @@ if __name__ == "__main__":
                                         / "deliverable" / "T1_9_blocks_v5.vtk"))
     a = ap.parse_args()
     P, hexes, blocks, faces, blk_of = analyse(a.ovm)
-    import export_vtk as ev
+    from hexdp.io import vtk_export as ev
     nf = np.zeros(len(hexes), int)
     for b, fs in zip(blocks, faces):
         for h in b:

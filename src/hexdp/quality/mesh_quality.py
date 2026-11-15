@@ -23,11 +23,10 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO / "experimentell" / "hex3d_algohex"))
+from hexdp._legacy import REPO
 
-import base_complex as bc                                             # noqa: E402
-import clean_blocks as cb                                             # noqa: E402
+from hexdp.core import base_complex as bc
+from hexdp.core import clean_blocks as cb
 
 HF = bc.HEX_FACES
 HE = bc.HEX_EDGES
@@ -77,7 +76,7 @@ def metrics(P, hexes, verbose=True):
 
     # cell centres and volumes
     ctr = P[H].mean(1)
-    import ovm_io
+    from hexdp.io import ovm as ovm_io
     vol = np.array([ovm_io._hex_volume(P[c]) for c in H])
 
     # per-face geometry
@@ -176,7 +175,7 @@ def render(path, P, H, m, limits=None, title="mesh quality"):
     Cells that violate the OpenFOAM limit are drawn opaque on top of a
     translucent hull, so a figure shows WHERE a metric fails rather than only
     that it does."""
-    import showcase as sc
+    from hexdp.viz import showcase as sc
     path = Path(path)
     hull = sc.hex_grid(P, H).extract_surface()
     for name, v in m.items():
@@ -207,7 +206,7 @@ VIOLATION = {"scaled_jacobian": ("min", 0.0),
 
 
 def write_vtk(path, P, H, m, title="mesh quality"):
-    import export_vtk as ev
+    from hexdp.io import vtk_export as ev
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     # one file per metric keeps every field thresholdable on its own scale

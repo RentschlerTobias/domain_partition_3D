@@ -28,12 +28,11 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO / "experimentell" / "hex3d_algohex"))
+from hexdp._legacy import REPO
 
-import base_complex as bc                                             # noqa: E402
-import clean_blocks as cb                                             # noqa: E402
-import mesh_quality as mq                                             # noqa: E402
+from hexdp.core import base_complex as bc
+from hexdp.core import clean_blocks as cb
+from hexdp.quality import mesh_quality as mq
 
 HF = bc.HEX_FACES
 # the three pairs of opposite faces, in VTK_HEXAHEDRON ordering
@@ -571,7 +570,6 @@ def clustered_fractions(n, first_height, length):
     extrudes the hub/shroud boundary layer with exactly this function and sets
     the first cell height -- the core's outer faces are interfaces to the
     re-attached parts, not walls."""
-    sys.path.insert(0, str(REPO))
     from dp3d.tmesh import edge_fractions
     return np.asarray(edge_fractions(n, length, first_height), float)
 
@@ -636,7 +634,7 @@ def _refine_face_grid_for_curve(Q, labeller=None, K=8):
 def _project_points(labeller, pts):
     pts = np.asarray(pts, float).reshape(-1, 3)
     try:
-        import clean_blocks as _cb
+        from hexdp.core import clean_blocks as _cb
         return _cb.project_to_surface(labeller, pts)
     except Exception:
         return pts
@@ -646,8 +644,8 @@ def _surface_labeller(input_vtk):
     if input_vtk is None:
         return None
     try:
-        import tet_prep_v5 as v5
-        import clean_blocks as cb
+        from hexdp.strategies.algohex import tet_prep as v5
+        from hexdp.core import clean_blocks as cb
         P0, tri0, tid0 = cb.read_input_surface(input_vtk)
         return cb.SurfaceLabeller(P0, tri0, tid0, v5.NAMES)
     except Exception:
@@ -681,7 +679,6 @@ def _face_label(labeller, P, G):
         return set()
 
 
-
 def _refine_edge_1d(Qedge, labeller=None, K=8):
     Qe = np.asarray(Qedge, float).reshape(-1, 3)
     if Qe.shape[0] == 2:
@@ -696,7 +693,7 @@ def _refine_edge_1d(Qedge, labeller=None, K=8):
 def _sample_edge(Qedge, frac, labeller=None):
     Qe = _refine_edge_1d(Qedge, labeller)
     frac = np.asarray(frac, float)
-    import curved_refill as cr
+    from hexdp.fill import curved_refill as cr
     if Qe.shape[0] >= 4:
         return np.asarray(cr._cubic_axis(Qe, frac, 0), float)
     # fallback linear
@@ -765,7 +762,7 @@ def refill_block(P, vert, new_dims, fractions=None, curved=False, curved_faces=N
             curved_edge_keys.add(_canon(G[:, 0]))
             curved_edge_keys.add(_canon(G[:, -1]))
 
-    import curved_refill as cr
+    from hexdp.fill import curved_refill as cr
     X = np.zeros((ni + 1, nj + 1, nk + 1, 3), float)
     for ax in (0, 1, 2):
         o0, o1 = [a for a in (0, 1, 2) if a != ax]
@@ -832,7 +829,7 @@ def interface_classes(P, H, B, lat, classes, input_vtk):
     they were cut out of the domain and are re-attached later -- and reading
     "shell_blade" as a blade wall already cost this branch three wrong
     diagnoses."""
-    import tet_prep_v5 as v5
+    from hexdp.strategies.algohex import tet_prep as v5
     P0, tri0, tid0 = cb.read_input_surface(input_vtk)
     lab = cb.SurfaceLabeller(P0, tri0, tid0, v5.NAMES)
     f2h, _e2h = bc.build_topology(H)
@@ -869,7 +866,7 @@ def ogrid_target():
     trustworthy of the two discretisations, so it is the target rather than
     the input triangulation."""
     from dp3d.extraction import parse_msh
-    import reattach
+    from hexdp.fill import reattach as reattach
     nodes, elements = parse_msh(reattach.MSH)
     Po, Ho, _Bo = reattach.ogrid_blocks(elements, nodes, verbose=False)
     f2h, _e2h = bc.build_topology(Ho)
@@ -893,7 +890,7 @@ def project_ogrid_interface(P, H, f2h, input_vtk, verbose=True):
     ring is a feature curve of the input and stays where it is.
 
     Returns (new points, report)."""
-    import tet_prep_v5 as v5
+    from hexdp.strategies.algohex import tet_prep as v5
     P0, tri0, tid0 = cb.read_input_surface(input_vtk)
     lab = cb.SurfaceLabeller(P0, tri0, tid0, v5.NAMES)
     bnd = [(fk, hs[0]) for fk, hs in f2h.items() if len(hs) == 1]
@@ -1055,7 +1052,7 @@ def refill_complex(P, H, B, f2h, lat, classes, counts, fractions=None,
     pts_w, Hn, Bn = _assemble(Xmap)
     # Find blocks with inverted cells; fall back to linear for them.
     try:
-        import clean_blocks as _cb
+        from hexdp.core import clean_blocks as _cb
         sj = _cb.scaled_jacobians(pts_w, Hn)
         bad_cells = np.where(sj <= 0)[0]
         bad_blocks = set(int(b) for b in Bn[bad_cells]) if len(bad_cells) else set()
@@ -1300,7 +1297,7 @@ if __name__ == "__main__":
               f"{np.percentile(edge, 95):.4f} (target h {a.target_h})")
         outv = a.out or str(Path(a.blocks).with_name(
             Path(a.blocks).stem + f"_h{a.target_h}.vtk"))
-        import export_vtk as ev
+        from hexdp.io import vtk_export as ev
         ev.write_vtk(outv, Pn, Hn, [12] * len(Hn), Bn, "block_id",
                      f"{int(Bn.max()) + 1} blocks refilled at h={a.target_h}")
         print(f"[tfi] wrote {outv}")

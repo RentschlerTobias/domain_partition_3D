@@ -18,13 +18,10 @@ from pathlib import Path
 
 import numpy as np
 
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(HERE.parent))
 
-from geometry import Geometry                                         # noqa: E402
-from mesh_b5 import PATCHES                                           # noqa: E402
-from export_foam import write_boundary                                # noqa: E402
+from hexdp.strategies.blade_ring.geometry import Geometry
+from hexdp.strategies.blade_ring.mesh_b5 import PATCHES
+from hexdp.export.foam import write_boundary
 
 FOAM_BASHRC = "/usr/lib/openfoam/openfoam2606/etc/bashrc"
 

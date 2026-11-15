@@ -586,7 +586,7 @@ def main():
     ap.add_argument("--out-dir", default=None, help="write <name>_curves.npz here (default: next to the sample)")
     ap.add_argument("--inplace", action="store_true", help="add the post_* arrays to the sample file itself")
     a = ap.parse_args()
-    import export_sample as es
+    from hexdp.io import sample_export as es
     for path in map(Path, a.samples):
         s = es.load(path)
         post = postprocess(s, verbose=True)

@@ -45,6 +45,8 @@ def main(argv=None):
     HERE = a.out
     SECTIONS = a.sections or os.path.join(os.path.dirname(os.path.abspath(HERE)), "sections")
     section_rz.SRC = a.brep
+    if not os.path.isfile(a.step):                      # OCC crashes (segfault) on a missing file
+        sys.exit(f"[walls] no such STEP file: {a.step}")
     r = STEPControl_Reader(); r.ReadFile(a.step); r.TransferRoots(); shape = r.OneShape()
     faces = []; ex = TopExp_Explorer(shape, TopAbs_FACE)
     while ex.More():

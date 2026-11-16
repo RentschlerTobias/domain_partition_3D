@@ -44,7 +44,7 @@ class TfiFiller:
         "require_lattices": ParamSpec(True, "fail if a block is not a lattice"),
         "solve_divisions": ParamSpec(True, "solve conforming per-class cell counts (MILP)"),
         "curved_edges": ParamSpec("coons", "block edge curves", choices=("coons", "off")),
-        "input_vtk": ParamSpec("", "tet input mesh that labels the surface (default: from the strategy)"),
+        "input_vtk": ParamSpec("", "tet input mesh that labels the surface (default: from the strategy)", kind="path"),
     }
 
     def fill(self, bs, geo, params, ctx):
@@ -69,7 +69,7 @@ class B5Filler:
 
     name = "b5"
     params = {
-        "run_dir": ParamSpec("", "prepared blade run directory (blade/blocks_b3.vtk, edges_b4.npz, ...); required"),
+        "run_dir": ParamSpec("", "prepared blade run directory (blade/blocks_b3.vtk, edges_b4.npz, ...); required", kind="path"),
         "target_h": ParamSpec(0.05, "target cell size", unit="m", lower=0),
         "first": ParamSpec(0.0009, "first cell height at hub / shroud", unit="m", lower=0),
         "growth": ParamSpec(1.2, "boundary-layer growth ratio", lower=1),

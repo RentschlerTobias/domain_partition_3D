@@ -38,6 +38,16 @@ def test_resolve_params():
         resolve_params(spec, {"mode": "c"})
 
 
+def test_resolve_path_params(tmp_path, monkeypatch):
+    (tmp_path / "walls.stp").write_text("x")
+    spec = {"cad": ParamSpec("", "cad", kind="path")}
+    monkeypatch.chdir(tmp_path)
+    assert resolve_params(spec, {"cad": "walls.stp"}) == {"cad": str(tmp_path / "walls.stp")}   # made absolute
+    assert resolve_params(spec, {}) == {"cad": ""}                                             # empty stays empty
+    with pytest.raises(FileNotFoundError, match="cad: no such file"):
+        resolve_params(spec, {"cad": "missing.stp"})
+
+
 def test_describe_is_json_ready():
     d = describe(cp.UniformDiscretiser())
     assert d["name"] == "uniform" and d["params"]["target_h"] == {"default": 0.25, "description": "target cell size",

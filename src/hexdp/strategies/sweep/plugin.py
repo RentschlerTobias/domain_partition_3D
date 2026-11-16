@@ -93,7 +93,7 @@ class CGridStrategy:
     """Sweep with C-layers (graded wall layer) around thin walls, which stay inside the domain as baffles."""
 
     name = "cgrid"
-    params = dict(SWEEP_PARAMS, wall_cad=ParamSpec("", "CAD with the thin walls (STEP); required"))
+    params = dict(SWEEP_PARAMS, wall_cad=ParamSpec("", "CAD with the thin walls (STEP); required", kind="path"))
 
     def applicable(self, geo, features):
         s = _sweep_score(geo, features, self.name)

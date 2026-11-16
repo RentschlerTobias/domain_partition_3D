@@ -2,6 +2,7 @@
 contracts in use; the real plugins arrive with the migration (step 1.4)."""
 
 import math
+import os
 
 import numpy as np
 
@@ -25,7 +26,8 @@ class BBoxDetector:
 class BoxStrategy:
     """One block spanning the bounding box; only for boxes."""
     name = "box"
-    params = {"flat_tol": ParamSpec(1e-6, "max distance of a box corner to the geometry", unit="m", lower=0)}
+    params = {"flat_tol": ParamSpec(1e-6, "max distance of a box corner to the geometry", unit="m", lower=0),
+              "ref_file": ParamSpec("", "any file; must arrive as an existing absolute path", kind="path")}
 
     def applicable(self, geo, features):
         bb = next((f for f in features if f.kind == "bbox"), None)
@@ -36,6 +38,8 @@ class BoxStrategy:
         return Score(0.5, ["six surfaces, closed boundary: a single block fits"])
 
     def run(self, geo, features, params, ctx):
+        f = params.get("ref_file")
+        assert not f or (os.path.isabs(f) and os.path.exists(f)), f
         lo, hi = (np.array(v) for v in (features[0].data["lo"], features[0].data["hi"]))
         P = np.array([np.where(o, hi, lo) for o in OFF])
         bs = BlockStructure(P, np.arange(8)[None])

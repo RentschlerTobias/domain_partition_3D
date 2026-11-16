@@ -10,7 +10,7 @@ Environment:
 
 Workflow of an agent:
     list_inputs -> open_geometry -> inspect_geometry / render_geometry -> detect_features ->
-    list_strategies -> run_strategy (background job) -> job_status / job_log -> job_result ->
+    list_strategies -> run_strategy (background job) -> wait_job / job_status / job_log -> job_result ->
     evaluate / render_blocks / render_quality -> block_op -> export -> record_decision
 
 Guards: inputs are read only below HEXDP_DATA, HEXDP_MCP_ROOT or the working directory; paths
@@ -43,11 +43,13 @@ INSTRUCTIONS = """hexdp builds hexahedral block structures (domain partitions) f
 Goal for a geometry: a valid block structure (no inverted cells, conforming) with as few blocks as the
 geometry allows. Typical order: open_geometry, inspect_geometry, detect_features (detectors
 'rotation_axis', 'sweep'), list_strategies (scores with reasons), run_strategy (a background job;
-poll job_status), job_result, evaluate, optionally block_op ('block_collapse'), export. Explain every
+wait_job / job_status), job_result, evaluate, optionally block_op ('block_collapse'), export. Explain every
 choice with record_decision. Strategies: 'sweep' (rotational sectors, CAD input), 'cgrid' (sweep with
 C-layers at thin walls, needs param wall_cad), 'algohex' (general topology, dtOO .msh input; AlgoHex can
 take hours - reuse an existing hex_hex_x.ovm via the 'reuse' argument when one is available).
-Only one computation runs at a time: run_strategy and block_op are refused while a job is running."""
+File parameters (kind 'path', e.g. wall_cad) may be given relative to the data root, as list_inputs shows them.
+Only one computation runs at a time: run_strategy and block_op are refused while a job is running.
+Wait for a job with wait_job (blocks up to max_s seconds) instead of polling job_status."""
 
 
 class State:
@@ -135,6 +137,16 @@ def state() -> State:
 
 def _new_id(prefix):
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
+
+def _paths(plugin, params: dict | None) -> dict:
+    """File parameters (ParamSpec kind 'path') through the read guard: relative to HEXDP_DATA, inside the
+    allowed roots, never Charite; absolute afterwards, so a stage in another working directory finds them."""
+    params = dict(params or {})
+    for k, spec in plugin.params.items():
+        if spec.kind == "path" and params.get(k):
+            params[k] = str(state().readable(params[k]))
+    return params
 
 
 def _jsonable(x, depth=0):
@@ -280,7 +292,11 @@ def run_strategy(geo_id: str, strategy: str, params: dict | None = None, ops: li
 
     s = state()
     entry = s.geo(geo_id)
-    registry.load("strategies", strategy)                      # fail early on an unknown name
+    params = _paths(registry.load("strategies", strategy), params)   # fails early on an unknown name
+    if discretiser:
+        discretiser_params = _paths(registry.load("discretisers", discretiser), discretiser_params)
+    if filler:
+        filler_params = _paths(registry.load("fillers", filler), filler_params)
     s.require_idle("run_strategy")
     job = name or _new_id(re.sub(r"\W+", "_", strategy.split(":")[-1]).lower())
     ws = s.root / job
@@ -317,6 +333,19 @@ def job_status(job_id: str) -> dict:
         last = lines[-1][:300] if lines else ""
     st["elapsed_s"] = round((st.get("end") or time.time()) - st["start"], 1) if st.get("start") else None
     return {"job_id": job_id, **_jsonable(st), "active_log": logs[-1].name if logs else None, "last_line": last}
+
+
+@tool
+def wait_job(job_id: str, max_s: float = 600) -> dict:
+    """Wait until the job is no longer running, or at most max_s seconds (capped at 1800); returns
+    job_status. Use this instead of polling job_status in a loop."""
+    from hexdp.pipeline.runner import status
+
+    d = state().job_dir(job_id)
+    t_end = time.time() + min(max(float(max_s), 0.0), 1800.0)
+    while status(d).get("state") == "running" and time.time() < t_end:
+        time.sleep(min(5.0, max(t_end - time.time(), 0.0)))
+    return job_status(job_id)
 
 
 @tool
@@ -396,7 +425,7 @@ def block_op(bs_id: str, op: str, params: dict | None = None) -> dict:
     if not sc.ok:
         return {"applied": False, "reasons": sc.reasons, "missing": sc.missing}
     ctx = Context(s.root / _new_id(f"op_{op}"), cores=s.cores, cpu_list=s.cpus)
-    new = plugin.apply(entry["bs"], geo, resolve_params(plugin.params, params or {}), ctx)
+    new = plugin.apply(entry["bs"], geo, resolve_params(plugin.params, _paths(plugin, params)), ctx)
     bid = _new_id("bs")
     s.blocks[bid] = {"bs": new, "geo_id": entry["geo_id"], "origin": f"{op}({bs_id})"}
     return {"applied": True, "bs_id": bid, "workspace": str(ctx.workspace), "reasons": sc.reasons,

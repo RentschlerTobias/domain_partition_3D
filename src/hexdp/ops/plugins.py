@@ -26,7 +26,7 @@ class BlockCollapseOp:
         "width": ParamSpec(4, "beam width", lower=1),
         "depth": ParamSpec(8, "beam depth", lower=1),
         "workers": ParamSpec(8, "worker processes", lower=1),
-        "cad": ParamSpec("", "CAD solid for the classification (default: the geometry's file)"),
+        "cad": ParamSpec("", "CAD solid for the classification (default: the geometry's file)", kind="path"),
     }
 
     def applicable(self, bs, geo):

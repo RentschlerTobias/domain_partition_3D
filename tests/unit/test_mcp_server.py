@@ -4,7 +4,6 @@ import asyncio
 import json
 import os
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -75,18 +74,16 @@ def test_full_session_on_a_box(data):
         strat = payload(await s.call_tool("list_strategies", {"geo_id": gid}))["strategies"]
         assert {r["name"] for r in strat} >= {"algohex", "sweep", "cgrid"}
         job = payload(await s.call_tool("run_strategy", {
-            "geo_id": gid, "strategy": P + "BoxStrategy", "ops": [P + "SplitOp"], "detectors": [P + "BBoxDetector"],
+            "geo_id": gid, "strategy": P + "BoxStrategy", "params": {"ref_file": "box.step"},   # relative to the data root
+            "ops": [P + "SplitOp"], "detectors": [P + "BBoxDetector"],
             "discretiser": P + "UniformDiscretiser", "discretiser_params": {"target_h": 0.25},
             "filler": P + "LinearFiller"}))
         jid = job["job_id"]
         assert jid.startswith("boxstrategy_")
+        assert job["case"]["strategy"][0]["params"]["ref_file"] == str(data / "box.step")
         second = await s.call_tool("run_strategy", {"geo_id": gid, "strategy": P + "BoxStrategy"})
         assert second.is_error and "still running" in second.content[0].text   # one computation at a time
-        for _ in range(120):
-            st = payload(await s.call_tool("job_status", {"job_id": jid}))
-            if st["state"] in ("done", "failed", "died"):
-                break
-            time.sleep(0.5)
+        st = payload(await s.call_tool("wait_job", {"job_id": jid, "max_s": 60}))
         assert st["state"] == "done", payload(await s.call_tool("job_log", {"job_id": jid}))
         res = payload(await s.call_tool("job_result", {"job_id": jid}))
         assert res["blocks"]["blocks"] == 2 and res["bs_id"]
@@ -111,9 +108,16 @@ def test_guards(data):
         r3 = await s.call_tool("evaluate", {"bs_id": "bs_nope"})
         r4 = await s.call_tool("open_geometry", {"path": "../../../../etc/hostname"})
         r5 = await s.call_tool("list_inputs", {"subdir": "linked"})
-        return r1, r2, r3, r4, r5
+        gid = payload(await s.call_tool("open_geometry", {"path": "box.step"}))["geo_id"]
+        r6 = await s.call_tool("run_strategy", {"geo_id": gid, "strategy": P + "BoxStrategy",
+                                                "params": {"ref_file": "charite_secret/lv.stl"}})
+        r7 = await s.call_tool("run_strategy", {"geo_id": gid, "strategy": P + "BoxStrategy",
+                                                "params": {"ref_file": "nope.stp"}})
+        return r1, r2, r3, r4, r5, r6, r7
 
-    r1, r2, r3, r4, r5 = asyncio.run(_session_run(data, fn))
+    r1, r2, r3, r4, r5, r6, r7 = asyncio.run(_session_run(data, fn))
+    assert r6.is_error and "confidential" in r6.content[0].text      # file parameters go through the guard
+    assert r7.is_error and "FileNotFoundError" in r7.content[0].text
     assert r4.is_error and "outside the allowed roots" in r4.content[0].text
     assert not r5.is_error                                   # a symlinked data directory is readable
     assert r1.is_error and "confidential" in r1.content[0].text

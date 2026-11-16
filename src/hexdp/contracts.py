@@ -15,6 +15,7 @@ Two things make the plugins usable by an agent and a UI, not only by code:
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -32,6 +33,7 @@ class ParamSpec:
     lower: float | None = None
     upper: float | None = None
     choices: tuple | None = None
+    kind: str | None = None        # "path": a file or directory; must exist, made absolute by resolve_params
 
 
 @dataclass
@@ -220,6 +222,12 @@ def resolve_params(spec: dict[str, ParamSpec], given: dict | None) -> dict:
         if isinstance(v, (int, float)) and not isinstance(v, bool):
             if s.lower is not None and v < s.lower or s.upper is not None and v > s.upper:
                 raise ValueError(f"{k}={v} outside [{s.lower}, {s.upper}]")
+        if s.kind == "path" and v:
+            # stages run in their own working directory: a relative path would point elsewhere there
+            v = Path(os.path.expandvars(str(v))).expanduser()
+            if not v.exists():
+                raise FileNotFoundError(f"{k}: no such file or directory: {v}")
+            v = str(v.absolute())
         out[k] = v
     return out
 

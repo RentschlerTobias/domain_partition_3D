@@ -20,6 +20,7 @@ computation (job or block_op) runs at a time; there is no network tool. Large da
 
 from __future__ import annotations
 
+import collections
 import functools
 import json
 import os
@@ -35,6 +36,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from hexdp import __version__, registry
 from hexdp.contracts import Context, describe, resolve_params
+from hexdp.core.blockstructure import invalid
 from hexdp.core.geometry import PatchRole, RoleSource
 
 GEOMETRY_SUFFIXES = {".msh", ".step", ".stp", ".iges", ".igs", ".brep", ".stl", ".vtk"}
@@ -378,17 +380,22 @@ def job_result(job_id: str) -> dict:
             geo_id = next((g for g, e in s.geos.items() if e["path"] == rep.get("geometry")), None)
             s.blocks[bid] = {"bs": bs, "geo_id": geo_id, "origin": job_id}
             out["bs_id"] = bid
+            bad = invalid(bs.check())
+            out["valid"] = not bad
+            if bad:
+                out["invalid_issues"] = dict(collections.Counter(i.kind for i in bad))
     return {"job_id": job_id, **_jsonable(out)}
 
 
 # --------------------------------------------------------------------------------------------- blocks
 @tool
 def evaluate(bs_id: str, max_issues: int = 20) -> dict:
-    """Block-structure summary (blocks, cells, min scaled Jacobian, sheets) and the first issues
-    (inverted cells, hanging vertices, T-junctions, sheet count mismatches)."""
+    """Validity, block-structure summary (blocks, cells, min scaled Jacobian, sheets) and the first issues.
+    Invalid: inverted cells, a face shared by more than two blocks, hanging vertices, sheet count
+    mismatches, degenerate blocks. A t_junction (1:n block layout over a conforming fine mesh) is a warning."""
     bs = state().bs(bs_id)["bs"]
     issues = bs.check()
-    return {"summary": _jsonable(bs.summary()),
+    return {"valid": not invalid(issues), "summary": _jsonable(bs.summary()),
             "issues": [{"kind": i.kind, "message": i.message, "where": list(i.where)} for i in issues[:max_issues]],
             "issues_total": len(issues)}
 
@@ -433,10 +440,15 @@ def block_op(bs_id: str, op: str, params: dict | None = None) -> dict:
 
 
 @tool
-def export(bs_id: str, format: str = "vtk", name: str | None = None) -> dict:
-    """Write a block structure with an exporter ('vtk', 'foam'); returns the written paths."""
+def export(bs_id: str, format: str = "vtk", name: str | None = None, allow_invalid: bool = False) -> dict:
+    """Write a block structure with an exporter ('vtk', 'foam'); returns the written paths. An invalid
+    structure (see evaluate) is refused unless allow_invalid is set."""
     s = state()
     bs = s.bs(bs_id)["bs"]
+    bad = invalid(bs.check())
+    if bad and not allow_invalid:
+        raise ValueError(f"block structure {bs_id} is invalid ({dict(collections.Counter(i.kind for i in bad))}); "
+                         "fix it or pass allow_invalid=true")
     ex = registry.load("exporters", format)
     ctx = Context(s.root / "_export", cores=1, cpu_list=s.cpus)
     paths = ex.write(bs, ctx.path(name or bs_id), resolve_params(ex.params, {}), ctx)

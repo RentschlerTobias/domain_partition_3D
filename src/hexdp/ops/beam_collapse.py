@@ -87,6 +87,31 @@ def _ok(st, bar, ceiling, guard, sj_floor):
     return st["min_sj"] >= floor - 1e-9
 
 
+def topology_issues(P, hexes):
+    """Topological defects of the block structure a candidate mesh decomposes into, as kind -> count:
+    a face shared by more than two blocks, a sheet with different cell counts, a hanging vertex, a block
+    that is no structured grid. Inverted cells are not counted (the struct guard leaves them to the
+    untangling). Measured: without this, 8 of 670 keep-BL samples ended with a block face shared by four
+    blocks (all 8- and 14-block results), because quality and Hausdorff alone do not see it."""
+    import contextlib
+    import io
+    from collections import Counter
+    from hexdp.io.blocks_vtk import from_grids, structured_grids
+    with contextlib.redirect_stdout(io.StringIO()):
+        f2h, e2h = cb.bc.build_topology(hexes)
+        sing = cb.bc.singular_edges(hexes, P, f2h, e2h)
+        sheet_of, _n = cb.bfx.label_sheets(hexes, f2h, sing)
+        blocks = cb.bc.blocks_from_cut(hexes, f2h, set(sheet_of))
+    bid = np.zeros(len(hexes), int)
+    for i, b in enumerate(blocks):
+        bid[list(b)] = i
+    try:
+        grids, _ = structured_grids(P, hexes, bid)
+    except ValueError:
+        return Counter(not_structured=1)
+    return Counter(i.kind for i in from_grids(P, grids).check() if i.kind != "inverted_cells")
+
+
 def _key(st):
     # fewer excess faces, then fewer blocks, then better quality
     return (st["excess"], st["blocks"], -st["min_sj"])
@@ -98,8 +123,9 @@ class RawMeshOffSurface(RuntimeError):
 
 def beam_collapse(P, hexes, labeller, width=6, depth=6, guard="abs",
                   sj_floor=0.05, workers=6, guard_ref=None, verbose=True,
-                  hausdorff_tol=0.05, max_base_hausdorff=0.15):
+                  hausdorff_tol=0.05, max_base_hausdorff=0.15, topology_guard=True):
     base = cb._structure_stats(P, hexes, labeller)
+    base_topo = topology_issues(P, hexes) if topology_guard else None
     # The ceiling below follows a raw Hausdorff above the tolerance. On a raw
     # mesh that is off the surface altogether that frees every collapse: 17
     # of 905 papaya samples (raw Hausdorff 0.26-0.50, the 862 good ones
@@ -145,16 +171,30 @@ def beam_collapse(P, hexes, labeller, width=6, depth=6, guard="abs",
                 print(f"[beam] depth {d + 1}: no admissible collapse, stop")
             break
         cand.sort(key=lambda c: _key(c[0]))
-        beam = []
-        for st, Pb, Hb, es, path in cand[:width]:
+        beam, rejected = [], 0
+        for st, Pb, Hb, es, path in cand:
+            if len(beam) >= width:
+                break
             Q, H, _ = cb.collapse_sheet(Pb, Hb, es)
+            if topology_guard:
+                # no topological defect the raw structure did not have (checked lazily: only for
+                # candidates that would enter the beam)
+                topo = topology_issues(Q, H)
+                if any(n > base_topo.get(k, 0) for k, n in topo.items()):
+                    rejected += 1
+                    continue
             beam.append((st, Q, H, path))
             if _key(st) < _key(best[0]):
                 best = (st, Q, H, path)
+        if not beam:
+            if verbose:
+                print(f"[beam] depth {d + 1}: {rejected} candidates rejected by the topology guard, stop")
+            break
         if verbose:
             tops = ", ".join(f"{b[0]['blocks']}bl/ex{b[0]['excess']}/sJ{b[0]['min_sj']:.2f}"
                              for b in beam)
-            print(f"[beam] depth {d + 1}: {len(cand)} admissible, beam [{tops}]  "
+            rej = f", {rejected} rejected by the topology guard" if rejected else ""
+            print(f"[beam] depth {d + 1}: {len(cand)} admissible{rej}, beam [{tops}]  "
                   f"best {best[0]['blocks']} blocks ({time.time() - t0:.0f}s)")
     st, P, hexes, path = best
     if verbose:
@@ -188,12 +228,12 @@ def min_patch_gap(points, tris, labels):
 
 
 def patch(width=6, depth=6, guard="abs", sj_floor=0.05, workers=6, hausdorff_tol=0.05,
-          max_base_hausdorff=0.15):
+          max_base_hausdorff=0.15, topology_guard=True):
     def collapse(P, hexes, labeller, max_rounds=4, verbose=True, repair=None,
                  guard_ref=None):
         P, hexes, log = beam_collapse(P, hexes, labeller, width, depth, guard,
                                       sj_floor, workers, guard_ref, verbose,
-                                      hausdorff_tol, max_base_hausdorff)
+                                      hausdorff_tol, max_base_hausdorff, topology_guard)
         if repair is not None:
             P = repair(P.copy(), hexes)
         return P, hexes, log
@@ -220,6 +260,10 @@ if __name__ == "__main__":
     ap.add_argument("--gap-frac", type=float, default=0.5,
                     help="cap the Hausdorff tolerance at this fraction of the narrowest gap "
                          "between two labelled input surfaces that share no vertex; 0 = off")
+    ap.add_argument("--no-topology-guard", action="store_true",
+                    help="do not reject collapses that create topological defects (old behaviour)")
+    ap.add_argument("--allow-invalid", action="store_true",
+                    help="write and exit 0 even if the final block structure fails BlockStructure.check")
     a = ap.parse_args()
     tol = a.hausdorff_tol
     if a.gap_frac > 0:
@@ -234,7 +278,7 @@ if __name__ == "__main__":
         print(f"[beam] narrowest gap {gap:.4f} between labels {pair} -> Hausdorff tol "
               f"{tol:.4f} (flag {a.hausdorff_tol})")
     patch(a.width, a.depth, a.guard, a.sj_floor, a.workers, tol,
-          a.max_raw_hausdorff)
+          a.max_raw_hausdorff, not a.no_topology_guard)
     if a.ovm.endswith(".vtk"):
         # start from a saved blocks.vtk (fine hex mesh AFTER the greedy
         # collapse): BlockStructure otherwise reads .ovm only. The block IDs
@@ -257,4 +301,14 @@ if __name__ == "__main__":
     print("\nbefore/after:")
     for k in before:
         print(f"  {k:22s} {before[k]}  ->  {after[k]}")
+    # the written structure must pass the same check an agent or the dataset applies to it
+    from hexdp.core.blockstructure import invalid
+    from hexdp.io.blocks_vtk import read_blocks_vtk
+    bad = invalid(read_blocks_vtk(a.out).check())
+    if bad:
+        for i in bad[:10]:
+            print(f"[beam] INVALID {i.kind}: {i.message}")
+        if not a.allow_invalid:
+            print(f"[beam] REJECT: the block structure is invalid ({len(bad)} issues); see above")
+            sys.exit(4)
     sys.exit(0)

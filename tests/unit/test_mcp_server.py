@@ -94,6 +94,14 @@ def test_full_session_on_a_box(data):
             assert im.content[0].type == "image"
         ex = payload(await s.call_tool("export", {"bs_id": res["bs_id"], "format": "vtk"}))
         assert Path(ex["written"][0]).exists()
+        assert res["valid"] is True
+        dup = payload(await s.call_tool("block_op", {"bs_id": res["bs_id"], "op": P + "DuplicateOp"}))
+        ev2 = payload(await s.call_tool("evaluate", {"bs_id": dup["bs_id"]}))
+        assert ev2["valid"] is False and any(i["kind"] == "nonmanifold_face" for i in ev2["issues"])
+        refused = await s.call_tool("export", {"bs_id": dup["bs_id"]})
+        assert refused.is_error and "invalid" in refused.content[0].text      # no export of an invalid structure
+        forced = payload(await s.call_tool("export", {"bs_id": dup["bs_id"], "allow_invalid": True}))
+        assert Path(forced["written"][0]).exists()
         note = payload(await s.call_tool("record_decision", {"job_or_geo_id": jid, "text": "box: one block, split"}))
         assert "split" in Path(note["file"]).read_text()
         return True

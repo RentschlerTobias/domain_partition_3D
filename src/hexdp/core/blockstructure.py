@@ -46,6 +46,17 @@ class Issue:
     where: tuple = ()
 
 
+# Issues that make a block structure unusable. A t_junction (1:n block layout over a conforming fine mesh)
+# is only a warning: the mesh itself is valid.
+INVALID_KINDS = frozenset({"orientation", "inverted_cells", "nonmanifold_face", "hanging_vertex",
+                           "sheet_counts", "degenerate"})
+
+
+def invalid(issues) -> list:
+    """The issues among ``issues`` that make the structure invalid."""
+    return [i for i in issues if i.kind in INVALID_KINDS]
+
+
 @dataclass
 class FaceInfo:
     role: PatchRole = PatchRole.UNKNOWN
@@ -295,7 +306,8 @@ class BlockStructure:
                 "boundary_faces": len(self.boundary_faces()), "sheets": len(self.sheets()),
                 "fine_cells": int(sum(np.prod(np.array(G.shape) - 1) for G in self.grids)) if self.grids else 0,
                 "min_sj_fine": float(fine.min()) if fine is not None else None,
-                "min_sj_coarse": float(J.min()) if len(J) else None, "issues": kinds}
+                "min_sj_coarse": float(J.min()) if len(J) else None, "issues": kinds,
+                "valid": not invalid(issues)}
 
 
 def grid_cells(G: np.ndarray) -> np.ndarray:

@@ -80,6 +80,18 @@ class SplitOp:
         return BlockStructure(P, np.array([a, b]))
 
 
+class DuplicateOp:
+    """Adds a copy of block 0: its faces are then shared by more than two blocks (an invalid structure)."""
+    name = "duplicate"
+    params = {}
+
+    def applicable(self, bs, geo):
+        return Score(1.0, ["test op"])
+
+    def apply(self, bs, geo, params, ctx):
+        return BlockStructure(bs.points.copy(), np.vstack([bs.blocks, bs.blocks[:1]]))
+
+
 class UniformDiscretiser:
     """Cells per sheet from a target size: n = ceil(longest edge of the sheet / target_h)."""
     name = "uniform"

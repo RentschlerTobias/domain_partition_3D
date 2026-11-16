@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from hexdp.core.blockstructure import OFF, BlockStructure
+from hexdp.core.blockstructure import OFF, BlockStructure, invalid
 from hexdp.io.blocks_vtk import from_grids, read_blocks_vtk, write_blocks_vtk
 
 
@@ -104,3 +104,28 @@ def test_block_level_t_junction_with_conforming_fine_mesh():
     bs = from_grids(np.array(P, float), grids)
     found = [i.kind for i in bs.check()]
     assert found.count("t_junction") == 2 and "hanging_vertex" not in found
+
+
+def test_validity():
+    ok = box_blocks([((0, 0, 0), (1, 1, 1)), ((1, 0, 0), (2, 1, 1))])
+    assert ok.summary()["valid"] and invalid(ok.check()) == []
+    dup = BlockStructure(ok.points, np.vstack([ok.blocks, ok.blocks[:1]]))   # block 0 twice
+    assert "nonmanifold_face" in kinds(dup) and not dup.summary()["valid"]
+
+
+def test_t_junction_alone_is_valid():
+    P, index = [], {}
+    grids = [_grid((0, 0, 0), (1, 1, 1), (2, 2, 2), P, index),
+             _grid((1, 0, 0), (2, 0.5, 1), (2, 1, 2), P, index),
+             _grid((1, 0.5, 0), (2, 1, 1), (2, 1, 2), P, index)]
+    assert from_grids(np.array(P, float), grids).summary()["valid"]
+
+
+def test_beam_topology_issues_of_a_clean_hex_mesh():
+    from hexdp.ops.beam_collapse import topology_issues
+    n = 3                                  # 3x3x3 unit hexes of one cube: one block, no defect
+    ids = np.arange((n + 1) ** 3).reshape(n + 1, n + 1, n + 1)
+    P = np.array([(i, j, k) for i in range(n + 1) for j in range(n + 1) for k in range(n + 1)], float)
+    H = np.array([[ids[i + o[0], j + o[1], k + o[2]] for o in OFF]
+                  for i in range(n) for j in range(n) for k in range(n)])
+    assert topology_issues(P, H) == {}

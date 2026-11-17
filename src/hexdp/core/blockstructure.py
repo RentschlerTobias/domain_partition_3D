@@ -40,7 +40,8 @@ FACE_CORNERS = {
 
 @dataclass(frozen=True)
 class Issue:
-    # orientation | inverted_cells | nonmanifold_face | hanging_vertex | t_junction | sheet_counts | degenerate
+    # orientation | inverted_cells | nonmanifold_face | hanging_vertex | t_junction | sheet_counts | degenerate |
+    # boundary_topology
     kind: str
     message: str
     where: tuple = ()
@@ -49,7 +50,7 @@ class Issue:
 # Issues that make a block structure unusable. A t_junction (1:n block layout over a conforming fine mesh)
 # is only a warning: the mesh itself is valid.
 INVALID_KINDS = frozenset({"orientation", "inverted_cells", "nonmanifold_face", "hanging_vertex",
-                           "sheet_counts", "degenerate"})
+                           "sheet_counts", "degenerate", "boundary_topology"})
 
 
 def invalid(issues) -> list:
@@ -162,8 +163,32 @@ class BlockStructure:
             out.append(hex_corner_jacobians(self.fine_points[grid_cells(G)]).min())
         return np.array(out)
 
-    def check(self, tol: float = 1e-9) -> list[Issue]:
+    def boundary_topology(self) -> dict:
+        """Euler characteristic and connected components of the boundary (faces used by one block)."""
+        from hexdp.core.geometry import _components
+
+        faces = self.faces()
+        bf = [[self.blocks[v[0][0]][i] for i in FACE_CORNERS[(v[0][1], v[0][2])]] for v in faces.values() if len(v) == 1]
+        if not bf:
+            return {"chi": 0, "components": 0}
+        E = np.unique(np.sort(np.array([(int(c[i]), int(c[(i + 1) % 4])) for c in bf for i in range(4)]), axis=1), axis=0)
+        V = np.unique(E)
+        return {"chi": int(len(V) - len(E) + len(bf)), "components": _components(V, E)}
+
+    def check(self, tol: float = 1e-9, geo=None) -> list[Issue]:
+        """Structural issues; with ``geo`` also whether the boundary has the topology of the geometry's
+        boundary (a hole or a missing block changes the Euler characteristic or the component count). That
+        test is skipped when the geometry boundary is not a closed 2-manifold (e.g. free baffle edges)."""
         issues: list[Issue] = []
+        if geo is not None:
+            gt = geo.boundary_topology()
+            if gt["closed"]:
+                bt = self.boundary_topology()
+                if (bt["chi"], bt["components"]) != (gt["chi"], gt["components"]):
+                    issues.append(Issue("boundary_topology",
+                                        f"block boundary has Euler characteristic {bt['chi']} in {bt['components']} "
+                                        f"component(s), the geometry boundary {gt['chi']} in {gt['components']} "
+                                        "(a hole, a missing or an extra block)"))
         for b, c8 in enumerate(self.blocks):
             if len(set(c8.tolist())) < 8:
                 issues.append(Issue("degenerate", f"block {b} repeats a vertex", (b,)))
@@ -295,8 +320,8 @@ class BlockStructure:
         with open(path) as fh:
             return cls.from_json(json.load(fh))
 
-    def summary(self) -> dict:
-        issues = self.check()
+    def summary(self, geo=None) -> dict:
+        issues = self.check(geo=geo)
         kinds: dict[str, int] = {}
         for i in issues:
             kinds[i.kind] = kinds.get(i.kind, 0) + 1

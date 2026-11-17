@@ -147,6 +147,12 @@ def _new_id(prefix):
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 
+def _geo_of(entry: dict):
+    """The open geometry of a block-structure entry (for the boundary topology check), or None."""
+    g = state().geos.get(entry.get("geo_id")) if entry.get("geo_id") else None
+    return g["geo"] if g else None
+
+
 def _paths(plugin, params: dict | None) -> dict:
     """File parameters (ParamSpec kind 'path') through the read guard: relative to HEXDP_DATA, inside the
     allowed roots, never Charite; absolute afterwards, so a stage in another working directory finds them."""
@@ -393,7 +399,7 @@ def job_result(job_id: str) -> dict:
             geo_id = next((g for g, e in s.geos.items() if e["path"] == rep.get("geometry")), None)
             s.blocks[bid] = {"bs": bs, "geo_id": geo_id, "origin": job_id, "job": job_id, "ops": [], "exports": []}
             out["bs_id"] = bid
-            bad = invalid(bs.check())
+            bad = invalid(bs.check(geo=_geo_of(s.blocks[bid])))
             out["valid"] = not bad
             if bad:
                 out["invalid_issues"] = dict(collections.Counter(i.kind for i in bad))
@@ -405,10 +411,12 @@ def job_result(job_id: str) -> dict:
 def evaluate(bs_id: str, max_issues: int = 20) -> dict:
     """Validity, block-structure summary (blocks, cells, min scaled Jacobian, sheets) and the first issues.
     Invalid: inverted cells, a face shared by more than two blocks, hanging vertices, sheet count
-    mismatches, degenerate blocks. A t_junction (1:n block layout over a conforming fine mesh) is a warning."""
-    bs = state().bs(bs_id)["bs"]
-    issues = bs.check()
-    return {"valid": not invalid(issues), "summary": _jsonable(bs.summary()),
+    mismatches, degenerate blocks, a boundary whose topology differs from the geometry's (a hole or a
+    missing block; checked when the geometry boundary is closed). A t_junction (1:n block layout over a conforming fine mesh) is a warning."""
+    entry = state().bs(bs_id)
+    bs, geo = entry["bs"], _geo_of(entry)
+    issues = bs.check(geo=geo)
+    return {"valid": not invalid(issues), "summary": _jsonable(bs.summary(geo)),
             "issues": [{"kind": i.kind, "message": i.message, "where": list(i.where)} for i in issues[:max_issues]],
             "issues_total": len(issues)}
 
@@ -450,7 +458,7 @@ def block_op(bs_id: str, op: str, params: dict | None = None) -> dict:
     s.blocks[bid] = {"bs": new, "geo_id": entry["geo_id"], "origin": f"{op}({bs_id})", "job": entry.get("job"),
                      "ops": entry.get("ops", []) + [{"name": op, "params": _paths(plugin, params)}], "exports": []}
     return {"applied": True, "bs_id": bid, "workspace": str(ctx.workspace), "reasons": sc.reasons,
-            "before": entry["bs"].n_blocks, "summary": _jsonable(new.summary())}
+            "before": entry["bs"].n_blocks, "summary": _jsonable(new.summary(geo))}
 
 
 @tool
@@ -460,7 +468,7 @@ def export(bs_id: str, format: str = "vtk", name: str | None = None, allow_inval
     s = state()
     entry = s.bs(bs_id)
     bs = entry["bs"]
-    bad = invalid(bs.check())
+    bad = invalid(bs.check(geo=_geo_of(entry)))
     if bad and not allow_invalid:
         raise ValueError(f"block structure {bs_id} is invalid ({dict(collections.Counter(i.kind for i in bad))}); "
                          "fix it or pass allow_invalid=true")
@@ -506,7 +514,7 @@ def save_workflow(bs_id: str, name: str, placeholders: dict[str, str] | None = N
     entry = s.bs(bs_id)
     if not entry.get("job"):
         raise ValueError(f"{bs_id} has no job behind it")
-    bad = invalid(entry["bs"].check())
+    bad = invalid(entry["bs"].check(geo=_geo_of(entry)))
     if bad:
         raise ValueError(f"{bs_id} is invalid ({dict(collections.Counter(i.kind for i in bad))}); "
                          "a workflow is saved only from a valid block structure")
@@ -521,7 +529,7 @@ def save_workflow(bs_id: str, name: str, placeholders: dict[str, str] | None = N
         if not v or v not in yaml.safe_dump(case) + json.dumps(entry["ops"]):
             raise ValueError(f"placeholder {k}: value {v!r} does not occur in the job's case or ops")
     job_notes = (jd / "agent_decisions.md").read_text().splitlines() if (jd / "agent_decisions.md").exists() else []
-    summ = entry["bs"].summary()
+    summ = entry["bs"].summary(_geo_of(entry))
     wf = build_workflow(case, name=name, ops=entry["ops"], placeholders=placeholders, data_root=s.data, accept=accept,
                         notes=[*job_notes, *(notes or [])], exporters=entry.get("exports", []),
                         origin={"job": entry["job"], "bs_id": bs_id, "geometry": case.get("geometry"),

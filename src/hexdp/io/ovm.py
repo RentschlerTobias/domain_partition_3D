@@ -253,3 +253,37 @@ def convert(ovm_path, vtk_path):
 if __name__ == "__main__":
     import sys
     convert(sys.argv[1], sys.argv[2])
+
+
+def _hex_rotations():
+    """The 24 orientation-preserving symmetries of a VTK hex as permutations of its 8 corner slots."""
+    off = np.array([(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0), (0, 0, 1), (1, 0, 1), (1, 1, 1), (0, 1, 1)])
+    slot = {tuple(o): k for k, o in enumerate(off)}
+    gens = [lambda o: (o[1], 1 - o[0], o[2]), lambda o: (o[2], o[1], 1 - o[0])]   # 90 deg about z and y
+    perms, todo = {tuple(range(8))}, [tuple(range(8))]
+    while todo:
+        q = todo.pop()
+        for g in gens:
+            r = tuple(q[slot[g(tuple(off[k]))]] for k in range(8))
+            if r not in perms:
+                perms.add(r)
+                todo.append(r)
+    assert len(perms) == 24
+    return np.array(sorted(perms))
+
+
+def canonical_hex_mesh(points, hexes, decimals=12):
+    """The same hex mesh in a canonical order: vertices sorted by coordinates, each hex rotated to its
+    lexicographically smallest corner order (orientation kept), hexes sorted. Two files that differ only in
+    the order or rotation of their entities (AlgoHex runs with the same input) give identical arrays, so the
+    collapse after it is reproducible."""
+    P = np.asarray(points, float)
+    H = np.asarray(hexes, np.int64)
+    order = np.lexsort(np.round(P, decimals).T[::-1])
+    new = np.empty(len(P), np.int64)
+    new[order] = np.arange(len(P))
+    H = new[H]
+    R = H[:, _hex_rotations()]                       # (n, 24, 8)
+    best = np.array([min(map(tuple, r)) for r in R], np.int64)
+    best = best[np.lexsort(best.T[::-1])]
+    return P[order], best

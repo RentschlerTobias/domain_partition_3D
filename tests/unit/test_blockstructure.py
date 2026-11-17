@@ -129,3 +129,87 @@ def test_beam_topology_issues_of_a_clean_hex_mesh():
     H = np.array([[ids[i + o[0], j + o[1], k + o[2]] for o in OFF]
                   for i in range(n) for j in range(n) for k in range(n)])
     assert topology_issues(P, H) == {}
+
+
+def _grid_blocks(nx, ny, skip=()):
+    """nx x ny x 1 unit blocks on a lattice, without the cells in skip."""
+    from hexdp.core.blockstructure import OFF
+    idx = lambda i, j, k: (i * (ny + 1) + j) * 2 + k  # noqa: E731
+    P = np.array([(i, j, k) for i in range(nx + 1) for j in range(ny + 1) for k in range(2)], float)
+    B = [[idx(i + o[0], j + o[1], o[2]) for o in OFF] for i in range(nx) for j in range(ny) if (i, j) not in skip]
+    return BlockStructure(P, np.array(B))
+
+
+class _Geo:
+    def __init__(self, chi, comps=1, closed=True):
+        self.t = {"chi": chi, "components": comps, "closed": closed}
+
+    def boundary_topology(self):
+        return self.t
+
+
+def test_boundary_topology_finds_a_hole():
+    from hexdp.core.blockstructure import invalid
+    full, ring = _grid_blocks(3, 3), _grid_blocks(3, 3, skip={(1, 1)})
+    assert full.boundary_topology() == {"chi": 2, "components": 1}
+    assert ring.boundary_topology() == {"chi": 0, "components": 1}          # a torus: the middle block is missing
+    assert not invalid(full.check(geo=_Geo(2)))
+    bad = invalid(ring.check(geo=_Geo(2)))
+    assert [i.kind for i in bad] == ["boundary_topology"]
+    assert not invalid(ring.check(geo=_Geo(2, closed=False)))                # open geometry boundary: not tested
+    assert not invalid(ring.check())                                         # without geometry: not tested
+
+
+def test_geometry_boundary_topology_of_a_box(tmp_path):
+    gmsh = pytest.importorskip("gmsh")
+    from hexdp.io.gmsh_model import load
+    gmsh.initialize()
+    gmsh.option.setNumber("General.Terminal", 0)
+    gmsh.model.occ.addBox(0, 0, 0, 2, 1, 1)
+    gmsh.model.occ.synchronize()
+    gmsh.write(str(tmp_path / "box.step"))
+    gmsh.finalize()
+    assert load(tmp_path / "box.step").boundary_topology() == {"chi": 2, "components": 1, "closed": True}
+
+
+def test_msh_export_groups(tmp_path):
+    gmsh = pytest.importorskip("gmsh")
+    from hexdp.core.blockstructure import FaceInfo
+    from hexdp.core.geometry import PatchRole
+    from hexdp.export.msh import write_msh
+    bs = _grid_blocks(2, 1)
+    for key, users in bs.faces().items():
+        if len(users) == 1 and users[0][1] == 0 and users[0][2] == 0:          # the x = 0 face: a wall
+            bs.face_info[key] = FaceInfo(PatchRole.WALL, 7)
+    for block_groups, nvol in ((False, 1), (True, 2)):
+        f = write_msh(bs, tmp_path / f"m{nvol}", block_groups=block_groups)
+        gmsh.initialize()
+        gmsh.option.setNumber("General.Terminal", 0)
+        gmsh.open(str(f))
+        groups = {gmsh.model.getPhysicalName(d, t): (d, t) for d, t in gmsh.model.getPhysicalGroups()}
+        n_hex = sum(len(e) for t, e in zip(*gmsh.model.mesh.getElements(3)[:2]) if t == 5)
+        quads = {}
+        for name, (d, t) in groups.items():
+            if d == 2:
+                ent = int(gmsh.model.getEntitiesForPhysicalGroup(d, t)[0])
+                types, tags, _ = gmsh.model.mesh.getElements(2, ent)
+                quads[name] = sum(len(e) for ty, e in zip(types, tags) if ty == 3)
+        gmsh.finalize()
+        assert n_hex == 2 and sum(1 for d, _ in groups.values() if d == 3) == nvol
+        assert quads == {"wall_7": 1, "boundary": 9}
+
+
+def test_canonical_hex_mesh_ignores_entity_order():
+    from hexdp.io.ovm import _hex_rotations, canonical_hex_mesh
+    bs = _grid_blocks(3, 2)
+    P, H = bs.points, bs.blocks
+    rng = np.random.default_rng(0)
+    perm = rng.permutation(len(P))                      # renumber the vertices
+    inv = np.empty_like(perm)
+    inv[perm] = np.arange(len(P))
+    rot = _hex_rotations()
+    H2 = np.array([inv[h][rot[rng.integers(0, 24)]] for h in H])[rng.permutation(len(H))]
+    a, b = canonical_hex_mesh(P, H), canonical_hex_mesh(P[perm], H2)
+    assert np.array_equal(a[0], b[0]) and np.array_equal(a[1], b[1])
+    from hexdp.core.blockstructure import BlockStructure
+    assert BlockStructure(*b).corner_jacobians().min() > 0          # rotations keep the orientation

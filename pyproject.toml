@@ -48,6 +48,7 @@ b5 = "hexdp.fill.plugins:B5Filler"
 [project.entry-points."hexdp.exporters"]
 vtk = "hexdp.export.plugins:VtkExporter"
 foam = "hexdp.export.plugins:FoamExporter"
+msh = "hexdp.export.plugins:MshExporter"
 
 [tool.setuptools.packages.find]
 where = ["src"]

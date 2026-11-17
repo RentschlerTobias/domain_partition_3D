@@ -157,6 +157,26 @@ class Geometry:
         }
 
     # -------------------------------------------------------------- closest-point queries
+    def boundary_topology(self) -> dict:
+        """Topology of the domain boundary (surfaces next to exactly one volume, or all when volumes are
+        unknown): Euler characteristic, connected components and whether it is a closed 2-manifold."""
+        tags = [t for t in self.surfaces if len(self.surface_volumes.get(t, ())) == 1] or list(self.surfaces)
+        P = np.vstack([self.surfaces[t].nodes for t in tags])
+        scale = max(float(np.ptp(P, axis=0).max()), 1e-300)
+        _, ids = np.unique(np.round(P / (scale * 1e-9)), axis=0, return_inverse=True)
+        ids = ids.ravel()
+        T, off = [], 0
+        for t in tags:
+            T.append(ids[self.surfaces[t].tris + off])
+            off += len(self.surfaces[t].nodes)
+        T = np.vstack(T)
+        T = T[(T[:, 0] != T[:, 1]) & (T[:, 1] != T[:, 2]) & (T[:, 0] != T[:, 2])]
+        E = np.sort(np.vstack([T[:, [0, 1]], T[:, [1, 2]], T[:, [2, 0]]]), axis=1)
+        Eu, cnt = np.unique(E, axis=0, return_counts=True)
+        V = np.unique(T)
+        return {"chi": int(len(V) - len(Eu) + len(T)), "components": _components(V, Eu),
+                "closed": bool(np.all(cnt == 2))}
+
     def _surface_index(self, tags):
         key = tuple(sorted(tags))
         cache = self.__dict__.setdefault("_tri_cache", {})
@@ -193,6 +213,22 @@ class Geometry:
         from hexdp.io.gmsh_model import closest_on_cad_faces
         R0, _, owner = self.project(Q, surfaces)
         return closest_on_cad_faces(self.path, np.asarray(Q, float).reshape(-1, 3), owner, R0)
+
+
+def _components(V, E) -> int:
+    """Connected components of the graph (vertices V, edges E)."""
+    par = {int(v): int(v) for v in V}
+
+    def find(x):
+        while par[x] != x:
+            par[x] = par[par[x]]
+            x = par[x]
+        return x
+    for a, b in E:
+        ra, rb = find(int(a)), find(int(b))
+        if ra != rb:
+            par[ra] = rb
+    return len({find(int(v)) for v in V})
 
 
 # ------------------------------------------------------------------ point-to-triangle / polyline helpers

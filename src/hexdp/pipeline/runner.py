@@ -130,7 +130,7 @@ def run_case(case: Case, fresh: bool = False) -> dict:
             filler=_stages("fillers", [case.filler])[0] if case.filler else None,
             exporters=_stages("exporters", case.exporters),
         )
-        summary = res.blocks.summary()
+        summary = res.blocks.summary(geo)
         report.update(state="done", strategy=res.strategy,
                       scores={n: {"value": s.value, "reasons": s.reasons, "missing": s.missing} for n, s in res.scores.items()},
                       features=[{"kind": f.kind, "confidence": f.confidence, "reasons": f.reasons} for f in res.features],

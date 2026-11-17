@@ -1,4 +1,5 @@
-"""Exporter plugins ``vtk`` (fine hex mesh with block ids) and ``foam`` (OpenFOAM polyMesh)."""
+"""Exporter plugins ``vtk`` (fine hex mesh with block ids), ``foam`` (OpenFOAM polyMesh) and ``msh`` (gmsh,
+physical groups, e.g. for FEniCSx)."""
 
 from __future__ import annotations
 
@@ -45,3 +46,17 @@ class FoamExporter:
             args.append("--no-check")
         run_module(ctx, "hexdp.export.foam", args, "foam_export.log")
         return [case]
+
+
+class MshExporter:
+    """Gmsh .msh 4.1: fine hex mesh, a volume group (or one per block) and a surface group per geometry
+    surface of the boundary (e.g. for FEniCSx dolfinx.io.gmshio)."""
+
+    name = "msh"
+    params = {"block_groups": ParamSpec(False, "one physical volume per block instead of one 'domain'")}
+    formats = ("gmsh",)
+
+    def write(self, bs, path, params, ctx):
+        from hexdp.export.msh import write_msh
+
+        return [write_msh(bs, path, block_groups=params["block_groups"])]

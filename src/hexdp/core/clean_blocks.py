@@ -1009,8 +1009,10 @@ class BlockStructure:
                  collapse_rounds=0, untangle_mesh=False, untangle_rounds=1,
                  untangle_rings=1):
         P, e, f, poly = ovm_io.read_ovm(ovm_path)
+        hexes, skipped = ovm_io.ovm_to_cells(P, e, f, poly)
+        # canonical entity order: the same mesh in another file order gives the same collapse
+        P, self.hexes = ovm_io.canonical_hex_mesh(P, hexes)
         self.P = P
-        self.hexes, skipped = ovm_io.ovm_to_cells(P, e, f, poly)
         self.f2h, self.e2h = bc.build_topology(self.hexes)
         self.n_filled = 0
         if fill:

@@ -53,3 +53,13 @@ def test_best_shear_aligns_a_slanted_parallelogram():
     para = np.array([(0, 0), (1, 0), (1 + s, 1), (s, 1)], float)
     assert best_shear(Domain2D([Loop(para)])) == pytest.approx(s, abs=0.03)
     assert layout(sheared(Domain2D([Loop(para)]), s)).n_blocks == 1
+
+
+def test_collapse_merges_nearly_equal_lines():
+    from hexdp.core.layout2d import collapse
+    holes = [Loop(np.array([(2, 2), (2, 4), (4, 4), (4, 2)], float)),
+             Loop(np.array([(6, 2.1), (6, 4.1), (8, 4.1), (8, 2.1)], float))]
+    d = Domain2D([Loop(np.array([(0, 0), (10, 0), (10, 10), (0, 10)], float)), *holes])
+    before = layout(d).n_blocks
+    lay, m = collapse(d, h=0.5, guard=0.2)
+    assert lay.n_blocks < before and len(lay.Y) == 4 and m.min_sj > 0.2   # 2 / 2.1 and 4 / 4.1 merged

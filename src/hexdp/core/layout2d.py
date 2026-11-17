@@ -134,9 +134,11 @@ def abstract(loop: Loop, hyst=10.0, sharp=60.0, snap=0.04):
         m2 += 1
     D = turned(D, m2)
     edges.append(dict(i0=start, D=D))
+    last_m = 0
     for m in range(1, n):
         k = order[m]
         if k in pins:
+            last_m = m
             Dn = 90.0 * round(Acont[m] / 90.0)
             m2 = m                                  # take a turn that follows shortly after at the pin
             while m2 + 1 < n and arc[m2 + 1] - arc[m] <= reach and m2 + 1 < next_pin[m]:
@@ -149,11 +151,17 @@ def abstract(loop: Loop, hyst=10.0, sharp=60.0, snap=0.04):
         if abs(Acont[m] - D) > 45 + hyst and arc[next_pin[m]] - arc[m] <= reach and next_pin[m] < n:
             continue                                # the next pin is close: it takes this turn
         dev = Acont[m] - D
-        while abs(dev) > 45 + hyst:                 # virtual corner(s) at point k
+        while abs(dev) > 45 + hyst:                 # virtual corner(s): at the 45 deg crossing before point k
             sgn = np.sign(dev)
             Dn = D + 90 * sgn
-            edges[-1]["i1"] = k
-            edges.append(dict(i0=k, D=Dn, turn_in=Dn - D))
+            m0 = last_m
+            mc = m
+            while mc - 1 > m0 and (Acont[mc - 1] - D) * sgn > 45:
+                mc -= 1
+            kc = order[mc]
+            edges[-1]["i1"] = kc
+            edges.append(dict(i0=kc, D=Dn, turn_in=Dn - D, virt=True))
+            last_m = mc
             D = Dn
             dev = Acont[m] - D
     edges[-1]["i1"] = start + n if start == 0 else start
@@ -172,6 +180,25 @@ def abstract(loop: Loop, hyst=10.0, sharp=60.0, snap=0.04):
         last = edges.pop()
         first = edges[0]
         edges[0] = dict(last, i1=last["i1"] + (first["i1"] - first["i0"]))
+    # zig-zags: two consecutive virtual corners that turn back (+90 then -90) over a short edge are rounding noise
+    cum = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(np.vstack([P[:-1], P[:-1] + [loop.shift, 0]]), axis=0), axis=1))]
+
+    def arc(i0, i1):
+        return cum[min(i1, 2 * n - 1)] - cum[i0] if i1 <= 2 * n - 1 else cum[-1]
+    changed = True
+    while changed and len(edges) > 4:
+        changed = False
+        for k in range(len(edges)):
+            a_, b_ = edges[k], edges[(k + 1) % len(edges)]
+            if (a_.get("virt") and b_.get("virt") and abs(a_["turn_in"] + b_["turn_in"]) < 1e-9
+                    and arc(a_["i0"] % n, a_["i1"] % n + (n if a_["i1"] % n < a_["i0"] % n else 0)) <= reach):
+                prev = edges[k - 1]
+                kb = (k + 1) % len(edges)
+                prev["i1"] = b_["i1"] if kb != 0 else b_["i1"] + n
+                for idx in sorted((k, kb), reverse=True):
+                    edges.pop(idx)
+                changed = True
+                break
     for e in edges:
         e["v"] = int(round(2 - e["turn_in"] / 90.0))
         if e["v"] < 1:
@@ -342,15 +369,18 @@ def layout(dom: Domain2D, merges=(), absd=None) -> Layout2D:
         if L <= 1e-9 or abs(off) > 1e-9:
             raise LayoutError(f"parameter edge {a}->{b} (loop {li}) has length {L:.4g}, offset {off:.2g}")
     # index lines
-    xs = np.mod(U[:, 0], per) if per else U[:, 0]
-    X = np.unique(np.round(xs, 9))
-    ys = [U[:, 1]] + [np.array([dom.loops[li].points[:, 1].mean()]) for li in free]
-    Y = np.unique(np.round(np.concatenate(ys), 9))
+    q = lambda v: float(np.round(v, 9)) + 0.0        # noqa: E731  (one rounding for keys and lines)
+    xs = [q(x) for x in (np.mod(U[:, 0], per) if per else U[:, 0])]
+    if per:
+        xs = [0.0 if x >= q(per) else x for x in xs]
+    fyv = {li: q(dom.loops[li].points[:, 1].mean()) for li in free}
+    X = np.array(sorted(set(xs)))
+    Y = np.array(sorted(set(q(y) for y in U[:, 1]) | set(fyv.values())))
     nx = len(X)
     ix = {x: k for k, x in enumerate(X)}
     iy = {y: k for k, y in enumerate(Y)}
-    vij = [(ix[round(float(x), 9)], iy[round(float(u[1]), 9)]) for x, u in zip(xs, U)]
-    fy = {li: iy[round(float(dom.loops[li].points[:, 1].mean()), 9)] for li in free}
+    vij = [(ix[x], iy[q(u[1])]) for x, u in zip(xs, U)]
+    fy = {li: iy[y] for li, y in fyv.items()}
     ncx = nx if per else nx - 1
 
     def wrap(i):
@@ -560,7 +590,10 @@ def mesh(lay: Layout2D, dom: Domain2D, h: float, nmin: int = 1, iters: int = 300
                 break
         fp = fine_path(path, dx, dy)
         uu = np.array([[ux[I % NI] if per else ux[I], uy[J]] for I, J in fp])
-        d = np.r_[0, np.cumsum(np.abs(np.diff(uu, axis=0)).sum(1) % (per if per else np.inf))]
+        du = np.diff(uu, axis=0)
+        if per:
+            du[:, 0] = (du[:, 0] + per / 2) % per - per / 2     # a step across the seam is short, not a period
+        d = np.r_[0, np.cumsum(np.abs(du).sum(1))]
         tau = d / d[-1]
         pos = _at_fraction(_piece(loop, e["i0"], e["i1"]), tau)
         for (I, J), xy in zip(fp, pos):
@@ -627,3 +660,52 @@ def mesh(lay: Layout2D, dom: Domain2D, h: float, nmin: int = 1, iters: int = 300
         G = np.array([[keys[(wI(I), J)] for J in range(oj[j0], oj[j1] + 1)] for I in range(I0, Iend + 1)])
         grids.append(G)
     return FineMesh(X=Xf, grids=grids, cells=C, min_sj=float(sj.min()) if len(sj) else 1.0, sj=sj)
+
+
+# ------------------------------------------------------------------ 5. chord collapse
+def _line_vertices(lay: Layout2D, ax: int, k: int):
+    return [v for v, ij in enumerate(lay.vij) if ij[ax] == k]
+
+
+def collapse(dom: Domain2D, h: float, guard: float = 0.2, max_rounds: int = 200, absd=None, log=None):
+    """Greedy chord collapse: merge two neighbouring index lines (the chord of blocks between them disappears),
+    narrowest first, if the layout stays valid, the block count does not grow and the fine mesh at size h keeps
+    min scaled Jacobian >= guard; repeat until no merge is accepted. Returns (layout, fine mesh)."""
+    absd = absd if absd is not None else [abstract(lp) for lp in dom.loops]
+    merges = []
+    lay = layout(dom, merges, absd)
+    best = mesh(lay, dom, h)
+    for _ in range(max_rounds):
+        cands = []
+        for ax, lines in ((0, lay.X), (1, lay.Y)):
+            n = len(lines)
+            pairs = [(k, k + 1) for k in range(n - 1)]
+            if ax == 0 and lay.period:
+                pairs.append((n - 1, 0))
+            for k0, k1 in pairs:
+                gap = (lines[k1] - lines[k0]) % lay.period if (ax == 0 and lay.period) else lines[k1] - lines[k0]
+                a, b = _line_vertices(lay, ax, k0), _line_vertices(lay, ax, k1)
+                if a and b:
+                    cands.append((gap, ax, a[0], b[0]))
+        accepted = False
+        for gap, ax, a, b in sorted(cands):
+            try:
+                trial = layout(dom, merges + [(ax, a, b)], absd)
+            except LayoutError:
+                continue
+            if trial.n_blocks > lay.n_blocks:
+                continue
+            m = mesh(trial, dom, h)
+            if m.min_sj < guard and m.min_sj < best.min_sj:
+                continue
+            if trial.n_blocks == lay.n_blocks and m.min_sj <= best.min_sj:
+                continue                              # no gain: neither fewer blocks nor better cells
+            merges.append((ax, a, b))
+            lay, best = trial, m
+            accepted = True
+            if log:
+                log(f"merge axis {ax} gap {gap:.4f}: {lay.n_blocks} blocks, min sJ {best.min_sj:.3f}")
+            break
+        if not accepted:
+            break
+    return lay, best

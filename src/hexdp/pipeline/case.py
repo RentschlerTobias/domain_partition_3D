@@ -11,12 +11,24 @@
     discretiser: null                               # optional
     filler: null                                    # optional
     exporters: [vtk]
-    reuse: []                                       # files copied into the workspace before the run
+    reuse: []                                       # files copied into the workspace before the run;
+                                                    #   {path, optional: true} is skipped when missing
     resources: {cores: 8, cpu_list: "0-7", timeout_s: null}
     workspace: runs/canada_dt_sweep                 # default runs/<name> next to the YAML
     reference: {blocks: 72, min_sj: 0.0588}         # optional, compared by `hexdp eval`
 
 A plugin name may also be a direct reference "package.module:Class" (plugins not yet registered).
+
+A workflow is a case with parameters: one file for a whole geometry family.
+
+    parameters: {sample: tistos_s1_0131}            # name: default (null = required), or {default, doc}
+    name: tistos_${sample}                          # ${name} of a parameter anywhere in a string value
+    geometry: ${HEXDP_DATA}/tistos/${sample}/mesh.msh
+    accept: {valid: true, blocks: [10, 17], min_sj: 0.02}   # acceptance of each run (blocks: n or [lo, hi])
+    origin: {...}                                   # informational: where and how it was found
+    notes: [...]                                    # the reasoning behind the choices
+
+    hexdp run workflow.yaml --set sample=tistos_s1_0317
 """
 
 from __future__ import annotations
@@ -29,7 +41,8 @@ from pathlib import Path
 import yaml
 
 KEYS = {"name", "geometry", "mesh_size", "roles", "detectors", "strategy", "params", "ops", "discretiser",
-        "filler", "exporters", "reuse", "resources", "workspace", "reference", "description"}
+        "filler", "exporters", "reuse", "resources", "workspace", "reference", "description",
+        "parameters", "accept", "origin", "notes"}
 
 
 @dataclass
@@ -58,6 +71,8 @@ class Case:
     timeout_s: float | None = None
     workspace: Path | None = None
     reference: dict = field(default_factory=dict)
+    parameters: dict = field(default_factory=dict)      # the values used (workflows)
+    accept: dict = field(default_factory=dict)
 
 
 class CaseError(ValueError):
@@ -90,6 +105,37 @@ def _expand_params(d, where):
     return _expand(d, where) if isinstance(d, str) else d
 
 
+_PARAM = re.compile(r"\$\{(\w+)\}")
+
+
+def parameter_values(declared: dict, overrides: dict | None = None) -> dict:
+    """Values of a workflow's parameters: --set overrides, else the declared default; unknown or missing ones fail."""
+    declared = dict(declared or {})
+    overrides = dict(overrides or {})
+    unknown = sorted(set(overrides) - set(declared))
+    if unknown:
+        raise CaseError(f"unknown parameter(s) {unknown}; declared: {sorted(declared)}")
+    out = {}
+    for k, d in declared.items():
+        default = d.get("default") if isinstance(d, dict) else d
+        v = overrides.get(k, default)
+        if v is None:
+            raise CaseError(f"parameter '{k}' has no default; give it with --set {k}=...")
+        out[k] = str(v)
+    return out
+
+
+def substitute(data, values: dict):
+    """${name} of a parameter in every string value (environment variables are left for parse)."""
+    if isinstance(data, dict):
+        return {k: substitute(v, values) for k, v in data.items()}
+    if isinstance(data, list):
+        return [substitute(v, values) for v in data]
+    if isinstance(data, str):
+        return _PARAM.sub(lambda m: values.get(m.group(1), m.group(0)), data)
+    return data
+
+
 def _stages(value, params: dict, where: str) -> list[StageSpec]:
     if value in (None, [], "none"):
         return []
@@ -107,10 +153,22 @@ def _stages(value, params: dict, where: str) -> list[StageSpec]:
     return out
 
 
-def parse(data: dict, base: Path, path: Path | None = None) -> Case:
+def _reuse(items, base: Path) -> list[Path]:
+    out = []
+    for it in items or []:
+        spec = it if isinstance(it, dict) else {"path": it}
+        p = _path(spec["path"], base, "reuse")
+        if p.exists() or not spec.get("optional"):
+            out.append(p)
+    return out
+
+
+def parse(data: dict, base: Path, path: Path | None = None, overrides: dict | None = None) -> Case:
     unknown = sorted(set(data) - KEYS)
     if unknown:
         raise CaseError(f"unknown key(s) {unknown}; known: {sorted(KEYS)}")
+    values = parameter_values(data.get("parameters"), overrides)
+    data = {k: v for k, v in substitute(data, values).items() if k not in ("parameters", "origin", "notes")}
     for k in ("name", "geometry"):
         if not data.get(k):
             raise CaseError(f"missing '{k}'")
@@ -131,13 +189,15 @@ def parse(data: dict, base: Path, path: Path | None = None) -> Case:
         discretiser=single("discretiser"),
         filler=single("filler"),
         exporters=_stages(data.get("exporters"), params, "exporters"),
-        reuse=[_path(p, base, "reuse") for p in data.get("reuse") or []],
+        reuse=_reuse(data.get("reuse"), base),
         cores=int(res.get("cores", 1)),
         cpu_list=res.get("cpu_list"),
         timeout_s=res.get("timeout_s"),
         workspace=_path(data["workspace"], base, "workspace") if data.get("workspace")
         else (base / "runs" / str(data["name"])).resolve(),
         reference=dict(data.get("reference") or {}),
+        parameters=values,
+        accept=dict(data.get("accept") or {}),
     )
     if not case.geometry.exists():
         raise CaseError(f"geometry not found: {case.geometry}")
@@ -147,7 +207,9 @@ def parse(data: dict, base: Path, path: Path | None = None) -> Case:
     return case
 
 
-def load_case(path) -> Case:
+def load_case(path, overrides: dict | None = None, workspace_root=None) -> Case:
+    """Load a case or workflow; overrides set workflow parameters, workspace_root puts the workspace at
+    workspace_root/<name> (validation runs)."""
     path = Path(path).resolve()
     try:
         with open(path) as fh:
@@ -156,4 +218,7 @@ def load_case(path) -> Case:
         raise CaseError(f"{path}: not valid YAML: {exc}") from exc
     if not isinstance(data, dict):
         raise CaseError(f"{path}: a case file is a mapping")
-    return parse(data, path.parent, path)
+    case = parse(data, path.parent, path, overrides)
+    if workspace_root is not None:
+        case.workspace = Path(workspace_root).resolve() / case.name
+    return case

@@ -8,7 +8,7 @@ from pathlib import Path
 from hexdp.pipeline.case import CaseError, load_case
 from hexdp.pipeline.runner import run_case
 
-COLUMNS = ("case", "state", "strategy", "blocks", "min_sj", "issues", "time_s", "reference")
+COLUMNS = ("case", "state", "strategy", "blocks", "valid", "min_sj", "issues", "time_s", "reference", "accept")
 
 
 def row(report: dict) -> dict:
@@ -19,11 +19,14 @@ def row(report: dict) -> dict:
         "state": report.get("state"),
         "strategy": report.get("strategy"),
         "blocks": b.get("blocks"),
+        "valid": b.get("valid"),
         "min_sj": None if b.get("min_sj_fine") is None else round(b["min_sj_fine"], 4),
         "issues": ",".join(f"{k}:{v}" for k, v in (b.get("issues") or {}).items()) or "-",
         "time_s": report.get("time_s"),
         "reference": "-" if not ref else ("ok" if all(v["ok"] for v in ref.values()) else
                                           "FAIL " + ",".join(k for k, v in ref.items() if not v["ok"])),
+        "accept": "-" if "accepted" not in report else ("ok" if report["accepted"] else
+                                                        "FAIL " + ",".join(k for k, v in report["accept"].items() if not v["ok"])),
         "error": report.get("error"),
     }
 

@@ -67,6 +67,29 @@ def compare_reference(summary: dict, ref: dict) -> dict:
     return out
 
 
+def check_accept(summary: dict, accept: dict) -> dict:
+    """Acceptance of a workflow run: valid (bool), blocks (n or [lo, hi]), min_sj (lower bound of the fine
+    cells' scaled Jacobian), max_blocks."""
+    out = {}
+    if "valid" in accept:
+        out["valid"] = {"want": accept["valid"], "got": summary.get("valid"),
+                        "ok": summary.get("valid") == accept["valid"]}
+    if "blocks" in accept:
+        want = accept["blocks"]
+        lo, hi = (want, want) if isinstance(want, int) else want
+        out["blocks"] = {"want": want, "got": summary["blocks"], "ok": lo <= summary["blocks"] <= hi}
+    if "max_blocks" in accept:
+        out["max_blocks"] = {"want": accept["max_blocks"], "got": summary["blocks"],
+                             "ok": summary["blocks"] <= accept["max_blocks"]}
+    if "min_sj" in accept:
+        got = summary.get("min_sj_fine")
+        out["min_sj"] = {"want": accept["min_sj"], "got": got, "ok": got is not None and got >= accept["min_sj"]}
+    unknown = sorted(set(accept) - {"valid", "blocks", "max_blocks", "min_sj"})
+    if unknown:
+        out["unknown"] = {"want": unknown, "got": None, "ok": False}
+    return out
+
+
 def run_case(case: Case, fresh: bool = False) -> dict:
     ws = case.workspace
     if fresh and ws.exists() and any(ws.iterdir()):
@@ -79,6 +102,8 @@ def run_case(case: Case, fresh: bool = False) -> dict:
     _write(ws / "status.json", {"state": "running", "pid": os.getpid(), "start": t0, "case": str(case.path)})
     report = {"case": case.name, "case_file": str(case.path), "geometry": str(case.geometry),
               "hexdp": __version__, "workspace": str(ws)}
+    if case.parameters:
+        report["parameters"] = case.parameters
     try:
         for f in case.reuse:
             dst = ws / f.name
@@ -111,6 +136,9 @@ def run_case(case: Case, fresh: bool = False) -> dict:
                       features=[{"kind": f.kind, "confidence": f.confidence, "reasons": f.reasons} for f in res.features],
                       timings=res.timings, outputs=res.outputs, blocks=summary,
                       reference=compare_reference(summary, case.reference))
+        if case.accept:
+            report["accept"] = check_accept(summary, case.accept)
+            report["accepted"] = all(v["ok"] for v in report["accept"].values())
         res.blocks.save(ws / "blocks.json")
     except Exception as exc:
         report.update(state="failed", error=f"{type(exc).__name__}: {exc}", traceback=traceback.format_exc())

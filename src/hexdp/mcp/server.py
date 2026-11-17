@@ -11,7 +11,8 @@ Environment:
 Workflow of an agent:
     list_inputs -> open_geometry -> inspect_geometry / render_geometry -> detect_features ->
     list_strategies -> run_strategy (background job) -> wait_job / job_status / job_log -> job_result ->
-    evaluate / render_blocks / render_quality -> block_op -> export -> record_decision
+    evaluate / render_blocks / render_quality -> block_op -> export -> record_decision ->
+    save_workflow -> validate_workflow (other samples of the family) -> wait_job -> job_result
 
 Guards: inputs are read only below HEXDP_DATA, HEXDP_MCP_ROOT or the working directory; paths
 containing 'charite' are refused (confidential data); jobs run with the configured CPU list and only one
@@ -51,7 +52,11 @@ C-layers at thin walls, needs param wall_cad), 'algohex' (general topology, dtOO
 take hours - reuse an existing hex_hex_x.ovm via the 'reuse' argument when one is available).
 File parameters (kind 'path', e.g. wall_cad) may be given relative to the data root, as list_inputs shows them.
 Only one computation runs at a time: run_strategy and block_op are refused while a job is running.
-Wait for a job with wait_job (blocks up to max_s seconds) instead of polling job_status."""
+Wait for a job with wait_job (blocks up to max_s seconds) instead of polling job_status.
+For a geometry family (a parametrised geometry, e.g. dataset samples): once a sample works, save_workflow turns
+the job and the block_ops applied after it into a workflow file with placeholders (e.g. the sample name);
+validate_workflow runs it on other samples; adapt and save again until it is accepted on all of them. The
+workflow then runs without an agent: hexdp run workflow.yaml --set sample=..."""
 
 
 class State:
@@ -62,8 +67,9 @@ class State:
         self.cores = int(os.environ.get("HEXDP_MCP_CORES", "8"))
         self.timeout = float(os.environ.get("HEXDP_MCP_TIMEOUT", "7200"))      # per stage, seconds
         self.root.mkdir(parents=True, exist_ok=True)
+        os.environ.setdefault("HEXDP_DATA", str(self.data))     # ${HEXDP_DATA} in saved workflows
         self.geos: dict[str, dict] = {}       # geo_id -> {"geo", "path", "features", "detectors"}
-        self.blocks: dict[str, dict] = {}     # bs_id -> {"bs", "geo_id", "origin"}
+        self.blocks: dict[str, dict] = {}     # bs_id -> {"bs", "geo_id", "origin", "job", "ops", "exports"}
 
     def readable(self, p) -> Path:
         """The path as seen below an allowed root (symlinked data directories are allowed, as the
@@ -333,6 +339,9 @@ def job_status(job_id: str) -> dict:
     if logs:
         lines = [ln for ln in logs[-1].read_text(errors="replace").splitlines() if ln.strip()]
         last = lines[-1][:300] if lines else ""
+    if (d / "rows.json").exists():                                  # a validation job: runs finished so far
+        st["runs_done"] = len(json.loads((d / "rows.json").read_text())["rows"])
+        st["runs_total"] = len(json.loads((d / "runs.json").read_text()))
     st["elapsed_s"] = round((st.get("end") or time.time()) - st["start"], 1) if st.get("start") else None
     return {"job_id": job_id, **_jsonable(st), "active_log": logs[-1].name if logs else None, "last_line": last}
 
@@ -371,6 +380,10 @@ def job_result(job_id: str) -> dict:
     if not rep_file.exists():
         return {"job_id": job_id, "state": "running or not started", "hint": "poll job_status"}
     rep = json.loads(rep_file.read_text())
+    if rep.get("kind") == "batch":
+        return {"job_id": job_id, **_jsonable({k: rep.get(k) for k in ("state", "workflow", "runs", "accepted", "time_s")}),
+                "rows": [_jsonable({k: r.get(k) for k in ("parameters", "state", "blocks", "valid", "min_sj", "issues",
+                                                          "accept", "time_s", "error", "workspace")}) for r in rep["rows"]]}
     out = {k: rep.get(k) for k in ("state", "strategy", "scores", "timings", "blocks", "outputs", "error", "time_s")}
     if rep.get("state") == "done":
         vtk = (rep.get("outputs") or {}).get("vtk", [None])[0]
@@ -378,7 +391,7 @@ def job_result(job_id: str) -> dict:
         if bs is not None:
             bid = _new_id("bs")
             geo_id = next((g for g, e in s.geos.items() if e["path"] == rep.get("geometry")), None)
-            s.blocks[bid] = {"bs": bs, "geo_id": geo_id, "origin": job_id}
+            s.blocks[bid] = {"bs": bs, "geo_id": geo_id, "origin": job_id, "job": job_id, "ops": [], "exports": []}
             out["bs_id"] = bid
             bad = invalid(bs.check())
             out["valid"] = not bad
@@ -434,7 +447,8 @@ def block_op(bs_id: str, op: str, params: dict | None = None) -> dict:
     ctx = Context(s.root / _new_id(f"op_{op}"), cores=s.cores, cpu_list=s.cpus)
     new = plugin.apply(entry["bs"], geo, resolve_params(plugin.params, _paths(plugin, params)), ctx)
     bid = _new_id("bs")
-    s.blocks[bid] = {"bs": new, "geo_id": entry["geo_id"], "origin": f"{op}({bs_id})"}
+    s.blocks[bid] = {"bs": new, "geo_id": entry["geo_id"], "origin": f"{op}({bs_id})", "job": entry.get("job"),
+                     "ops": entry.get("ops", []) + [{"name": op, "params": _paths(plugin, params)}], "exports": []}
     return {"applied": True, "bs_id": bid, "workspace": str(ctx.workspace), "reasons": sc.reasons,
             "before": entry["bs"].n_blocks, "summary": _jsonable(new.summary())}
 
@@ -444,7 +458,8 @@ def export(bs_id: str, format: str = "vtk", name: str | None = None, allow_inval
     """Write a block structure with an exporter ('vtk', 'foam'); returns the written paths. An invalid
     structure (see evaluate) is refused unless allow_invalid is set."""
     s = state()
-    bs = s.bs(bs_id)["bs"]
+    entry = s.bs(bs_id)
+    bs = entry["bs"]
     bad = invalid(bs.check())
     if bad and not allow_invalid:
         raise ValueError(f"block structure {bs_id} is invalid ({dict(collections.Counter(i.kind for i in bad))}); "
@@ -452,6 +467,8 @@ def export(bs_id: str, format: str = "vtk", name: str | None = None, allow_inval
     ex = registry.load("exporters", format)
     ctx = Context(s.root / "_export", cores=1, cpu_list=s.cpus)
     paths = ex.write(bs, ctx.path(name or bs_id), resolve_params(ex.params, {}), ctx)
+    if format not in entry.setdefault("exports", []):
+        entry["exports"].append(format)
     return {"written": [str(p) for p in paths]}
 
 
@@ -465,6 +482,84 @@ def record_decision(job_or_geo_id: str, text: str) -> dict:
     with open(f, "a") as fh:
         fh.write(f"- {time.strftime('%Y-%m-%d %H:%M:%S')}: {text.strip()}\n")
     return {"file": str(f)}
+
+
+# --------------------------------------------------------------------------------------------- workflows
+def _workflow_file(name: str) -> Path:
+    if not re.fullmatch(r"[A-Za-z0-9][\w.-]*", name):
+        raise ValueError(f"workflow name {name!r}: letters, digits, '_', '-', '.' only")
+    return state().root / "_workflows" / f"{name}.yaml"
+
+
+@tool
+def save_workflow(bs_id: str, name: str, placeholders: dict[str, str] | None = None, accept: dict | None = None,
+                  notes: list[str] | None = None, overwrite: bool = False) -> dict:
+    """Turn the job behind bs_id and the block_ops applied after it into a workflow file for a geometry
+    family. placeholders {param: value}: every occurrence of value (e.g. the sample name 'tistos_s1_0131')
+    becomes ${param}; choose a value that appears only where samples differ. accept: acceptance of each
+    run, e.g. {"valid": true, "blocks": [10, 17], "min_sj": 0.02} (default {"valid": true}). notes: the
+    reasoning (the job's record_decision notes are added). Returns the file and its text; run it on other
+    samples with validate_workflow."""
+    from hexdp.pipeline.workflow import build_workflow, dump_workflow
+
+    s = state()
+    entry = s.bs(bs_id)
+    if not entry.get("job"):
+        raise ValueError(f"{bs_id} has no job behind it")
+    bad = invalid(entry["bs"].check())
+    if bad:
+        raise ValueError(f"{bs_id} is invalid ({dict(collections.Counter(i.kind for i in bad))}); "
+                         "a workflow is saved only from a valid block structure")
+    f = _workflow_file(name)
+    if f.exists() and not overwrite:
+        raise FileExistsError(f"workflow {name} exists ({f}); pass overwrite=true to replace it")
+    jd = s.job_dir(entry["job"])
+    case = yaml.safe_load((jd / "case.yaml").read_text())
+    for k, v in (placeholders or {}).items():
+        if not re.fullmatch(r"\w+", k):
+            raise ValueError(f"placeholder name {k!r}: letters, digits, '_' only")
+        if not v or v not in yaml.safe_dump(case) + json.dumps(entry["ops"]):
+            raise ValueError(f"placeholder {k}: value {v!r} does not occur in the job's case or ops")
+    job_notes = (jd / "agent_decisions.md").read_text().splitlines() if (jd / "agent_decisions.md").exists() else []
+    summ = entry["bs"].summary()
+    wf = build_workflow(case, name=name, ops=entry["ops"], placeholders=placeholders, data_root=s.data, accept=accept,
+                        notes=[*job_notes, *(notes or [])], exporters=entry.get("exports", []),
+                        origin={"job": entry["job"], "bs_id": bs_id, "geometry": case.get("geometry"),
+                                "blocks": summ.get("blocks"), "min_sj": summ.get("min_sj_fine")})
+    f.parent.mkdir(parents=True, exist_ok=True)
+    dump_workflow(wf, f)
+    return {"workflow": str(f), "name": name, "text": f.read_text()}
+
+
+@tool
+def validate_workflow(workflow: str, runs: list[dict[str, str]]) -> dict:
+    """Run a workflow (a name from save_workflow or a path) for several parameter sets, e.g.
+    [{"sample": "tistos_s1_0317"}, {"sample": "tistos_s1_0527"}], in one background job (sequentially);
+    wait_job, then job_result lists per run: valid, blocks, min_sj, accept. Reuse files that a sample does
+    not have are skipped; each validation job runs in fresh workspaces."""
+    from hexdp.pipeline.case import load_case
+    from hexdp.pipeline.jobs import start_batch
+
+    s = state()
+    f = _workflow_file(workflow) if not workflow.endswith((".yaml", ".yml")) else s.readable(workflow)
+    if not f.exists():
+        raise FileNotFoundError(f"no workflow {workflow} ({f})")
+    if not runs:
+        raise ValueError("runs: give at least one parameter set")
+    for values in runs:                             # every input through the guards before anything starts
+        c = load_case(f, values)
+        s.readable(c.geometry)
+        for r in c.reuse:
+            s.readable(r)
+        for kind, specs in (("strategies", c.strategies), ("ops", c.ops),
+                            ("discretisers", [c.discretiser] if c.discretiser else []),
+                            ("fillers", [c.filler] if c.filler else [])):
+            for sp in specs:
+                _paths(registry.load(kind, sp.name), sp.params)
+    s.require_idle("validate_workflow")
+    job = _new_id(f"validate_{f.stem}"[:40])
+    start_batch(f, runs, s.root / job)
+    return {"job_id": job, "workflow": str(f), "runs": len(runs)}
 
 
 def main():

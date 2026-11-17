@@ -26,6 +26,9 @@ def data(tmp_path_factory):
     gmsh.model.occ.synchronize()
     gmsh.write(str(d / "box.step"))
     gmsh.finalize()
+    for name in ("sample_1", "sample_2"):                       # a geometry family for the workflow test
+        (d / "fam" / name).mkdir(parents=True)
+        (d / "fam" / name / "box.step").write_bytes((d / "box.step").read_bytes())
     (d.parent / "elsewhere").mkdir(exist_ok=True)
     (d.parent / "elsewhere" / "ring.stl").write_text("solid x\nendsolid x\n")
     (d / "linked").symlink_to(d.parent / "elsewhere")          # data roots are often symlinked directories
@@ -63,7 +66,8 @@ def test_full_session_on_a_box(data):
         assert {"open_geometry", "detect_features", "list_strategies", "run_strategy", "job_status", "job_result",
                 "evaluate", "render_blocks", "export", "record_decision"} <= tools
         files = payload(await s.call_tool("list_inputs", {}))["files"]
-        assert [f["path"] for f in files] == ["box.step", "linked/ring.stl"]   # charite is not listed
+        assert [f["path"] for f in files] == ["box.step", "fam/sample_1/box.step", "fam/sample_2/box.step",
+                                              "linked/ring.stl"]   # charite is not listed
         g = payload(await s.call_tool("open_geometry", {"path": "box.step"}))
         gid = g["geo_id"]
         assert g["summary"]["surfaces"] == 6
@@ -131,3 +135,49 @@ def test_guards(data):
     assert r1.is_error and "confidential" in r1.content[0].text
     assert r2.is_error and "outside the allowed roots" in r2.content[0].text
     assert r3.is_error and "unknown bs_id" in r3.content[0].text
+
+
+def test_workflow_from_a_session(data):
+    async def fn(s):
+        gid = payload(await s.call_tool("open_geometry", {"path": "fam/sample_1/box.step"}))["geo_id"]
+        job = payload(await s.call_tool("run_strategy", {
+            "geo_id": gid, "strategy": P + "BoxStrategy", "detectors": [P + "BBoxDetector"],
+            "discretiser": P + "UniformDiscretiser", "discretiser_params": {"target_h": 0.5},
+            "filler": P + "LinearFiller"}))["job_id"]
+        assert payload(await s.call_tool("wait_job", {"job_id": job, "max_s": 60}))["state"] == "done"
+        bs = payload(await s.call_tool("job_result", {"job_id": job}))["bs_id"]
+        split = payload(await s.call_tool("block_op", {"bs_id": bs, "op": P + "SplitOp"}))["bs_id"]
+        await s.call_tool("record_decision", {"job_or_geo_id": job, "text": "one block, then split_i"})
+        dup = payload(await s.call_tool("block_op", {"bs_id": split, "op": P + "DuplicateOp"}))["bs_id"]
+        bad = await s.call_tool("save_workflow", {"bs_id": dup, "name": "boxes"})
+        assert bad.is_error and "invalid" in bad.content[0].text            # only from a valid structure
+        nope = await s.call_tool("save_workflow", {"bs_id": split, "name": "boxes", "placeholders": {"sample": "zz"}})
+        assert nope.is_error and "does not occur" in nope.content[0].text
+        wf = payload(await s.call_tool("save_workflow", {"bs_id": split, "name": "boxes",
+                                                         "placeholders": {"sample": "sample_1"},
+                                                         "accept": {"valid": True, "blocks": 2}}))
+        assert "${HEXDP_DATA}/fam/${sample}/box.step" in wf["text"] and P + "SplitOp" in wf["text"]
+        assert "one block, then split_i" in wf["text"]
+        again = await s.call_tool("save_workflow", {"bs_id": split, "name": "boxes"})
+        assert again.is_error and "overwrite" in again.content[0].text
+        guard = await s.call_tool("validate_workflow", {"workflow": "boxes", "runs": [{"sample": "../charite_secret"}]})
+        assert guard.is_error
+        v = payload(await s.call_tool("validate_workflow", {"workflow": "boxes",
+                                                            "runs": [{"sample": "sample_1"}, {"sample": "sample_2"}]}))
+        st = payload(await s.call_tool("wait_job", {"job_id": v["job_id"], "max_s": 120}))
+        assert st["state"] == "done" and st["runs_done"] == 2, st
+        res = payload(await s.call_tool("job_result", {"job_id": v["job_id"]}))
+        return wf, res
+
+    wf, res = asyncio.run(_session_run(data, fn))
+    assert res["accepted"] == 2 and [r["blocks"] for r in res["rows"]] == [2, 2], res
+    assert [r["parameters"]["sample"] for r in res["rows"]] == ["sample_1", "sample_2"]
+    assert all(r["accept"] == "ok" and r["valid"] for r in res["rows"])
+    # the saved workflow runs without the MCP server
+    from hexdp.pipeline.case import load_case
+    os.environ["HEXDP_DATA"] = str(data)
+    try:
+        c = load_case(wf["workflow"], {"sample": "sample_2"})
+    finally:
+        del os.environ["HEXDP_DATA"]
+    assert c.geometry == data / "fam" / "sample_2" / "box.step" and c.accept == {"valid": True, "blocks": 2}

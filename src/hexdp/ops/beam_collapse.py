@@ -298,6 +298,9 @@ if __name__ == "__main__":
     ap.add_argument("--max-drift-frac", type=float, default=0.5,
                     help="untangling may move boundary vertices up to this fraction of the Hausdorff tolerance off "
                          "the input surface to repair inverted cells inherited from the hex mesh (0: the old 1e-3)")
+    ap.add_argument("--boundary-singularities", action="store_true",
+                    help="boundary edges with a hex valence other than 2 (and sharp edges) also break blocks: for "
+                         "meshes with a regular boundary such as a polycube map (default: interior singular edges)")
     ap.add_argument("--no-topology-guard", action="store_true",
                     help="do not reject collapses that create topological defects (old behaviour)")
     ap.add_argument("--allow-invalid", action="store_true",
@@ -318,6 +321,9 @@ if __name__ == "__main__":
         if a.gap_mode == "local":
             # computed from the labeller's own surface (same file, but no assumption on the triangle order)
             cb.SURFACE_ALLOW = lambda P, T, ids: local_allow(P, T, ids, a.hausdorff_tol, a.gap_frac)
+    if a.boundary_singularities:
+        from hexdp.core import base_complex as _bcx
+        _bcx.INTERIOR_ONLY = False
     if a.max_drift_frac > 0:
         cb.UNTANGLE_MAX_DRIFT = max(cb.UNTANGLE_MAX_DRIFT, a.max_drift_frac * tol)
         print(f"[beam] untangle max boundary drift {cb.UNTANGLE_MAX_DRIFT:.4f}")

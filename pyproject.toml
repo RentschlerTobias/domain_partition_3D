@@ -35,6 +35,7 @@ algohex = "hexdp.strategies.algohex.plugin:AlgoHexStrategy"
 sweep = "hexdp.strategies.sweep.plugin:SweepStrategy"
 cgrid = "hexdp.strategies.sweep.plugin:CGridStrategy"
 composite = "hexdp.strategies.composite.plugin:CompositeStrategy"
+polycube = "hexdp.strategies.polycube.plugin:PolycubeStrategy"
 
 [project.entry-points."hexdp.ops"]
 block_collapse = "hexdp.ops.plugins:BlockCollapseOp"

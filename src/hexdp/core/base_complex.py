@@ -49,8 +49,13 @@ def build_topology(hexes):
     return f2h, e2h
 
 
+# Module default of singular_edges(interior_only=...): beam sets it off for meshes with a regular boundary (a
+# polycube map), where the boundary valence marks the real block structure (concave / convex polycube edges).
+INTERIOR_ONLY = True
+
+
 def singular_edges(hexes, points, f2h, e2h, sharp_deg=40.0,
-                   interior_only=True):
+                   interior_only=None):
     """Edges that must break the block structure.
 
     ``interior_only`` (default) uses only interior edges whose hex valence
@@ -63,6 +68,8 @@ def singular_edges(hexes, points, f2h, e2h, sharp_deg=40.0,
     blocks): on the boundary those tests fire on ordinary mesh irregularity
     rather than on real structure. Kept switchable for inspection.
     """
+    if interior_only is None:
+        interior_only = INTERIOR_ONLY
     # a boundary edge is one that belongs to at least one boundary face
     bnd_faces = {f for f, hs in f2h.items() if len(hs) == 1}
     bnd_edges = set()

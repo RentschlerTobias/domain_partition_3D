@@ -34,13 +34,16 @@ class SectionSweep:
         "grading": ParamSpec("0.5,1", "per stage: exponent of the level spacing (< 1: thick first layers, for a "
                              "fillet running out tangentially)"),
         "prefix": ParamSpec("blade", "boundary name prefix"),
+        "normal_cross": ParamSpec(True, "turn the cross lines from the root grid's direction to the mid-line normal "
+                                  "over the first stage"),
     }
 
     def run(self, inputs, params, ctx=None):
         band = next(v for v in inputs.values() if isinstance(v, dict) and v.get("kind") == "band")
         src = next(v for v in inputs.values() if isinstance(v, dict) and "stages" in v)
         grading = [float(x) for x in str(params["grading"]).split(",")]
-        return section_sweep(band, src["stages"], h=params["h"], grading=grading, prefix=params["prefix"])
+        return section_sweep(band, src["stages"], h=params["h"], grading=grading, prefix=params["prefix"],
+                             normal_cross=params["normal_cross"])
 
 
 def _region(band, k):
@@ -69,7 +72,7 @@ def _region(band, k):
     return cs, rs
 
 
-def section_sweep(band, stages, h=0.04, grading=(0.5, 1.0), prefix="blade"):
+def section_sweep(band, stages, h=0.04, grading=(0.5, 1.0), prefix="blade", normal_cross=True):
     m, C, P, R = band["mesh"], band["columns"], band["period"], band["r"]
     NB = int(band.get("symmetry", 1))
     oi, oj, G2 = m.oi, m.oj, band["G2"]
@@ -130,29 +133,103 @@ def section_sweep(band, stages, h=0.04, grading=(0.5, 1.0), prefix="blade"):
             Rw = np.hypot(F[..., 0], F[..., 1])
             return np.array([[np.interp(r, Rw[u], F[u, :, c]) for c in range(3)] for u in range(F.shape[0])])
 
-        def level(faces, r):
+        ic = [0]
+        for c in cs:
+            ic.append(ic[-1] + int((oi[c + 1] if c + 1 < C else NI) - oi[c]))
+        jc = [int(oj[r] - oj[rs[0]]) for r in rs] + [int(oj[rs[-1] + 1] - oj[rs[0]])]
+
+        def side_index(curves, off, ij):
+            pi, t = loc[ij]
+            return off[pi] + t * (len(curves[pi]) - 1)
+
+        def reorient(L, curves, w):
+            """Turn the interior cross lines (rows jc between the caps) towards the normal of the mid line by the
+            weight w: their end points move along the long sides (i = 0, ni-1) to the intersections of the mid-line
+            normal at the cross line's middle, blended with the patch-fraction position; the other side nodes keep
+            their spacing between the new anchors. Returns the new boundary (interior left to TFI/Winslow)."""
+            if w <= 0 or len(jc) < 3:
+                return L
+            off = np.cumsum([0] + [len(c) - 1 for c in curves])
+            loop = np.vstack([c[:-1] for c in curves])
+            n_lp = len(loop)
+            rr = float(np.hypot(loop[:, 0], loop[:, 1]).mean())
+            ref = np.arctan2(L[0, 0, 1], L[0, 0, 0])
+
+            def u2(Y):                                   # unrolled 2D about the section
+                ph = np.arctan2(Y[..., 1], Y[..., 0]) - ref
+                ph = (ph + np.pi) % (2 * np.pi) - np.pi
+                return np.stack([rr * ph, Y[..., 2]], -1)
+            L0 = winslow_on_cylinder(tfi(L.copy()))
+            mid = ni // 2
+            new = L.copy()
+            for i_side in (0, ni - 1):
+                # the side as a loop path from the j=0 corner to the j=nj-1 corner (through the side's middle)
+                k0 = side_index(curves, off, (i_side, 0)) % n_lp
+                k1 = side_index(curves, off, (i_side, nj - 1)) % n_lp
+                km = side_index(curves, off, (i_side, nj // 2)) % n_lp
+                span_f = (k1 - k0) % n_lp
+                fwd = (km - k0) % n_lp <= span_f
+                steps = span_f if fwd else (k0 - k1) % n_lp
+                q = np.linspace(0, steps, int(np.ceil(steps)) * 4 + 2)
+                kk = (k0 + q) % n_lp if fwd else (k0 - q) % n_lp
+                lo = np.floor(kk).astype(int)
+                fr = (kk - lo)[:, None]
+                path3 = (1 - fr) * loop[lo % n_lp] + fr * loop[(lo + 1) % n_lp]
+                path2 = u2(path3)
+                arc = np.r_[0, np.cumsum(np.linalg.norm(np.diff(path2, axis=0), axis=1))]
+                # current anchors (arc positions of the side nodes) and the new ones of the cross lines
+                node2 = u2(L[i_side])
+                s_nodes = np.array([arc[np.argmin(np.linalg.norm(path2 - p_, axis=1))] for p_ in node2])
+                s_new = s_nodes.copy()
+                for jj in jc[1:-1]:
+                    C2 = u2(L0[mid, jj])
+                    tvec = u2(L0[mid, min(jj + 1, nj - 1)]) - u2(L0[mid, max(jj - 1, 0)])
+                    nvec = np.array([-tvec[1], tvec[0]])
+                    d = (path2 - C2) @ (tvec / (np.linalg.norm(tvec) + 1e-300))   # along the mid line
+                    sgn = np.sign(d)
+                    hits = np.flatnonzero(sgn[:-1] * sgn[1:] <= 0)
+                    if not len(hits):
+                        continue
+                    h = hits[np.argmin(np.abs(arc[hits] - s_nodes[jj]))]
+                    t_ = d[h] / (d[h] - d[h + 1]) if d[h] != d[h + 1] else 0.0
+                    s_hit = arc[h] + t_ * (arc[h + 1] - arc[h])
+                    s_new[jj] = (1 - w) * s_nodes[jj] + w * s_hit
+                # the other nodes keep their relative spacing between consecutive anchors
+                anchors = [0, *jc[1:-1], nj - 1]
+                for a_, b_ in zip(anchors[:-1], anchors[1:]):
+                    if s_nodes[b_] == s_nodes[a_]:
+                        continue
+                    for j in range(a_ + 1, b_):
+                        f = (s_nodes[j] - s_nodes[a_]) / (s_nodes[b_] - s_nodes[a_])
+                        s_new[j] = s_new[a_] + f * (s_new[b_] - s_new[a_])
+                if np.any(np.diff(s_new) <= 0):            # order lost: keep the patch fractions on this side
+                    continue
+                for j in range(1, nj - 1):
+                    new[i_side, j] = np.array([np.interp(s_new[j], arc, path3[:, c]) for c in range(3)])
+            return new
+
+        def level(faces, r, w=0.0):
             L = np.zeros((ni, nj, 3))
             curves = [at_r(F, r) for F in faces]
             for (i, j), (pi, t) in loc.items():
                 L[i, j] = at_fraction(curves[pi], np.array([t]))[:, 0]
-            return winslow_on_cylinder(tfi(L))
+            return winslow_on_cylinder(tfi(reorient(L, curves, w)))
         n_lv = sum(len(lv) for lv in levels)
         ids = np.zeros((ni, nj, n_lv + 1), int)
         ids[:, :, 0] = S0
         lv_i, bounds = 0, [0]
+        r_first_end = r_end[0]
         for sk, (faces, rr) in enumerate(zip(st_k, levels)):
             for r in rr:
                 lv_i += 1
-                L = level(faces, r)
+                # cross lines turn from the hub grid's direction (root) to the mid-line normal over the first stage
+                w = 1.0 if (sk > 0 or np.isnan(r)) else float(np.clip((r - R) / (r_first_end - R), 0, 1))
+                L = level(faces, r, w if normal_cross else 0.0)
                 for i in range(ni):
                     for j in range(nj):
                         pts.append(L[i, j])
                         ids[i, j, lv_i] = len(pts) - 1
             bounds.append(lv_i)
-        ic = [0]
-        for c in cs:
-            ic.append(ic[-1] + int((oi[c + 1] if c + 1 < C else NI) - oi[c]))
-        jc = [int(oj[r] - oj[rs[0]]) for r in rs] + [int(oj[rs[-1] + 1] - oj[rs[0]])]
         for a in range(len(cs)):
             for b in range(len(rs)):
                 for k0, k1 in zip(bounds[:-1], bounds[1:]):

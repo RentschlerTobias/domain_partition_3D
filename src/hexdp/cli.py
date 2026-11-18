@@ -14,6 +14,7 @@
 """
 
 import argparse
+import json
 import sys
 
 from hexdp import __version__, registry
@@ -140,9 +141,31 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--json", default=None, help="write the rows as JSON")
     b.add_argument("--status-dir", default=None, help=argparse.SUPPRESS)   # background validation job
     b.set_defaults(func=_batch)
+    xv = sub.add_parser("extract-volume", help="one volume of a multi-volume AlgoHex-format tet mesh (.vtk)")
+    xv.add_argument("src")
+    xv.add_argument("dst")
+    g = xv.add_mutually_exclusive_group(required=True)
+    g.add_argument("--volume", type=int, nargs="+", help="volume ids to keep")
+    g.add_argument("--role", choices=("outer", "embedded"),
+                   help="outer = the volume(s) touching the outer boundary (e.g. box minus body), embedded = the rest")
+    xv.set_defaults(func=_extract_volume)
     m = sub.add_parser("mcp", help="run the MCP server (stdio)")
     m.set_defaults(func=lambda a: __import__("hexdp.mcp.server", fromlist=["main"]).main() or 0)
     return p
+
+
+def _extract_volume(args) -> int:
+    from hexdp.io import tetvtk
+    m = tetvtk.read(args.src)
+    vols = args.volume or tetvtk.volume_roles(m)[args.role]
+    if not vols:
+        print(f"no {args.role} volume (volumes: {m.volumes()})", file=sys.stderr)
+        return 1
+    sub = tetvtk.extract_volume(m, vols)
+    tetvtk.write(sub, args.dst)
+    print(json.dumps({"volumes": vols, "tets": len(sub.tets), "boundary_triangles": len(sub.tris),
+                      "face_ids": sorted(set(sub.tri_ids.tolist())), "dst": str(args.dst)}))
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:

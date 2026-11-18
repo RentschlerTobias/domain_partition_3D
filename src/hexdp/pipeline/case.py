@@ -132,6 +132,10 @@ def substitute(data, values: dict):
     if isinstance(data, list):
         return [substitute(v, values) for v in data]
     if isinstance(data, str):
+        whole = _PARAM.fullmatch(data.strip())
+        if whole and whole.group(1) in values:        # a value that is just "${name}" takes the value's type
+            v = yaml.safe_load(values[whole.group(1)])
+            return v if isinstance(v, (int, float, bool)) else values[whole.group(1)]
         return _PARAM.sub(lambda m: values.get(m.group(1), m.group(0)), data)
     return data
 

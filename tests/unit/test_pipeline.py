@@ -169,3 +169,9 @@ def test_build_workflow_reproduces_the_case_and_batch(case_dir, tmp_path):
     rep = json.loads((tmp_path / "v" / "report.json").read_text())
     assert rep["kind"] == "batch" and rep["accepted"] == 2 and status(tmp_path / "v")["state"] == "done"
     assert "| boxes_sample_2 | done |" in markdown(rows)
+
+
+def test_whole_placeholder_keeps_the_type():
+    from hexdp.pipeline.case import substitute
+    out = substitute({"a": "${x}", "b": "r${x}", "c": "${f}", "d": "${s}"}, {"x": "0.15", "f": "true", "s": "abc"})
+    assert out == {"a": 0.15, "b": "r0.15", "c": True, "d": "abc"}

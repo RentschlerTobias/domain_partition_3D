@@ -57,6 +57,9 @@ def load(path, mesh_size: float | None = None, stl_angle_deg: float = 40.0, shar
     (default: 1/50 of the bounding-box diagonal)."""
     path = Path(path)
     suf = path.suffix.lower()
+    if suf == ".json":                       # parameters of a parametric design: no surfaces until a strategy builds it
+        return Geometry(Source.PARAMS, str(path), {}, {}, {},
+                        notes=["parameter file: the geometry is built by a strategy (e.g. 'runner' from dtOO)"])
     with gmsh_session() as gmsh:
         if suf == ".msh":
             gmsh.open(str(path))

@@ -23,6 +23,7 @@ KINDS = (
     "fillers",
     "exporters",
     "interfaces",
+    "blocks",
 )
 
 

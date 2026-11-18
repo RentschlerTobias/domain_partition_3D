@@ -702,14 +702,19 @@ def _line_vertices(lay: Layout2D, ax: int, k: int):
     return [v for v, ij in enumerate(lay.vij) if ij[ax] == k]
 
 
-def collapse(dom: Domain2D, h: float, guard: float = 0.2, max_rounds: int = 200, absd=None, log=None):
+def collapse(dom: Domain2D, h: float, guard: float = 0.2, max_rounds: int = 200, absd=None, log=None,
+             expand=None, mesh_kw=None, mesh_dom=None):
     """Greedy chord collapse: merge two neighbouring index lines (the chord of blocks between them disappears),
     narrowest first, if the layout stays valid, the block count does not grow and the fine mesh at size h keeps
-    min scaled Jacobian >= guard; repeat until no merge is accepted. Returns (layout, fine mesh)."""
+    min scaled Jacobian >= guard; repeat until no merge is accepted. Returns (layout, fine mesh).
+    expand(layout, merge) -> merges applied together (e.g. the images of a merge under a symmetry); mesh_kw /
+    mesh_dom: arguments of the quality check (e.g. the unsheared domain and its shear)."""
+    mesh_kw = dict(mesh_kw or {})
+    mdom = mesh_dom if mesh_dom is not None else dom
     absd = absd if absd is not None else [abstract(lp) for lp in dom.loops]
     merges = []
     lay = layout(dom, merges, absd)
-    best = mesh(lay, dom, h)
+    best = mesh(lay, mdom, h, **mesh_kw)
     for _ in range(max_rounds):
         cands = []
         for ax, lines in ((0, lay.X), (1, lay.Y)):
@@ -724,18 +729,22 @@ def collapse(dom: Domain2D, h: float, guard: float = 0.2, max_rounds: int = 200,
                     cands.append((gap, ax, a[0], b[0]))
         accepted = False
         for gap, ax, a, b in sorted(cands):
+            new = expand(lay, (ax, a, b)) if expand else [(ax, a, b)]
             try:
-                trial = layout(dom, merges + [(ax, a, b)], absd)
+                trial = layout(dom, merges + new, absd)
             except LayoutError:
                 continue
             if trial.n_blocks > lay.n_blocks:
                 continue
-            m = mesh(trial, dom, h)
+            try:
+                m = mesh(trial, mdom, h, **mesh_kw)
+            except LayoutError:                       # e.g. a counts rule that cannot hold for this layout
+                continue
             if m.min_sj < guard and m.min_sj < best.min_sj:
                 continue
             if trial.n_blocks == lay.n_blocks and m.min_sj <= best.min_sj:
                 continue                              # no gain: neither fewer blocks nor better cells
-            merges.append((ax, a, b))
+            merges += new
             lay, best = trial, m
             accepted = True
             if log:

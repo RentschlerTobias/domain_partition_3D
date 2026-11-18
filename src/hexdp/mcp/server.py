@@ -180,7 +180,8 @@ def _jsonable(x, depth=0):
 # --------------------------------------------------------------------------------------------- inputs
 @tool
 def list_inputs(subdir: str = "", pattern: str = "*") -> dict:
-    """List geometry files (and case YAMLs) below HEXDP_DATA/subdir, recursively (max 200)."""
+    """List geometry files, parameter files of parametric designs (params*.json, e.g. dtOO runners: strategy
+    'runner') and case YAMLs below HEXDP_DATA/subdir, recursively (max 200)."""
     s = state()
     base = s.readable(subdir) if subdir else s.data
     import fnmatch
@@ -191,7 +192,8 @@ def list_inputs(subdir: str = "", pattern: str = "*") -> dict:
         found += [Path(dirpath) / f for f in sorted(filenames) if fnmatch.fnmatch(f, pattern)]
     out = []
     for p in found:
-        if p.is_file() and (p.suffix.lower() in GEOMETRY_SUFFIXES or p.suffix in (".yaml", ".yml")):
+        if p.is_file() and (p.suffix.lower() in GEOMETRY_SUFFIXES or p.suffix in (".yaml", ".yml")
+                            or (p.suffix == ".json" and p.stem.startswith("params"))):   # parametric designs
             if "charite" in str(p).lower():
                 continue
             out.append({"path": str(p.relative_to(s.data)) if str(p).startswith(str(s.data) + os.sep) else str(p),
@@ -270,6 +272,8 @@ def detect_features(geo_id: str, detectors: list[str] | None = None) -> dict:
     ctx = Context(s.root / "_detect" / geo_id, cores=1)
     feats = []
     for n in names:
+        if not entry["geo"].surfaces:        # a parameter file: the strategy builds the geometry
+            break
         d = registry.load("detectors", n)
         feats += d.detect(entry["geo"], resolve_params(d.params, {}), ctx)
     entry["features"] = feats

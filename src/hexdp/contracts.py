@@ -176,6 +176,17 @@ class InterfacePlugin(Protocol):
     def requirements(self, a: Geometry, b: Geometry, params: dict) -> Score: ...
 
 
+@runtime_checkable
+class BuildingBlock(Protocol):
+    """A step of a composite blocking: results of earlier steps -> a result (an input description, a surface
+    layout, or a Part of the block structure); see hexdp.blocks."""
+
+    name: str
+    params: dict[str, ParamSpec]
+
+    def run(self, inputs: dict, params: dict, ctx: Context) -> Any: ...
+
+
 CONTRACTS: dict[str, type] = {
     "detectors": Detector,
     "strategies": Strategy,
@@ -184,6 +195,7 @@ CONTRACTS: dict[str, type] = {
     "fillers": Filler,
     "exporters": Exporter,
     "interfaces": InterfacePlugin,
+    "blocks": BuildingBlock,
 }
 
 

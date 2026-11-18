@@ -34,6 +34,7 @@ sweep = "hexdp.detect.rotation:SweepDetector"
 algohex = "hexdp.strategies.algohex.plugin:AlgoHexStrategy"
 sweep = "hexdp.strategies.sweep.plugin:SweepStrategy"
 cgrid = "hexdp.strategies.sweep.plugin:CGridStrategy"
+composite = "hexdp.strategies.composite.plugin:CompositeStrategy"
 
 [project.entry-points."hexdp.ops"]
 block_collapse = "hexdp.ops.plugins:BlockCollapseOp"
@@ -49,6 +50,12 @@ b5 = "hexdp.fill.plugins:B5Filler"
 vtk = "hexdp.export.plugins:VtkExporter"
 foam = "hexdp.export.plugins:FoamExporter"
 msh = "hexdp.export.plugins:MshExporter"
+
+[project.entry-points."hexdp.blocks"]
+dtoo_rotor = "hexdp.blocks.rotor:DtooRotor"
+band_layout = "hexdp.blocks.band:BandLayout"
+revolve_fill = "hexdp.blocks.revolve:RevolveFill"
+section_sweep = "hexdp.blocks.sweep:SectionSweep"
 
 [tool.setuptools.packages.find]
 where = ["src"]

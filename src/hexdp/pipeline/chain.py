@@ -35,6 +35,9 @@ class ChainResult:
 def detect(geo: Geometry, detectors: list[Stage], ctx: Context) -> list[Feature]:
     feats: list[Feature] = []
     for st in detectors:
+        if not geo.surfaces:                 # a parameter file: nothing to detect before a strategy builds it
+            ctx.decide("detect", st.plugin.name, ["skipped: the geometry has no surfaces (parameter file)"])
+            continue
         found = st.plugin.detect(geo, resolve_params(st.plugin.params, st.params), ctx)
         ctx.decide("detect", st.plugin.name, [f"{f.kind} ({f.confidence:.2f}): {'; '.join(f.reasons)}" for f in found]
                    or ["nothing found"])

@@ -53,6 +53,7 @@ class Source(str, Enum):
     MSH = "msh"
     CAD = "cad"
     STL = "stl"
+    PARAMS = "params"            # a parameter file of a parametric design (the strategy builds the geometry)
 
 
 # Ordered: the first rule that matches a name token wins. Tokens are the name split at non-alphanumerics,
@@ -121,6 +122,8 @@ class Geometry:
 
     # -------------------------------------------------------------- summary
     def bbox(self) -> tuple[np.ndarray, np.ndarray]:
+        if not self.surfaces:
+            return np.zeros(3), np.zeros(3)
         P = np.vstack([s.nodes for s in self.surfaces.values()])
         return P.min(0), P.max(0)
 
@@ -161,6 +164,8 @@ class Geometry:
         """Topology of the domain boundary (surfaces next to exactly one volume, or all when volumes are
         unknown): Euler characteristic, connected components and whether it is a closed 2-manifold."""
         tags = [t for t in self.surfaces if len(self.surface_volumes.get(t, ())) == 1] or list(self.surfaces)
+        if not tags:                             # no surfaces (a parameter file): nothing to compare with
+            return {"chi": 0, "components": 0, "closed": False}
         P = np.vstack([self.surfaces[t].nodes for t in tags])
         scale = max(float(np.ptp(P, axis=0).max()), 1e-300)
         _, ids = np.unique(np.round(P / (scale * 1e-9)), axis=0, return_inverse=True)

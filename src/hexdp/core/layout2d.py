@@ -301,6 +301,7 @@ def _facing_pairs(dom, absd, verts, edges, ax):
 
 
 def _groups(dom, verts, vpos, edges, free, merges, absd=None):
+    robust = not merges                         # the expensive fallbacks only for the layout without merges
     n = len(verts)
     ux, uy = _UF(n + len(free)), _UF(n + len(free))
     for a, b, D, li, ei in edges:
@@ -325,6 +326,7 @@ def _groups(dom, verts, vpos, edges, free, merges, absd=None):
             ga, gb = gi[uf.f(a)], gi[uf.f(b)]
             span = abs(vpos[b] - vpos[a]).sum()
             cons.append((ga, gb, d, 0.05 * span + 1e-9))
+        n_dir = len(cons)
         if absd is not None:
             for a, b, w, gap in _facing_pairs(dom, absd, verts, edges, ax):
                 ga, gb = gi[uf.f(a)], gi[uf.f(b)]
@@ -332,14 +334,24 @@ def _groups(dom, verts, vpos, edges, free, merges, absd=None):
                     cons.append((ga, gb, 1, 0.25 * gap - w))     # x[gb] + w - x[ga] >= gap/4
         val = mean.copy()
         if any(d * (val[gb] - val[ga]) < m - 1e-12 for ga, gb, d, m in cons):
-            val = _project_order(mean, cons)
+            try:
+                val = _project_order(mean, cons, robust)
+            except LayoutError:
+                if not robust:
+                    raise
+                # the facing-order constraints can contradict each other (e.g. around a periodic seam with
+                # overlapping extents): keep only the edge directions; the arrangement checks the rest
+                val = _project_order(mean, cons[:n_dir], robust) if any(
+                    d * (mean[gb] - mean[ga]) < m - 1e-12 for ga, gb, d, m in cons[:n_dir]) else mean.copy()
         for r, k in gi.items():
             U[g[r], ax] = val[k]
     return np.round(U, 10) + 0.0, ux, uy
 
 
-def _project_order(mean, cons):
-    """Closest coordinates (least squares) to ``mean`` with d*(x[b]-x[a]) >= m for every (a, b, d, m)."""
+def _project_order(mean, cons, robust=True):
+    """Closest coordinates (least squares) to ``mean`` with d*(x[b]-x[a]) >= m for every (a, b, d, m): a convex
+    QP. SLSQP first; if it fails numerically, trust-constr, then Dykstra's alternating projections onto the
+    half-spaces (always converges for a feasible set)."""
     from scipy.optimize import minimize
 
     A = np.zeros((len(cons), len(mean)))
@@ -348,12 +360,39 @@ def _project_order(mean, cons):
         A[r, gb] += d
         A[r, ga] -= d
         lb[r] = m
+
+    def ok(x):
+        return x is not None and np.all(A @ x - lb >= -1e-9)
     res = minimize(lambda x: 0.5 * np.sum((x - mean) ** 2), mean, jac=lambda x: x - mean, method="SLSQP",
                    constraints=[{"type": "ineq", "fun": lambda x: A @ x - lb, "jac": lambda x: A}],
                    options={"maxiter": 500, "ftol": 1e-14})
-    if not res.success or np.any(A @ res.x - lb < -1e-9):
+    if res.success and ok(res.x):
+        return res.x
+    if not robust:                              # a chord-collapse trial: fail fast, the trial is just rejected
         raise LayoutError(f"no parameter coordinates with consistent edge directions ({res.message})")
-    return res.x
+    from scipy.optimize import LinearConstraint
+    res2 = minimize(lambda x: 0.5 * np.sum((x - mean) ** 2), mean, jac=lambda x: x - mean,
+                    hess=lambda x: np.eye(len(x)), method="trust-constr",
+                    constraints=[LinearConstraint(A, lb, np.inf)], options={"maxiter": 3000, "gtol": 1e-12})
+    if ok(res2.x):
+        return res2.x
+    # Dykstra: projections onto the half-spaces a.x >= l with correction terms
+    x = mean.copy()
+    inc = np.zeros((len(cons), len(mean)))
+    nrm = np.einsum("ij,ij->i", A, A)
+    for _ in range(20000):
+        x_old = x.copy()
+        for r in range(len(cons)):
+            y = x + inc[r]
+            viol = lb[r] - A[r] @ y
+            xp = y + (viol / nrm[r]) * A[r] if viol > 0 else y
+            inc[r] = y - xp
+            x = xp
+        if np.abs(x - x_old).max() < 1e-13 and ok(x):
+            break
+    if ok(x + 0.0) or np.all(A @ x - lb >= -1e-7):
+        return x
+    raise LayoutError(f"no parameter coordinates with consistent edge directions ({res.message})")
 
 
 def layout(dom: Domain2D, merges=(), absd=None) -> Layout2D:

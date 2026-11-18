@@ -46,3 +46,20 @@ def test_synthetic_rotor_is_valid_and_closed(fillet, r_bore):
     assert bs.boundary_topology() == {"chi": 2 if r_bore == 0 else 0, "components": 1}   # a bore: a torus
     names = {bs.meta["surface_names"][fi.surface] for fi in bs.face_info.values()}
     assert names == {"hub_z0", "hub_z1", "hub_mantle", "blade", "blade_tip"} | ({"hub_bore"} if r_bore else set())
+
+
+def test_dataset_export_is_a_closed_outward_boundary(tmp_path):
+    from hexdp.contracts import Context
+    from hexdp.export.dataset import DatasetExporter
+    rot = rotor_description(synthetic_rotor(), fillet=True)
+    band = band_layout(rot, h=0.08, core_pairing=False)
+    bs, _ = compose([revolve_fill(band, r_bore=0.15), section_sweep(band, rot["stages"], h=0.08)])
+    ex = DatasetExporter()
+    f = ex.write(bs, tmp_path / "s", {"n_points": 500, "seed": 1, "edge_samples": 5}, Context(tmp_path))[0]
+    z = np.load(f)
+    V, T = z["bnd_vertices"].astype(float), z["bnd_triangles"]
+    D = np.vstack([T[:, [0, 1]], T[:, [1, 2]], T[:, [2, 0]]])
+    dset = set(map(tuple, D))
+    assert len(dset) == len(D) and all((b, a) in dset for a, b in D)                                  # closed, oriented
+    assert np.einsum("ij,ij->i", V[T[:, 0]], np.cross(V[T[:, 1]], V[T[:, 2]])).sum() > 0             # outward
+    assert z["surf_points"].shape == (500, 3) and z["blocks"].shape[1] == 8 and z["edge_curves"].shape[1:] == (5, 3)

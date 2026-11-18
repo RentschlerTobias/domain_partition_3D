@@ -119,6 +119,7 @@ def run_case(case: Case, fresh: bool = False) -> dict:
             geo.set_role(tags, PatchRole(role), RoleSource.MANUAL)
         report["geometry_summary"] = geo.summary()
         ctx = Context(ws, cores=case.cores, timeout_s=case.timeout_s, cpu_list=case.cpu_list)
+        _write(ws / "case.json", {"case": case.name, "geometry": str(case.geometry), "parameters": case.parameters})
         strategies = (_stages("strategies", case.strategies) if case.strategies
                       else [Stage(registry.load("strategies", n)) for n in registry.names("strategies")])
         res = run_chain(

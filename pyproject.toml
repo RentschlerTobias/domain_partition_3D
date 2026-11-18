@@ -51,6 +51,7 @@ b5 = "hexdp.fill.plugins:B5Filler"
 vtk = "hexdp.export.plugins:VtkExporter"
 foam = "hexdp.export.plugins:FoamExporter"
 msh = "hexdp.export.plugins:MshExporter"
+dataset = "hexdp.export.dataset:DatasetExporter"
 
 [project.entry-points."hexdp.blocks"]
 dtoo_rotor = "hexdp.blocks.rotor:DtooRotor"

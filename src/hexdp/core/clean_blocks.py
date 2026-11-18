@@ -480,6 +480,100 @@ def collapse_sheet(P, hexes, edges):
     return Q, np.array(keep, np.int64), dropped
 
 
+
+# Cut non-ball base blocks (e.g. a polycube mesh around a through hole has no interior singular edge, so its one base
+# block wraps the hole) by extra face sheets until every block is a ball. Off by default; beam --force-ball sets it.
+FORCE_BALL = False
+
+
+def face_sheet(hexes, f2h, seed, faces_of_edge, hex_faces):
+    """The face surface through ``seed`` continued straight across every interior regular edge (4 hexes): at an
+    edge, the continuation of a face is the face around that edge sharing no hex with it."""
+    out, todo = {seed}, [seed]
+    while todo:
+        f = todo.pop()
+        hs = set(f2h[f])
+        vs = list(f)
+        for g in faces_of_edge_keys(f):
+            around = faces_of_edge.get(g, ())
+            hexes_g = {h for ff in around for h in f2h[ff]}
+            if len(hexes_g) != 4 or any(len(f2h[ff]) != 2 for ff in around):
+                continue                                  # boundary or singular edge: the sheet ends here
+            nxt = [ff for ff in around if ff != f and not (set(f2h[ff]) & hs)]
+            if len(nxt) == 1 and nxt[0] not in out:
+                out.add(nxt[0])
+                todo.append(nxt[0])
+    return out
+
+
+def faces_of_edge_keys(fk):
+    """The 4 edges of a quad face given as a frozenset of its 4 vertices (cycle order is not stored, so take the
+    edges of the face cycle recorded in _FACE_CYCLE)."""
+    return _FACE_EDGES[fk]
+
+
+_FACE_EDGES = {}
+
+
+def force_ball_cut(hexes, f2h, cut, log=print, max_tries=400):
+    """Extra cut faces so that every block of blocks_from_cut(cut) is a ball: per non-ball block, the smallest face
+    sheet through it (seeded from its interior faces) that makes the blocks balls; repeated until none is left."""
+    global _FACE_EDGES
+    _FACE_EDGES = {}
+    faces_of_edge = defaultdict(list)
+    for h, c in enumerate(hexes):
+        for fc in HF:
+            lp = [int(c[i]) for i in fc]
+            fk = frozenset(lp)
+            if fk not in _FACE_EDGES:
+                es = [(min(lp[k], lp[(k + 1) % 4]), max(lp[k], lp[(k + 1) % 4])) for k in range(4)]
+                _FACE_EDGES[fk] = es
+                for g in es:
+                    faces_of_edge[g].append(fk)
+    cut = set(cut)
+    added = 0
+    for _round in range(20):
+        blocks = bc.blocks_from_cut(hexes, f2h, cut)
+        bad = [b for b in blocks if non_ball_blocks(hexes, [b])]
+        if not bad:
+            break
+        b = bad[0]
+        inner = {frozenset(int(hexes[h][i]) for i in fc) for h in b for fc in HF}
+        inner = [fk for fk in inner if len(f2h[fk]) == 2 and fk not in cut]
+        step = max(1, len(inner) // max_tries)
+        best = None
+        cands, seen_s = [], set()
+        for fk in inner[::step]:
+            S = frozenset(face_sheet(hexes, f2h, fk, faces_of_edge, HF))
+            if S in seen_s:
+                continue
+            seen_s.add(S)
+            cands.append(S)
+            trial = bc.blocks_from_cut(hexes, f2h, cut | S)
+            nb = sum(non_ball_blocks(hexes, [x]) for x in trial)
+            if nb < len(bad) and (best is None or (nb, len(S)) < best[0]):
+                best = ((nb, len(S)), S)
+        if best is None:
+            # one cut through a ring leaves a block glued to itself across the cut: try pairs of disjoint sheets
+            cands.sort(key=len)
+            cands = cands[:40]
+            for i in range(len(cands)):
+                for j in range(i + 1, len(cands)):
+                    if cands[i] & cands[j]:
+                        continue
+                    S = cands[i] | cands[j]
+                    trial = bc.blocks_from_cut(hexes, f2h, cut | S)
+                    nb = sum(non_ball_blocks(hexes, [x]) for x in trial)
+                    if nb < len(bad) and (best is None or (nb, len(S)) < best[0]):
+                        best = ((nb, len(S)), S)
+        if best is None:
+            log(f"[clean_blocks] force_ball: no face sheet makes block {len(b)} cells a ball")
+            break
+        cut |= best[1]
+        added += len(best[1])
+        log(f"[clean_blocks] force_ball: cut a {len(best[1])}-face sheet, non-ball blocks {len(bad)} -> {best[0][0]}")
+    return cut, added
+
 def non_ball_blocks(hexes, blocks):
     """Blocks whose cell set is not a topological ball: Euler characteristic of
     the block's boundary quad surface != 2. A block wrapped around the blade
@@ -1090,6 +1184,13 @@ class BlockStructure:
         self.sing = bc.singular_edges(self.hexes, P, self.f2h, self.e2h)
         self.sheet_of, self.n_sheet = bfx.label_sheets(self.hexes, self.f2h,
                                                        self.sing)
+        if FORCE_BALL:
+            cut, added = force_ball_cut(self.hexes, self.f2h, set(self.sheet_of))
+            nxt = self.n_sheet
+            for fk in cut - set(self.sheet_of):
+                self.sheet_of[fk] = nxt                  # the extra faces form one more (forced) sheet label
+            if added:
+                self.n_sheet = nxt + 1
         base = bc.blocks_from_cut(self.hexes, self.f2h, set(self.sheet_of))
         self.blk0 = np.zeros(len(self.hexes), int)
         for i, b in enumerate(base):
@@ -1181,6 +1282,10 @@ class BlockStructure:
         ra, rb = self.root(a), self.root(b)
         if ra == rb:
             return False
+        if FORCE_BALL:                           # never glue blocks into a non-ball again (a ring around a hole)
+            cells = self.cells_of()
+            if non_ball_blocks(self.hexes, [cells[ra] + cells[rb]]):
+                return False
         self.parent[rb] = ra
         self._cache.clear()      # neighbour keys change too, so drop all
         return True
@@ -1672,7 +1777,8 @@ def absorb_tiny_blocks(S, min_cells, verbose=True):
                     continue
                 bef, aft = _merge_gain(S, r, nb, cells)
                 if aft <= bef:
-                    S.merge(nb, r)
+                    if not S.merge(nb, r):          # refused (would recreate a non-ball block)
+                        continue
                     done += 1
                     hit = True
                     break
@@ -1725,8 +1831,7 @@ def merge_non_cuboids(S, max_cells=None, verbose=True):
                 before, after = _merge_gain(S, r, nb, cells)
                 if before - after > gain:
                     best, gain = nb, before - after
-            if best is not None:
-                S.merge(best, r)
+            if best is not None and S.merge(best, r):    # merge refuses to recreate a non-ball block
                 done += 1
                 hit = True
                 break

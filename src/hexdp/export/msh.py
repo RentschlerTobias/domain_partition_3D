@@ -2,7 +2,7 @@
 (``dolfinx.io.gmshio``).
 
 Physical groups: one volume group ("domain", tag 1) or one per block, and one surface group per geometry
-surface of the boundary faces (from ``face_info``: name "<role>_<surface tag>", tag = surface tag), faces
+surface of the boundary faces (from ``face_info``: name ``meta["surface_names"][tag]`` or "<role>_<tag>"), faces
 without that information in "boundary" (tag 0 is not used by gmsh, so it gets max tag + 1). Elements are
 linear (hex8, quad4); the element order of a FEniCS function space is independent of the mesh.
 """
@@ -36,7 +36,8 @@ def boundary_groups(bs) -> dict[tuple[str, int], list[tuple[int, int, int]]]:
         if info is None or info.surface is None:
             rest.append(users[0])
         else:
-            groups.setdefault((f"{info.role.value}_{info.surface}", int(info.surface)), []).append(users[0])
+            name = bs.meta.get("surface_names", {}).get(int(info.surface), f"{info.role.value}_{info.surface}")
+            groups.setdefault((name, int(info.surface)), []).append(users[0])
     if rest:
         groups[("boundary", max([t for _, t in groups] + [0]) + 1)] = rest
     return groups

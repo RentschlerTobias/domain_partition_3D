@@ -34,6 +34,8 @@ class Loop:
     points: np.ndarray                       # (n, 2) closed polyline (last point != first), domain on the left
     pins: tuple = ()                         # point indices that must be layout vertices
     shift: float = 0.0                       # x added to point 0 when closing the loop (periodic band lines)
+    embedded: bool = False                   # an interior constraint loop (both sides are domain), oriented
+                                             # like a hole; rays run through it
 
     def __post_init__(self):
         self.points = np.asarray(self.points, float).reshape(-1, 2)
@@ -42,6 +44,10 @@ class Loop:
     def closed(self):
         """Points with the closing point appended (shifted for a band line)."""
         return np.vstack([self.points, self.points[:1] + [self.shift, 0.0]])
+
+
+def _loop(lp, **kw):
+    return Loop(lp.points if "points" not in kw else kw["points"], kw.get("pins", lp.pins), lp.shift, lp.embedded)
 
 
 @dataclass
@@ -75,8 +81,8 @@ def best_shear(dom: Domain2D, s_max: float = 3.0, n: int = 241) -> float:
 
 def sheared(dom: Domain2D, s: float) -> Domain2D:
     """The domain in sheared coordinates x' = x - s*y (period and band shifts unchanged)."""
-    return Domain2D([Loop(lp.points - np.c_[s * lp.points[:, 1], np.zeros(len(lp.points))], lp.pins, lp.shift)
-                     for lp in dom.loops], dom.period)
+    return Domain2D([Loop(lp.points - np.c_[s * lp.points[:, 1], np.zeros(len(lp.points))], lp.pins, lp.shift,
+                          lp.embedded) for lp in dom.loops], dom.period)
 
 
 # ------------------------------------------------------------------ 1. rectilinear abstraction
@@ -400,19 +406,23 @@ def layout(dom: Domain2D, merges=(), absd=None) -> Layout2D:
         if dy == 0:
             return ("h", p[0] if dx > 0 else wrap(p[0] - 1), p[1])
         return ("v", wrap(p[0]), p[1] if dy > 0 else p[1] - 1)
+    iedges = set()                                  # edges of embedded loops: walls, but rays cross them
     for a, b, D, li, ei in edges:
         dx, dy = _dirvec(D)
+        emb = dom.loops[li].embedded
         p = vij[a]
         steps = 0
         while p != vij[b] or steps == 0:
             q = (wrap(p[0] + dx), p[1] + dy)
-            bedges.add(ek(p, dx, dy))
-            bnodes.add(p)
+            (iedges if emb else bedges).add(ek(p, dx, dy))
+            if not emb:
+                bnodes.add(p)
             p = q
             steps += 1
             if steps > 10 * (nx + len(Y)):
                 raise LayoutError(f"parameter edge {a}->{b} does not reach its end vertex")
-        bnodes.add(p)
+        if not emb:
+            bnodes.add(p)
     for li, j in fy.items():                        # free loops: a full row of boundary edges
         for i in range(ncx):
             bedges.add(("h", i, j))
@@ -421,7 +431,7 @@ def layout(dom: Domain2D, merges=(), absd=None) -> Layout2D:
     segs = []
     for a, b, D, li, ei in edges:
         dx, dy = _dirvec(D)
-        if dx != 0:                                  # horizontal parameter edge
+        if dx != 0 and not dom.loops[li].embedded:   # horizontal parameter edge of a real boundary
             x0 = U[a, 0]
             L = (U[b, 0] - U[a, 0]) * dx
             if per:
@@ -458,8 +468,11 @@ def layout(dom: Domain2D, merges=(), absd=None) -> Layout2D:
     rays, redges = [], set()
     for vi, (li, ei) in enumerate(verts):
         e = absd[li][ei]
-        for m in range(1, e["v"]):
-            dx, dy = _dirvec(e["D"] + 90 * m)
+        dirs = [e["D"] + 90 * m for m in range(1, e["v"])]
+        if dom.loops[li].embedded:                  # the inside: valence 4 - v, rays turning right
+            dirs += [e["D"] - 90 * m for m in range(1, 4 - e["v"])]
+        for Dr in dirs:
+            dx, dy = _dirvec(Dr)
             p, path = vij[vi], [vij[vi]]
             for _ in range(10 * (nx + len(Y))):
                 q = (wrap(p[0] + dx), p[1] + dy)
@@ -468,12 +481,12 @@ def layout(dom: Domain2D, merges=(), absd=None) -> Layout2D:
                 redges.add(ek(p, dx, dy))
                 path.append(q)
                 p = q
-                if q in bnodes:
+                if q in bnodes or q == vij[vi]:     # boundary, or once around the cylinder
                     break
             else:
                 raise LayoutError(f"ray from vertex {vi} does not end")
-            rays.append((vi, e["D"] + 90 * m, path))
-    walls = bedges | redges
+            rays.append((vi, Dr, path))
+    walls = bedges | redges | iedges
     comp, blocks = {}, []
     for c in sorted(cells):
         if c in comp:
@@ -530,9 +543,18 @@ class FineMesh:
     cells: np.ndarray
     min_sj: float
     sj: np.ndarray
+    IJ: np.ndarray | None = None             # fine index (I mod NI, J) per node
+    oi: np.ndarray | None = None             # fine index offsets of the index lines
+    oj: np.ndarray | None = None
 
 
-def mesh(lay: Layout2D, dom: Domain2D, h: float, nmin: int = 1, iters: int = 3000, tol: float = 1e-9) -> FineMesh:
+def mesh(lay: Layout2D, dom: Domain2D, h: float, nmin: int = 1, iters: int = 3000, tol: float = 1e-9,
+         shear: float = 0.0, slide_free: bool = False, counts=None) -> FineMesh:
+    """Fine structured mesh of the layout, re-fitted to ``dom`` by Winslow smoothing. A layout made on the
+    sheared domain (``sheared(dom, s)``) is meshed on the original one with ``shear=s``: the smoothing then runs
+    in the physical plane. ``slide_free``: nodes of free loops (straight band ends) slide along the line so the
+    grid lines meet it at right angles instead of following the shear. ``counts``: callable(ncol, nrow) ->
+    (ncol, nrow) to adjust the fine cell counts of the index intervals (e.g. equal counts on matched chords)."""
     per = dom.period
     X, Y = lay.X, lay.Y
     nx = len(X)
@@ -540,6 +562,8 @@ def mesh(lay: Layout2D, dom: Domain2D, h: float, nmin: int = 1, iters: int = 300
     widths = [(X[c + 1] if c + 1 < nx else X[0] + per) - X[c] for c in range(ncx)]
     ncol = [max(nmin, int(round(w / h))) for w in widths]
     nrow = [max(nmin, int(round((Y[r + 1] - Y[r]) / h))) for r in range(len(Y) - 1)]
+    if counts is not None:
+        ncol, nrow = (list(map(int, c)) for c in counts(list(ncol), list(nrow)))
     oi, oj = np.r_[0, np.cumsum(ncol)], np.r_[0, np.cumsum(nrow)]
     NI = int(oi[-1])
     ux = np.concatenate([np.linspace(X[c], X[c] + widths[c], ncol[c] + 1)[:-1] for c in range(ncx)]
@@ -560,6 +584,7 @@ def mesh(lay: Layout2D, dom: Domain2D, h: float, nmin: int = 1, iters: int = 300
     N = len(keys)
     kl = list(keys)
     U = np.array([[ux[I] if I < len(ux) else ux[0] + per, uy[J]] for I, J in kl])   # parameter positions
+    U[:, 0] += shear * U[:, 1]                       # parameter -> physical plane
     Xf = U.copy()
     fixed = np.zeros(N, bool)
 
@@ -604,6 +629,7 @@ def mesh(lay: Layout2D, dom: Domain2D, h: float, nmin: int = 1, iters: int = 300
             Xf[k] = xy
             fixed[k] = True
     free = [li for li, a in enumerate(lay.absd) if not a]
+    slide = []                                       # (node, inward neighbour) of sliding free-loop nodes
     for li in free:                                  # free loops: x from the parameter, y on the line
         loop = dom.loops[li]
         yl = loop.points[:, 1].mean()
@@ -619,6 +645,11 @@ def mesh(lay: Layout2D, dom: Domain2D, h: float, nmin: int = 1, iters: int = 300
                 o = np.argsort(Pl[:, 0])
                 Xf[k] = [U[k, 0], np.interp(xq, Pl[o, 0], Pl[o, 1])]
                 fixed[k] = True
+                if slide_free:
+                    for dj in (1, -1):
+                        if (I, J + dj) in keys:
+                            slide.append((k, keys[(I, J + dj)]))
+                            break
     # Winslow on the free nodes (8-neighbour stencil in index space, periodic shift in x)
     inner = np.flatnonzero(~fixed)
     offs = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, 1), (1, -1), (-1, -1)]
@@ -640,6 +671,9 @@ def mesh(lay: Layout2D, dom: Domain2D, h: float, nmin: int = 1, iters: int = 300
         new = (a * (E + W) + g * (Nn + S) - 0.5 * bb * (NE - NW - SE + SW)) / (2 * (a + g) + 1e-300)
         d = np.abs(new - Xf[inner]).max() if len(inner) else 0.0
         Xf[inner] = new
+        if slide:
+            sk = np.array(slide)
+            Xf[sk[:, 0], 0] = Xf[sk[:, 1], 0]          # orthogonal to a horizontal band end
         if d < tol:
             break
     C = np.array(fine_cells)
@@ -659,7 +693,8 @@ def mesh(lay: Layout2D, dom: Domain2D, h: float, nmin: int = 1, iters: int = 300
             Iend = (i1 // ncx) * NI
         G = np.array([[keys[(wI(I), J)] for J in range(oj[j0], oj[j1] + 1)] for I in range(I0, Iend + 1)])
         grids.append(G)
-    return FineMesh(X=Xf, grids=grids, cells=C, min_sj=float(sj.min()) if len(sj) else 1.0, sj=sj)
+    return FineMesh(X=Xf, grids=grids, cells=C, min_sj=float(sj.min()) if len(sj) else 1.0, sj=sj,
+                    IJ=np.array(kl), oi=np.asarray(oi), oj=np.asarray(oj))
 
 
 # ------------------------------------------------------------------ 5. chord collapse

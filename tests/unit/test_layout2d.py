@@ -63,3 +63,13 @@ def test_collapse_merges_nearly_equal_lines():
     before = layout(d).n_blocks
     lay, m = collapse(d, h=0.5, guard=0.2)
     assert lay.n_blocks < before and len(lay.Y) == 4 and m.min_sj > 0.2   # 2 / 2.1 and 4 / 4.1 merged
+
+
+def test_embedded_loop_gives_a_conforming_grid():
+    outer = Loop(np.array([(0, 0), (6, 0), (6, 6), (0, 6)], float))
+    inner = Loop(np.array([(2, 2), (2, 4), (4, 4), (4, 2)], float), embedded=True)
+    lay = layout(Domain2D([outer, inner]))
+    assert lay.n_blocks == 9                                # 3 x 3, the middle one inside the embedded loop
+    P = 4.0
+    lay2 = layout(Domain2D([*band(P, 0, 3), Loop(sq(1, 2, ccw=False), embedded=True)], period=P))
+    assert lay2.n_blocks == 6                               # 3 rows x 2 columns, all lines run through

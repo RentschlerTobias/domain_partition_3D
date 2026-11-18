@@ -213,3 +213,16 @@ def test_canonical_hex_mesh_ignores_entity_order():
     assert np.array_equal(a[0], b[0]) and np.array_equal(a[1], b[1])
     from hexdp.core.blockstructure import BlockStructure
     assert BlockStructure(*b).corner_jacobians().min() > 0          # rotations keep the orientation
+
+
+def test_local_hausdorff_allow_follows_the_local_gap():
+    from hexdp.ops.beam_collapse import local_allow
+
+    def sq(z, o):
+        return (np.array([(0, 0, z), (1, 0, z), (1, 1, z), (0, 1, z)], float), np.array([[0, 1, 2], [0, 2, 3]]) + o)
+    P1, T1 = sq(0, 0)
+    P2, T2 = sq(0.1, 4)
+    P = np.vstack([P1, P2, P1 + [5, 0, 0]])
+    T = np.vstack([T1, T2, T1 + 8])
+    allow = local_allow(P, T, np.r_[1, 1, 2, 2, 3, 3], 0.1, 0.5)
+    assert np.allclose(allow, [0.05, 0.05, 0.05, 0.05, 0.1, 0.1])      # narrow gap: half of it; far: the flag

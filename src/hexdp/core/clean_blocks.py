@@ -176,6 +176,11 @@ def _closest_point_on_tris(q, A, B, C):
     return ((q - p) ** 2).sum(-1), p
 
 
+# Optional local surface tolerance: callable(points, tris, ids) -> allowed distance per input triangle. When
+# set (beam does, from the local gap between surfaces), the labeller also records max(distance / allowed).
+SURFACE_ALLOW = None
+
+
 class SurfaceLabeller:
     """Exact surface label for a hex-mesh boundary quad, by nearest input
     face. Never a coordinate threshold -- see the module docstring."""
@@ -188,6 +193,8 @@ class SurfaceLabeller:
         self.names = names or {int(s): f"surf{int(s)}"
                                for s in np.unique(self.ids)}
         self.max_dist = 0.0
+        self.max_rel = 0.0
+        self.allow = None if SURFACE_ALLOW is None else np.asarray(SURFACE_ALLOW(points, tris, self.ids), float)
 
     def label(self, Q):
         """Q: (n,3) quad centroids -> (n,) surface ids."""
@@ -197,7 +204,10 @@ class SurfaceLabeller:
         d2 = _closest_point_dist2(Q, self.P[T[..., 0]], self.P[T[..., 1]],
                                   self.P[T[..., 2]])
         best = np.argmin(d2, axis=1)
-        self.max_dist = float(np.sqrt(d2[np.arange(len(Q)), best]).max())
+        dist = np.sqrt(d2[np.arange(len(Q)), best])
+        self.max_dist = float(dist.max())
+        if self.allow is not None:
+            self.max_rel = float((dist / self.allow[cand[np.arange(len(Q)), best]]).max())
         return self.ids[cand[np.arange(len(Q)), best]]
 
 
@@ -551,7 +561,8 @@ def _structure_stats(P, hexes, labeller):
             "tiny": int(sum(1 for s in sizes if s < 10)),
             "inverted": int((sj <= 0).sum()),
             "min_sj": float(sj.min()),
-            "hausdorff": float(labeller.max_dist)}
+            "hausdorff": float(labeller.max_dist),
+            "hausdorff_rel": float(getattr(labeller, "max_rel", 0.0))}
 
 
 def collapse_mesh_sheets(P, hexes, labeller, max_rounds=4, verbose=True,
@@ -775,8 +786,13 @@ def untangle_until_stuck(P, hexes, f2h, labeller=None, rounds=1, rings=1,
     return P, total
 
 
+# How far the untangling may move boundary vertices off the input surface. beam sets it from its Hausdorff
+# tolerance (an inherited inverted cell is repaired at the price of a boundary drift the collapse may cause anyway).
+UNTANGLE_MAX_DRIFT = 1e-3
+
+
 def _smooth(P, hexes, Pl, Hl, free, fidx, cells, g0, slide, verbose,
-            max_drift=1e-3):
+            max_drift=None):
     """One smoothing sweep. `slide` is None for interior-only, else
     (labeller, indices into `free` that are on the boundary, their positions).
 
@@ -825,7 +841,7 @@ def _smooth(P, hexes, Pl, Hl, free, fidx, cells, g0, slide, verbose,
         if verbose:
             print(f"[clean_blocks]   eps={eps} w={w}: {g[0]} inverted, "
                   f"min {-g[1]:.4f}, boundary drift {d:.6f}")
-        if d > max_drift:
+        if d > (UNTANGLE_MAX_DRIFT if max_drift is None else max_drift):
             continue
         if g < g0 and (best is None or g < best[0]):
             best = (g, cand_P, d)

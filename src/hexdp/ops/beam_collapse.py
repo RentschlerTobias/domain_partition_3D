@@ -70,7 +70,10 @@ def _children(P, hexes, labeller, workers):
 def _ok(st, bar, ceiling, guard, sj_floor):
     if st is None:
         return False
-    if st["hausdorff"] > ceiling + 1e-9:
+    if isinstance(ceiling, tuple):              # local tolerance: distance / allowed distance per input face
+        if st["hausdorff_rel"] > ceiling[1] + 1e-9:
+            return False
+    elif st["hausdorff"] > ceiling + 1e-9:
         return False
     if st.get("non_ball", 0) > bar.get("non_ball", 0):
         # a block that is not a topological ball (wrapped around the blade hole or
@@ -144,12 +147,22 @@ def beam_collapse(P, hexes, labeller, width=6, depth=6, guard="abs",
     # it. With "abs" an absolute tolerance applies; the block faces are
     # projected onto the exact geometry later anyway.
     ceiling = base["hausdorff"] if guard == "raw" else max(base["hausdorff"], hausdorff_tol)
+    if verbose and getattr(labeller, "allow", None) is not None:
+        al = labeller.allow
+        print(f"[beam] local tolerance per input face: min {al.min():.4f}, median {np.median(al):.4f}, "
+              f"max {al.max():.4f}; {100 * np.mean(al < al.max() - 1e-12):.1f}% of the faces below the maximum")
+    if guard != "raw" and getattr(labeller, "allow", None) is not None:
+        # local tolerance (allowed distance per input face from the local gap): relative ceiling 1, or the raw
+        # mesh's own relative deviation if that is larger
+        ceiling = ("rel", max(base["hausdorff_rel"], 1.0))
     # with "struct" the collapse may sacrifice quality -> quality only breaks ties
     if verbose:
         fl = bar["min_sj"] if guard == "raw" else sj_floor
         print(f"[beam] start {base}")
         print(f"[beam] guard={guard}: inverted <= {bar['inverted']}, min sJ >= "
-              f"{fl:.4f}, Hausdorff <= {ceiling:.5f}; width {width}, depth {depth}")
+              f"{fl:.4f}, Hausdorff <= "
+              f"{(f'{ceiling[1]:.3f} x local tolerance' if isinstance(ceiling, tuple) else f'{ceiling:.5f}')}; "
+              f"width {width}, depth {depth}")
     beam = [(base, P, hexes, [])]
     best = (base, P, hexes, [])
     seen = set()
@@ -227,6 +240,25 @@ def min_patch_gap(points, tris, labels):
     return best, pair
 
 
+def local_allow(points, tris, labels, tol, frac):
+    """Allowed boundary deviation per input triangle: min(tol, frac x local gap), the local gap being the distance
+    from the triangle's vertices to the nearest vertex of a surface that shares no vertex with its own surface
+    (adjacent surfaces meet at gap 0 by construction). Away from narrow gaps the full tolerance applies."""
+    from scipy.spatial import cKDTree
+    labels = np.asarray(labels)
+    verts = {int(l): np.unique(tris[labels == l]) for l in np.unique(labels)}
+    trees = {l: cKDTree(points[v]) for l, v in verts.items()}
+    gap_v = np.full(len(points), np.inf)
+    for a, va in verts.items():
+        for b, vb in verts.items():
+            if a == b or np.intersect1d(va, vb).size:
+                continue
+            d, _ = trees[b].query(points[va])
+            gap_v[va] = np.minimum(gap_v[va], d)
+    gap_t = gap_v[tris].min(1)
+    return np.minimum(tol, frac * gap_t)
+
+
 def patch(width=6, depth=6, guard="abs", sj_floor=0.05, workers=6, hausdorff_tol=0.05,
           max_base_hausdorff=0.15, topology_guard=True):
     def collapse(P, hexes, labeller, max_rounds=4, verbose=True, repair=None,
@@ -257,9 +289,15 @@ if __name__ == "__main__":
     ap.add_argument("--untangle-rounds", type=int, default=6)
     ap.add_argument("--max-raw-hausdorff", type=float, default=0.15,
                     help="refuse a raw hex mesh farther than this from the input surface")
+    ap.add_argument("--gap-mode", choices=("local", "global"), default="local",
+                    help="local: the tolerance per input face is min(tol, gap-frac x local gap); global: one "
+                         "tolerance min(tol, gap-frac x narrowest gap) for the whole surface (old behaviour)")
     ap.add_argument("--gap-frac", type=float, default=0.5,
                     help="cap the Hausdorff tolerance at this fraction of the narrowest gap "
                          "between two labelled input surfaces that share no vertex; 0 = off")
+    ap.add_argument("--max-drift-frac", type=float, default=0.5,
+                    help="untangling may move boundary vertices up to this fraction of the Hausdorff tolerance off "
+                         "the input surface to repair inverted cells inherited from the hex mesh (0: the old 1e-3)")
     ap.add_argument("--no-topology-guard", action="store_true",
                     help="do not reject collapses that create topological defects (old behaviour)")
     ap.add_argument("--allow-invalid", action="store_true",
@@ -277,6 +315,12 @@ if __name__ == "__main__":
         tol = min(a.hausdorff_tol, a.gap_frac * gap)
         print(f"[beam] narrowest gap {gap:.4f} between labels {pair} -> Hausdorff tol "
               f"{tol:.4f} (flag {a.hausdorff_tol})")
+        if a.gap_mode == "local":
+            # computed from the labeller's own surface (same file, but no assumption on the triangle order)
+            cb.SURFACE_ALLOW = lambda P, T, ids: local_allow(P, T, ids, a.hausdorff_tol, a.gap_frac)
+    if a.max_drift_frac > 0:
+        cb.UNTANGLE_MAX_DRIFT = max(cb.UNTANGLE_MAX_DRIFT, a.max_drift_frac * tol)
+        print(f"[beam] untangle max boundary drift {cb.UNTANGLE_MAX_DRIFT:.4f}")
     patch(a.width, a.depth, a.guard, a.sj_floor, a.workers, tol,
           a.max_raw_hausdorff, not a.no_topology_guard)
     if a.ovm.endswith(".vtk"):

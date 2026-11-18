@@ -2,7 +2,7 @@
 mesh of the polycube map -> beam sheet collapse to blocks (as for AlgoHex).
 
 Input: a CAD solid (STEP/BREP/IGES: tet-meshed with gmsh here) or a tet mesh in the AlgoHex VTK format (e.g. HexMe).
-The evocube programs (prep_cli, evolabel_cli, polycube_withHexEx; built locally in /work/ext/evocube) are found in
+The evocube programs (prep_cli, evolabel_cli, polycube_withHexEx; built locally in /opt/stack/ext/evocube) are found in
 ``evocube_bin`` or $HEXDP_EVOCUBE_BIN. Stage outputs in the workspace are reused.
 """
 
@@ -24,7 +24,7 @@ TOOLS = ("prep_cli", "evolabel_cli", "polycube_withHexEx")
 
 
 def _bin_dir(param):
-    d = Path(param or os.environ.get("HEXDP_EVOCUBE_BIN", "/work/ext/evocube/build"))
+    d = Path(param or os.environ.get("HEXDP_EVOCUBE_BIN", "/opt/stack/ext/evocube/build"))
     missing = [t for t in TOOLS if not (d / t).exists()]
     if missing:
         raise StageError(f"evocube programs {missing} not found in {d} (set evocube_bin or $HEXDP_EVOCUBE_BIN)")
@@ -92,6 +92,10 @@ class PolycubeStrategy:
     }
 
     def applicable(self, geo, features):
+        from hexdp.backends import available
+        if not available("evocube"):
+            return Score.no("evocube is not installed (polycube labeling; see docs/backends.md)",
+                            missing=("backend evocube",))
         p = str(geo.path or "").lower()
         if geo.surfaces:
             topo = geo.boundary_topology()

@@ -5,7 +5,9 @@
 Environment:
     HEXDP_DATA        input data root (datasets, geometries); readable
     HEXDP_MCP_ROOT    job workspaces (default ./hexdp_mcp_runs); readable and writable
-    HEXDP_MCP_CPUS    CPU list for jobs (default "0-7"), HEXDP_MCP_CORES core count (default 8)
+    (all optional) HEXDP_MCP_CPUS: a preset CPU list for jobs; without it every computing tool needs the cpus
+    argument (the agent asks the user). The server never uses more CPUs than its own affinity: restrict it from
+    outside like any program (e.g. `taskset -c 0-47 hexdp mcp`).
     HEXDP_MCP_TIMEOUT time limit per job stage in seconds (default 7200)
 
 Workflow of an agent:
@@ -53,6 +55,13 @@ take hours - reuse an existing hex_hex_x.ovm via the 'reuse' argument when one i
 File parameters (kind 'path', e.g. wall_cad) may be given relative to the data root, as list_inputs shows them.
 Only one computation runs at a time: run_strategy and block_op are refused while a job is running.
 Wait for a job with wait_job (blocks up to max_s seconds) instead of polling job_status.
+Resources and backends: call check_environment first. Before the first computing job (run_strategy,
+validate_workflow) ask the user how many CPUs it may use and say why (jobs run minutes to hours on every CPU they
+get; on a shared machine they slow down other work); pass the answer as cpus in every computing call. If a strategy
+is not applicable because a backend is missing (e.g. AlgoHex), first check whether available methods suffice (sweep,
+polycube, composite building blocks); only then ask the user whether to install it, with the facts from
+check_environment (AlgoHex: build 30-60 min; per geometry median ~35 min, up to hours, ~9 % fail). Never install
+anything without the user's consent.
 For a geometry family (a parametrised geometry, e.g. dataset samples): once a sample works, save_workflow turns
 the job and the block_ops applied after it into a workflow file with placeholders (e.g. the sample name);
 validate_workflow runs it on other samples; adapt and save again until it is accepted on all of them. The
@@ -63,8 +72,7 @@ class State:
     def __init__(self):
         self.data = Path(os.environ.get("HEXDP_DATA", os.getcwd())).resolve()
         self.root = Path(os.environ.get("HEXDP_MCP_ROOT", "hexdp_mcp_runs")).resolve()
-        self.cpus = os.environ.get("HEXDP_MCP_CPUS", "0-7")
-        self.cores = int(os.environ.get("HEXDP_MCP_CORES", "8"))
+        self.preset_cpus = os.environ.get("HEXDP_MCP_CPUS") or None       # optional preset, else ask per job
         self.timeout = float(os.environ.get("HEXDP_MCP_TIMEOUT", "7200"))      # per stage, seconds
         self.root.mkdir(parents=True, exist_ok=True)
         os.environ.setdefault("HEXDP_DATA", str(self.data))     # ${HEXDP_DATA} in saved workflows
@@ -107,7 +115,7 @@ class State:
         """One computation at a time on the job CPU list (the core budget must not depend on the agent)."""
         busy = self.running_jobs()
         if busy:
-            raise RuntimeError(f"{what} refused: job {busy[0]} is still running on CPUs {self.cpus}; "
+            raise RuntimeError(f"{what} refused: job {busy[0]} is still running; "
                                "wait for it (job_status) before starting another computation")
 
     def job_dir(self, job_id) -> Path:
@@ -151,6 +159,22 @@ def _geo_of(entry: dict):
     """The open geometry of a block-structure entry (for the boundary topology check), or None."""
     g = state().geos.get(entry.get("geo_id")) if entry.get("geo_id") else None
     return g["geo"] if g else None
+
+
+def _cpus(cpus, what: str, required: bool = True):
+    """(cpu_list, cores) for a computation: the given cpus ('4' = the first 4 available CPUs, or '0-3,8'), else the
+    server preset; without either a computing tool refuses - ask the user how many CPUs it may use."""
+    from hexdp.backends import compact, parse_cpus
+    spec = cpus or state().preset_cpus
+    if spec is None:
+        if not required:
+            spec = "1"
+        else:
+            raise ValueError(f"{what}: give cpus (e.g. cpus='8' or cpus='0-7'). Ask the user first how many CPUs this "
+                             "may use: these jobs run for minutes to hours on every CPU they get; on a shared machine "
+                             "they slow down other work. check_environment shows the CPUs and the load.")
+    lst = parse_cpus(spec)
+    return compact(lst), len(lst)
 
 
 def _paths(plugin, params: dict | None) -> dict:
@@ -254,6 +278,17 @@ def render_geometry(geo_id: str, elev: float = 25, azim: float = -60) -> Image:
     return Image(data=rg(state().geo(geo_id)["geo"], elev=elev, azim=azim), format="png")
 
 
+# --------------------------------------------------------------------------------------------- environment
+@tool
+def check_environment() -> dict:
+    """Hardware (CPUs available to the server, load, memory) and the optional compute backends: which are
+    installed, what each is needed for, and facts (AlgoHex: build effort, run time, failure rate). Call it at the
+    start: ask the user how many CPUs jobs may use; if a needed backend is missing, first check whether available
+    methods suffice, and only then ask whether to install it (explain what would not be possible without it)."""
+    from hexdp.backends import environment
+    return _jsonable(environment())
+
+
 # --------------------------------------------------------------------------------------------- plugins
 @tool
 def list_plugins(kind: str | None = None) -> dict:
@@ -302,10 +337,11 @@ def list_strategies(geo_id: str) -> dict:
 def run_strategy(geo_id: str, strategy: str, params: dict | None = None, ops: list[str] | None = None,
                  discretiser: str | None = None, discretiser_params: dict | None = None,
                  filler: str | None = None, filler_params: dict | None = None, reuse: list[str] | None = None,
-                 detectors: list[str] | None = None, name: str | None = None) -> dict:
+                 detectors: list[str] | None = None, name: str | None = None, cpus: str | None = None) -> dict:
     """Start a blocking job in the background: strategy (name), its params, optional ops (e.g.
     ["block_collapse"]), filler (e.g. "tfi"), files to reuse in the workspace (e.g. an existing
-    hex_hex_x.ovm). Returns job_id; poll job_status."""
+    hex_hex_x.ovm). cpus: how many / which CPUs the job may use ('8' or '0-7') - ask the user first (jobs run
+    minutes to hours). Returns job_id; wait with wait_job."""
     from hexdp.pipeline.jobs import start
 
     s = state()
@@ -315,6 +351,7 @@ def run_strategy(geo_id: str, strategy: str, params: dict | None = None, ops: li
         discretiser_params = _paths(registry.load("discretisers", discretiser), discretiser_params)
     if filler:
         filler_params = _paths(registry.load("fillers", filler), filler_params)
+    cpu_list, cores = _cpus(cpus, "run_strategy")
     s.require_idle("run_strategy")
     job = name or _new_id(re.sub(r"\W+", "_", strategy.split(":")[-1]).lower())
     ws = s.root / job
@@ -323,7 +360,7 @@ def run_strategy(geo_id: str, strategy: str, params: dict | None = None, ops: li
             "detectors": detectors if detectors is not None else entry.get("detectors", []),
             "ops": ops or [], "exporters": ["vtk"], "workspace": str(ws),
             "reuse": [str(s.readable(r)) for r in reuse or []],
-            "resources": {"cores": s.cores, "cpu_list": s.cpus, "timeout_s": s.timeout}}
+            "resources": {"cores": cores, "cpu_list": cpu_list, "timeout_s": s.timeout}}
     if discretiser:
         case["discretiser"] = {"name": discretiser, "params": discretiser_params or {}}
     if filler:
@@ -443,7 +480,7 @@ def render_quality(bs_id: str) -> Image:
 
 
 @tool
-def block_op(bs_id: str, op: str, params: dict | None = None) -> dict:
+def block_op(bs_id: str, op: str, params: dict | None = None, cpus: str | None = None) -> dict:
     """Apply an op (e.g. 'block_collapse') to a block structure, synchronously in its own workspace
     (block_collapse on the canada draft tube takes ~1 min). Returns the new bs_id and summary."""
     s = state()
@@ -456,7 +493,8 @@ def block_op(bs_id: str, op: str, params: dict | None = None) -> dict:
     sc = plugin.applicable(entry["bs"], geo)
     if not sc.ok:
         return {"applied": False, "reasons": sc.reasons, "missing": sc.missing}
-    ctx = Context(s.root / _new_id(f"op_{op}"), cores=s.cores, cpu_list=s.cpus)
+    cpu_list, cores = _cpus(cpus, "block_op", required=False)   # light ops: 1 CPU unless told otherwise
+    ctx = Context(s.root / _new_id(f"op_{op}"), cores=cores, cpu_list=cpu_list)
     new = plugin.apply(entry["bs"], geo, resolve_params(plugin.params, _paths(plugin, params)), ctx)
     bid = _new_id("bs")
     s.blocks[bid] = {"bs": new, "geo_id": entry["geo_id"], "origin": f"{op}({bs_id})", "job": entry.get("job"),
@@ -477,7 +515,7 @@ def export(bs_id: str, format: str = "vtk", name: str | None = None, allow_inval
         raise ValueError(f"block structure {bs_id} is invalid ({dict(collections.Counter(i.kind for i in bad))}); "
                          "fix it or pass allow_invalid=true")
     ex = registry.load("exporters", format)
-    ctx = Context(s.root / "_export", cores=1, cpu_list=s.cpus)
+    ctx = Context(s.root / "_export", cores=1)
     paths = ex.write(bs, ctx.path(name or bs_id), resolve_params(ex.params, {}), ctx)
     if format not in entry.setdefault("exports", []):
         entry["exports"].append(format)
@@ -544,7 +582,7 @@ def save_workflow(bs_id: str, name: str, placeholders: dict[str, str] | None = N
 
 
 @tool
-def validate_workflow(workflow: str, runs: list[dict[str, str]]) -> dict:
+def validate_workflow(workflow: str, runs: list[dict[str, str]], cpus: str | None = None) -> dict:
     """Run a workflow (a name from save_workflow or a path) for several parameter sets, e.g.
     [{"sample": "tistos_s1_0317"}, {"sample": "tistos_s1_0527"}], in one background job (sequentially);
     wait_job, then job_result lists per run: valid, blocks, min_sj, accept. Reuse files that a sample does
@@ -568,9 +606,10 @@ def validate_workflow(workflow: str, runs: list[dict[str, str]]) -> dict:
                             ("fillers", [c.filler] if c.filler else [])):
             for sp in specs:
                 _paths(registry.load(kind, sp.name), sp.params)
+    cpu_list, _cores = _cpus(cpus, "validate_workflow")
     s.require_idle("validate_workflow")
     job = _new_id(f"validate_{f.stem}"[:40])
-    start_batch(f, runs, s.root / job)
+    start_batch(f, runs, s.root / job, cpu_list=cpu_list)
     return {"job_id": job, "workflow": str(f), "runs": len(runs)}
 
 

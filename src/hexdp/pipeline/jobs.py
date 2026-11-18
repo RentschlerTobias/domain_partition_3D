@@ -29,16 +29,18 @@ def start(case_file, overrides: dict | None = None) -> Path:
     return case.workspace
 
 
-def start_batch(workflow, runs: list[dict], job_dir) -> Path:
+def start_batch(workflow, runs: list[dict], job_dir, cpu_list: str | None = None) -> Path:
     """Start `hexdp batch` for the parameter sets in its own process; status and report in job_dir, the
     run workspaces below it."""
     job_dir = Path(job_dir)
     job_dir.mkdir(parents=True, exist_ok=True)
     (job_dir / "runs.json").write_text(json.dumps(runs))
     code = ("import json,sys; from hexdp.pipeline.workflow import run_batch; "
-            "run_batch(sys.argv[1], json.load(open(sys.argv[2])), workspace_root=sys.argv[3], status_dir=sys.argv[3])")
+            "run_batch(sys.argv[1], json.load(open(sys.argv[2])), workspace_root=sys.argv[3], status_dir=sys.argv[3], "
+            "cpu_list=sys.argv[4] or None)")
     with open(job_dir / "run.out", "ab") as out:
-        proc = subprocess.Popen([sys.executable, "-c", code, str(workflow), str(job_dir / "runs.json"), str(job_dir)],
+        proc = subprocess.Popen([sys.executable, "-c", code, str(workflow), str(job_dir / "runs.json"), str(job_dir),
+                                 cpu_list or ""],
                                 stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
     (job_dir / "status.json").write_text(json.dumps(
         {"state": "running", "pid": proc.pid, "start": time.time(), "case": str(workflow)}))

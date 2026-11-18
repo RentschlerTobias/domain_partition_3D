@@ -21,6 +21,14 @@ from hexdp.pipeline.case import CaseError, load_case
 from hexdp.pipeline.evaluate import row
 from hexdp.pipeline.runner import _write, run_case
 
+
+def parse_cpu_list(spec: str) -> list[int]:
+    out = set()
+    for part in str(spec).split(","):
+        a, _, b = part.partition("-")
+        out |= set(range(int(a), int(b or a) + 1))
+    return sorted(out)
+
 HEADER = """# hexdp workflow '{name}': a block structure recipe for a geometry family.
 #   hexdp run {file} --set {example}
 #   hexdp batch {file} --each {first}=a,b,c
@@ -89,9 +97,10 @@ def parse_each(spec: str) -> list[dict]:
 
 
 def run_batch(wf, runs: list[dict], *, common: dict | None = None, workspace_root=None, rerun: bool = False,
-              status_dir=None) -> list[dict]:
+              status_dir=None, cpu_list: str | None = None) -> list[dict]:
     """Run the workflow once per parameter set (sequentially); a finished run is reused unless rerun.
-    status_dir: write status.json / report.json there (a background validation job)."""
+    status_dir: write status.json / report.json there (a background validation job); cpu_list overrides the
+    workflow's resources (the CPUs the user allowed for this run)."""
     sd = Path(status_dir) if status_dir else None
     t0 = time.time()
     if sd:
@@ -102,6 +111,9 @@ def run_batch(wf, runs: list[dict], *, common: dict | None = None, workspace_roo
         values = {**(common or {}), **values}
         try:
             case = load_case(wf, values, workspace_root)
+            if cpu_list:
+                case.cpu_list = cpu_list
+                case.cores = len(parse_cpu_list(cpu_list))
         except (CaseError, FileNotFoundError) as exc:
             rows.append({"case": ",".join(f"{k}={v}" for k, v in values.items()), "state": "invalid",
                          "parameters": values, "error": str(exc)})

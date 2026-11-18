@@ -76,6 +76,10 @@ class SweepStrategy:
     params = dict(SWEEP_PARAMS)
 
     def applicable(self, geo, features):
+        from hexdp.backends import available
+        if not available("occ"):
+            return Score.no("pythonOCC is not installed (exact CAD sections; see docs/backends.md)",
+                            missing=("backend occ",))
         return _sweep_score(geo, features, self.name)
 
     def run(self, geo, features, params, ctx):
@@ -96,6 +100,10 @@ class CGridStrategy:
     params = dict(SWEEP_PARAMS, wall_cad=ParamSpec("", "CAD with the thin walls (STEP); required", kind="path"))
 
     def applicable(self, geo, features):
+        from hexdp.backends import available
+        if not available("occ"):
+            return Score.no("pythonOCC is not installed (exact CAD sections; see docs/backends.md)",
+                            missing=("backend occ",))
         s = _sweep_score(geo, features, self.name)
         if not s.ok:
             return s

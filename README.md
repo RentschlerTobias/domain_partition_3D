@@ -13,6 +13,23 @@ hexdp plugins
 pytest tests
 ```
 
+### hexdp as an MCP server (Claude Code, opencode, other harnesses)
+
+```bash
+pip install -e .                           # gives the command `hexdp`
+cd /path/to/your/project                   # the folder with your geometries
+claude mcp add hexdp -- hexdp mcp          # Claude Code
+opencode mcp add hexdp -- hexdp mcp        # opencode
+```
+
+Nothing else is needed: the server reads inputs below the working directory, writes jobs to `./hexdp_mcp_runs`
+and uses the CPUs it is started with. The agent calls `check_environment` first, asks you how many CPUs jobs
+may use, and - if a method needs a backend that is missing (AlgoHex, pythonOCC/dtOO, evocube, mmg) - first tries
+the available methods and then asks whether to install it. Backends, facts and install effort:
+[docs/backends.md](docs/backends.md). Optional environment variables: `HEXDP_DATA` (input root),
+`HEXDP_MCP_ROOT` (job folder), `HEXDP_MCP_TIMEOUT` (seconds per stage, default 7200), `HEXDP_MCP_CPUS` (preset
+CPU answer for unattended runs). To keep the server on part of a shared machine: `taskset -c 0-47 hexdp mcp`.
+
 ## The 3D pipeline at a glance
 
 ![The 3D pipeline in nine steps](docs/figures/hexmesh/00_pipeline_steps.png)

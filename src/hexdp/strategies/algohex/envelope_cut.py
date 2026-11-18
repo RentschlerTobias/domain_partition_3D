@@ -41,7 +41,7 @@ from hexdp.strategies.algohex import tet_prep as v5
 
 # mmg is not in the container: git clone https://github.com/MmgTools/mmg, cmake
 # -DUSE_SCOTCH=OFF -DUSE_ELAS=OFF -DUSE_VTK=OFF, make install; point MMG3D at mmg3d_O3
-MMG = os.environ.get("MMG3D", "/work/tools/mmg-install/bin/mmg3d_O3")
+MMG = os.environ.get("MMG3D", "/opt/stack/tools/mmg-install/bin/mmg3d_O3")
 ISO_REF = 10                                                # mmg's MG_ISO
 
 

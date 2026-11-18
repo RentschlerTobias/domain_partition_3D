@@ -34,6 +34,10 @@ class AlgoHexStrategy:
     }
 
     def applicable(self, geo, features):
+        from hexdp.backends import BACKENDS, available
+        if not available("algohex"):
+            return Score.no("AlgoHex (HexMeshing) is not installed - " + BACKENDS["algohex"]["facts"],
+                            missing=("backend algohex",))
         if geo.path and str(geo.path).lower().endswith(".vtk"):
             return Score(0.4, ["general topology: no sweep direction or symmetry needed",
                                "input is already an AlgoHex tet mesh with feature tags (no tet_prep)"])

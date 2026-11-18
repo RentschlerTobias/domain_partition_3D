@@ -43,9 +43,12 @@ def call(session, name, **args):
     return go()
 
 
-async def _session_run(data, fn):
-    env = dict(os.environ, HEXDP_DATA=str(data), HEXDP_MCP_ROOT=str(data / "runs"), HEXDP_MCP_CPUS="0-3",
-               HEXDP_MCP_CORES="4", PYTHONPATH=os.pathsep.join([str(REPO / "src"), str(REPO)]))
+async def _session_run(data, fn, preset_cpus="1"):
+    env = dict(os.environ, HEXDP_DATA=str(data), HEXDP_MCP_ROOT=str(data / "runs"),
+               PYTHONPATH=os.pathsep.join([str(REPO / "src"), str(REPO)]))
+    env.pop("HEXDP_MCP_CPUS", None)
+    if preset_cpus:
+        env["HEXDP_MCP_CPUS"] = preset_cpus
     params = StdioServerParameters(command=sys.executable, args=["-m", "hexdp.mcp.server"], env=env, cwd=str(REPO))
     async with stdio_client(params) as (r, w):
         async with ClientSession(r, w) as s:
@@ -181,3 +184,35 @@ def test_workflow_from_a_session(data):
     finally:
         del os.environ["HEXDP_DATA"]
     assert c.geometry == data / "fam" / "sample_2" / "box.step" and c.accept == {"valid": True, "blocks": 2}
+
+
+def test_cpus_must_be_given_without_preset(data):
+    """No CPU default: a computing job without cpus is refused with the hint to ask the user; check_environment
+    reports the hardware and every backend."""
+    async def fn(s):
+        env = payload(await s.call_tool("check_environment", {}))
+        assert env["hardware"]["cpus_available"] >= 1 and "algohex" in env["backends"]
+        assert all("ok" in b and "needed_for" in b for b in env["backends"].values())
+        gid = payload(await s.call_tool("open_geometry", {"path": "box.step"}))["geo_id"]
+        r = await s.call_tool("run_strategy", {"geo_id": gid, "strategy": P + "BoxStrategy"})
+        assert r.is_error and "Ask the user" in r.content[0].text
+        bad = await s.call_tool("run_strategy", {"geo_id": gid, "strategy": P + "BoxStrategy", "cpus": "100000"})
+        assert bad.is_error and "available" in bad.content[0].text
+        job = payload(await s.call_tool("run_strategy", {"geo_id": gid, "strategy": P + "BoxStrategy", "cpus": "1", "params": {"ref_file": "box.step"}, "detectors": [P + "BBoxDetector"],
+                                                         "discretiser": P + "UniformDiscretiser",
+                                                         "discretiser_params": {"target_h": 0.5},
+                                                         "filler": P + "LinearFiller"}))
+        assert job["case"]["resources"]["cores"] == 1
+        st = payload(await s.call_tool("wait_job", {"job_id": job["job_id"], "max_s": 60}))
+        assert st["state"] == "done", payload(await s.call_tool("job_log", {"job_id": job["job_id"]}))
+    asyncio.run(_session_run(data, fn, preset_cpus=None))
+
+
+def test_parse_cpus():
+    from hexdp.backends import compact, cpus_available, parse_cpus
+    avail = cpus_available()
+    assert parse_cpus("1") == avail[:1]
+    assert parse_cpus(compact(avail[:2])) == avail[:2]
+    assert compact([0, 1, 2, 5, 7, 8]) == "0-2,5,7-8"
+    with pytest.raises(ValueError):
+        parse_cpus(str(len(avail) + 1))

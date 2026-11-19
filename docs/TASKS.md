@@ -51,15 +51,17 @@ Never start long computations without the owner's go (see the rules there).
       Also consider raising algohex max_raw_rel 0.05 -> 0.10 (p_0018 valid with 0.10).
 - [ ] B10 runner (structural) robustness: 1452/2000 valid; failures in hub layout QP, near-zero sJ
 - [ ] B11 save AlgoHex frame fields in future datagen (`--cell-quaternion-out-path` etc.)
-- [ ] B12 the block boundary must stay a closed 2-manifold. DIAGNOSED 2026-11-19 (`/work/scratch/topo/REPORT_B12.md`):
-      the fine mesh is perfect (chi 2, every edge has 2 quads); only the coarse partition is broken. `clean_blocks.
-      cut_non_cuboids` cuts a face sheet that ends on a valence-3 singular edge of the polycube base complex, so the
-      cut stops inside a block face: the neighbour shares 9 of 18 fine quads (1:2 hanging face) and in the coarse
-      model the two blocks touch only along an edge -> a pinch, chi 3, 3 t_junction warnings. Not the beam search
-      (all guard/width/depth flags give the identical result) and not the snap. Fix: cut the larger neighbour along
-      the fine index plane until conform (prototype: s10b 4->7 blocks chi 3->2, n01b 3->5 chi 6/3->2/1, check
-      clean, min coarse sJ 0.53). Effort 0.5-1 day (detect ~40, repair ~60, guard+tests ~100 lines); fixing it in
-      `force_ball_cut` instead is 1-2 days and less robust. Costs blocks, which the dataset metric must accept.
+- [x] B12 the block boundary must stay a closed 2-manifold (fixed 2026-11-19, `clean_blocks.resolve_hanging_faces`):
+      `cut_non_cuboids` can cut a face sheet that ends on a valence-3 singular edge of the polycube base complex, so
+      the cut stops inside a block face (the neighbour shares 9 of 18 fine quads, a 1:2 hanging face) and in the
+      coarse model the two blocks touch only along an edge -> a pinch, chi 3, t_junction warnings. Not the beam
+      search and not the snap (all flags give the identical result). Fix: label the fine quads of every block face
+      with their neighbour, cut the block on the fine index planes where the neighbour changes, iterate to a
+      fixpoint (cascade), guards `max_blocks`/`min_cells` roll the whole pass back. s10b 4->7 blocks chi 3->2,
+      n01b 3->5 chi 6/3->2/1, n07b 18->26, all `check(geo)` clean; n02b rolls back (dense 1:n pattern) and stays
+      invalid. 143 unit tests pass. Cost: the block count goes up (4->7, 3->5, 18->26), which the dataset metric
+      must accept. Open: n02b; `tistos_0001` had `nonmanifold_face` before the fix - rerun to see if it is the same
+      cause.
 - [ ] B13 an empty hex mesh is an error with a message: `polycube_withHexEx` returns `CELLS 0` for 5 small, sharp
       models and `beam_collapse.py:377` dies in `np.vstack([])`. Check `hex_scale`/resolution for those first.
 

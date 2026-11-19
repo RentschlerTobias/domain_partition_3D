@@ -1988,6 +1988,206 @@ def cut_non_cuboids(S, verbose=True):
     return n1 - n0
 
 
+# --------------------------------------------------------------------------
+# hanging (1:n) block faces -- the coarse block boundary stays a 2-manifold
+# --------------------------------------------------------------------------
+
+def _partition_grids(S):
+    """Per block root its structured fine-node grid ``(n1+1, n2+1, n3+1)``.
+
+    A block that is not a structured lattice has no index grid and is left out
+    (a strided index cut would not be well defined for it). The fast path asks
+    ``structured_grids`` once for the whole partition; only if one block is not
+    structured is every block retried on its own."""
+    from hexdp.io import blocks_vtk
+    cells = S.cells_of()
+    bid = np.empty(len(S.hexes), np.int64)
+    for r, c in cells.items():
+        bid[np.asarray(c, np.int64)] = r
+    try:
+        grids, ids = blocks_vtk.structured_grids(S.P, S.hexes, bid)
+        return dict(zip(ids, grids))
+    except ValueError:
+        out = {}
+        for r, c in cells.items():
+            try:
+                gs, _ = blocks_vtk.structured_grids(
+                    S.P, S.hexes[np.asarray(c, np.int64)], np.zeros(len(c), int))
+            except ValueError:
+                continue
+            out[r] = gs[0]
+        return out
+
+
+def _grid_face_quads(G, axis, side):
+    """(u, w) array of the fine quad keys on the grid face (axis, side), u/w the two tangential axes."""
+    idx = [slice(None)] * 3
+    idx[axis] = 0 if side == 0 else -1
+    sl = G[tuple(idx)]
+    out = np.empty((sl.shape[0] - 1, sl.shape[1] - 1), object)
+    for i in range(out.shape[0]):
+        for j in range(out.shape[1]):
+            out[i, j] = frozenset((int(sl[i, j]), int(sl[i + 1, j]),
+                                   int(sl[i + 1, j + 1]), int(sl[i, j + 1])))
+    return out
+
+
+def _grid_plane_quads(G, axis, k):
+    """Quad keys of the fine faces on the index plane ``axis = k`` of the grid (the faces between the cells
+    k-1 and k, i.e. the faces that become the cut when the block is split there)."""
+    sl = np.take(G, k, axis=axis)
+    out = []
+    for i in range(sl.shape[0] - 1):
+        for j in range(sl.shape[1] - 1):
+            out.append(frozenset((int(sl[i, j]), int(sl[i + 1, j]),
+                                  int(sl[i + 1, j + 1]), int(sl[i, j + 1]))))
+    return out
+
+
+def _face_neighbours(S, b, quads):
+    """(-1 = boundary or the block across every fine quad of one block face), from ``S.f2h`` + the block owner."""
+    nb = np.full(quads.shape, -1, np.int64)
+    for idx, q in np.ndenumerate(quads):
+        others = {S.root(S.blk0[h]) for h in S.f2h[q]} - {b}
+        if others:
+            nb[idx] = min(others)
+    return nb
+
+
+def hanging_faces(S):
+    """Every block face whose fine quads do not all border the same one neighbour (or the boundary).
+
+    A block face is one index face of the block's structured fine grid. Its quads are labelled with the
+    block across them (-1 for the boundary). Conforming means all labels equal AND the neighbour's opposite
+    face is exactly this quad set. A 1:n split of one coarse face (e.g. 9 of 18 quads, as
+    ``cut_non_cuboids`` can leave when its sheet ended on a singular edge) breaks the second part: in the
+    coarse model the two blocks then touch only along an edge -- a pinch (chi 3) with t_junction warnings.
+
+    Returns a list of ``{block, axis, side, neighbours, quads}``; ``neighbours`` is the (u, w) label array
+    and is what the cut positions are read from. This is the per-face-index counterpart of
+    ``BlockStructure._hanging_vertices``, which asks the same question per point."""
+    grids = _partition_grids(S)
+    faces = {(b, ax, side): _grid_face_quads(G, ax, side)
+             for b, G in grids.items() for ax in range(3) for side in (0, 1)}
+    by_quad = defaultdict(list)
+    for k, quads in faces.items():
+        for q in quads.ravel():
+            by_quad[q].append(k)
+    out = []
+    for (b, ax, side), quads in faces.items():
+        if quads.size == 0:
+            continue
+        nb = _face_neighbours(S, b, quads)
+        vals = set(int(v) for v in nb.ravel())
+        bad = len(vals) > 1
+        if not bad and vals != {-1}:
+            q = next(iter(vals))
+            if q in grids:            # the neighbour's face must be exactly this quad set, not a larger one
+                pf = {f for quad in quads.ravel() for f in by_quad[quad] if f[0] == q}
+                bad = len(pf) != 1 or set(faces[next(iter(pf))].ravel()) != set(quads.ravel())
+        if bad:
+            out.append({"block": b, "axis": ax, "side": side, "neighbours": nb, "quads": quads})
+    return out
+
+
+def _index_cuts(face):
+    """(axis, node index) cuts separating the different neighbours on one hanging block face.
+
+    Two tangential axes: wherever the neighbour label changes along one of them, the block is cut on the
+    index plane through that change. The indices are grid node indices, so the cut keeps the geometry."""
+    nb, ax = face["neighbours"], face["axis"]
+    cuts = set()
+    for d in (0, 1):
+        if nb.shape[d] < 2:
+            continue
+        diff = np.any(np.diff(nb, axis=d) != 0, axis=1 - d)
+        for k in np.where(diff)[0] + 1:
+            cuts.add(((ax + 1 + d) % 3, int(k)))
+    return cuts
+
+
+def _split_on_index_planes(S, b, cuts, G):
+    """Split block b on the given index planes. Only interior faces of b are made separating, so the cut
+    cannot leak into a neighbour or mark a boundary face as cut."""
+    extra = set()
+    for ax, k in cuts:
+        if 0 < k < G.shape[ax] - 1:
+            extra.update(_grid_plane_quads(G, ax, k))
+    extra = {fk for fk in extra
+             if len(S.f2h[fk]) == 2 and all(S.root(S.blk0[h]) == b for h in S.f2h[fk])}
+    if not extra:
+        return None
+    return S.split(b, extra)
+
+
+def resolve_hanging_faces(S, max_blocks=None, min_cells=1, max_rounds=64, verbose=True):
+    """Split blocks at 1:n hanging faces until every block face is conforming.
+
+    A hanging face is resolved by cutting the block on every fine index plane where the neighbour label
+    changes (``_index_cuts``), which keeps the geometry unchanged and only increases the block count. The
+    split can expose the same defect on the neighbour, so the pass repeats to a fixpoint (cascade).
+
+    Guards: ``max_blocks`` (default ``max(4 * n0, 16)``) and ``min_cells`` stop the cascade instead of
+    letting the block count explode; any face still hanging after that is reported. ``min_cells`` is an
+    absolute floor for a new part (default 1: no empty block). It is deliberately NOT ``postprocess``'s
+    ``min_cells``, which is the merge threshold of `absorb_tiny_blocks`; a structure that already holds
+    8-cell blocks (n01b) would otherwise be left hanging."""
+    log = print if verbose else (lambda *a: None)
+    n0 = len(S.cells_of())
+    if max_blocks is None:
+        max_blocks = max(4 * n0, 16)
+    keep = (list(S.parent), S.blk0.copy(), set(S.cut), set(S.extra_cut), S.n_base)
+    splits = rounds = 0
+    stopped = ""
+    over_budget = False
+    for rounds in range(1, max_rounds + 1):
+        bad = hanging_faces(S)
+        todo = {}
+        for hf in bad:
+            cuts = _index_cuts(hf)
+            if cuts:
+                todo.setdefault(hf["block"], set()).update(cuts)
+        if not todo:
+            break
+        grids = _partition_grids(S)
+        applied = 0
+        for b in sorted(todo):
+            if b not in grids:
+                continue
+            roots = _split_on_index_planes(S, b, todo[b], grids[b])
+            if roots is None:
+                continue
+            fresh = [len(S.cells_of()[r]) for r in roots[1:]]
+            if len(S.cells_of()) > max_blocks or (fresh and min(fresh) < min_cells):
+                stopped = f"guard (max_blocks={max_blocks}, min_cells={min_cells})"
+                log(f"[clean_blocks] resolve_hanging_faces: {stopped} rejects the split of "
+                    f"b{b} into parts of {fresh} cells")
+                over_budget = True
+                break
+            applied += 1
+            splits += 1
+        if over_budget or not applied:
+            break
+    if over_budget:
+        # A half-finished cascade can be worse than the pinch it started from (n02b: 7 -> 28 blocks
+        # with slivers and more t_junctions), so the guard gives the partition back unchanged.
+        S.parent, S.blk0 = keep[0], keep[1]
+        S.cut, S.extra_cut, S.n_base = keep[2], keep[3], keep[4]
+        S._cache.clear()
+        splits = 0
+    left = hanging_faces(S)
+    n1 = len(S.cells_of())
+    if left:
+        log(f"[clean_blocks] resolve_hanging_faces: WARNING {len(left)} hanging face(s) left after "
+            f"{rounds} round(s) ({stopped or 'no index cut possible'}); "
+            f"{'rolled back, ' if over_budget else ''}{n0} blocks")
+    elif verbose:
+        log(f"[clean_blocks] resolve_hanging_faces: {splits} split(s) in {rounds} round(s), "
+            f"{n0} -> {n1} blocks, all block faces conforming")
+    return {"blocks_before": n0, "blocks_after": n1, "splits": splits, "rounds": rounds,
+            "unresolved": len(left), "stopped": stopped, "rolled_back": over_budget}
+
+
 def split_non_cuboid(S, verbose=True):
     """Step 4b -- split a block whose face count is too high along the
     surface that continues one of its faces. Accepted only when the total
@@ -2149,7 +2349,7 @@ class HexBlockValidator:
 def postprocess(ovm_path, input_vtk=None, names=None, sheet_frac=0.30,
                 min_cells=10, fix_non_cuboid=True, fill=True,
                 collapse_rounds=0, untangle_mesh=False, untangle_rounds=1,
-                untangle_rings=1, verbose=True):
+                untangle_rings=1, max_blocks=None, verbose=True):
     """`sheet_frac` is a fraction of the MEDIAN sheet size. The plan asked
     for "~5 %, i.e. the 27/54/154-face sheets", but on v9 the median is 533,
     so 5 % is 26 and catches none of them -- the two numbers in the plan
@@ -2182,6 +2382,9 @@ def postprocess(ovm_path, input_vtk=None, names=None, sheet_frac=0.30,
         merge_non_cuboids(S, verbose=verbose)
         split_non_cuboid(S, verbose=verbose)
     cut_non_cuboids(S, verbose=verbose)
+    # a cut sheet that ended on a singular edge can leave a 1:n hanging block face; the coarse boundary
+    # would pinch there (chi 3, t_junction). Index cuts, so the fine geometry is untouched.
+    resolve_hanging_faces(S, max_blocks=max_blocks, verbose=verbose)
 
     after, _st, _p, _c = report_structure(S, "AFTER")
     v = HexBlockValidator(S)

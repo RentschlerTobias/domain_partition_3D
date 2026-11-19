@@ -24,6 +24,13 @@ Never start long computations without the owner's go (see the rules there).
       timeout and filtering.
 - [ ] A4 Torus fluid (HexMe s16b) beam with relative tolerance + snap: rerun with 4 workers, 3 h limit
       (`/work/scratch/snap_torus`, earlier run hit the 1 h limit in the search).
+- [~] A5 polycube batch, the 16 smallest genus-0 HexMe models (2026-11-19, `/work/scratch/polycube_batch/`):
+      9 of 16 produced blocks, 5 of those valid (s06, s08, n03, s07, n06; 1-9 blocks), 4 invalid with a boundary
+      defect: the block boundary is no closed 2-manifold, chi = 3 (odd) or chi = 6 in 3 components where the
+      geometry has chi = 2, 1 - the same defect as i11b_s1 under AlgoHex, plus 2-8 `t_junction` warnings. 5 models
+      (n08, n09, n14, n04, n13) got `CELLS 0` from `polycube_withHexEx` (no hex mesh at all) and the beam crashed on
+      `np.vstack([])` (beam_collapse.py:377) instead of reporting it; 2 (n15, s14) hit the absolute Hausdorff gate.
+      Genus of all 57 solid models on record: 28 are genus 0, 29 have 1-11 handles (i01 g=9, i07 g=11).
 
 ## B. Methods (next work, owner said: relative Hausdorff + snap first [done], then canada pilot [done], C4Hex ok)
 - [x] B1 relative Hausdorff tolerances (c33c13b)
@@ -44,6 +51,11 @@ Never start long computations without the owner's go (see the rules there).
       Also consider raising algohex max_raw_rel 0.05 -> 0.10 (p_0018 valid with 0.10).
 - [ ] B10 runner (structural) robustness: 1452/2000 valid; failures in hub layout QP, near-zero sJ
 - [ ] B11 save AlgoHex frame fields in future datagen (`--cell-quaternion-out-path` etc.)
+- [ ] B12 the block boundary must stay a closed 2-manifold: the beam ends with chi odd (3) or a boundary split into 3
+      components (n01): a non-manifold edge or a missing piece, plus 2-8 `t_junction` warnings. Seen in 4 of 9
+      polycube models (A5) and in i11b_s1 under AlgoHex, so it is the beam, not the strategy. Blocks the dataset.
+- [ ] B13 an empty hex mesh is an error with a message: `polycube_withHexEx` returns `CELLS 0` for 5 small, sharp
+      models and `beam_collapse.py:377` dies in `np.vstack([])`. Check `hex_scale`/resolution for those first.
 
 ## C. Data / machines
 - [x] C1 HexMe b models split into solid / fluid (57 free models), agent data dir

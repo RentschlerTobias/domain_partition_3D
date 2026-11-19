@@ -31,6 +31,11 @@ Never start long computations without the owner's go (see the rules there).
       (n08, n09, n14, n04, n13) got `CELLS 0` from `polycube_withHexEx` (no hex mesh at all) and the beam crashed on
       `np.vstack([])` (beam_collapse.py:377) instead of reporting it; 2 (n15, s14) hit the absolute Hausdorff gate.
       Genus of all 57 solid models on record: 28 are genus 0, 29 have 1-11 handles (i01 g=9, i07 g=11).
+      After the B12 fix (`f10774b`) rerun in `/work/scratch/polycube_batch2/`: **9 of 9 models that produce blocks are
+      valid** (s10 4->7, n01 3->5, n07 18->9, n02 7->7, the rest unchanged), all `check(geo)` clean. Still 7 failed
+      for other reasons (5 `CELLS 0`, 2 Hausdorff gate). Caveat: two runs of the same model differ before the fix
+      already (n07: 146 vs 144 fine cells, min sJ 0.014 vs 0.333), so polycube/HexEx is not deterministic - check
+      that before a dataset relies on it. n07 keeps min sJ 2.7e-6: valid, but nearly degenerate.
 
 ## B. Methods (next work, owner said: relative Hausdorff + snap first [done], then canada pilot [done], C4Hex ok)
 - [x] B1 relative Hausdorff tolerances (c33c13b)

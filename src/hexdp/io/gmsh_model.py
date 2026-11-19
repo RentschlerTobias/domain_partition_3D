@@ -15,6 +15,7 @@ gmsh is a process-global library; every function here opens and closes its own s
 from __future__ import annotations
 
 from contextlib import contextmanager
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -72,7 +73,10 @@ def load(path, mesh_size: float | None = None, stl_angle_deg: float = 40.0, shar
             _mesh_surfaces(gmsh, mesh_size)
         elif suf == ".vtk":
             tmp = _vtk_to_msh(path)
-            gmsh.open(str(tmp))
+            try:
+                gmsh.open(str(tmp))
+            finally:                                   # /tmp may be a small tmpfs: never leave the copy behind
+                shutil.rmtree(tmp.parent, ignore_errors=True)
             source, notes = Source.MSH, [f"VTK tet mesh: entities from cell field '{tmp.stem.split('__')[-1]}'"]
         elif suf == ".stl":
             gmsh.merge(str(path))

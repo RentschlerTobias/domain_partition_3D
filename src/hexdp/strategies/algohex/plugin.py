@@ -29,7 +29,11 @@ class AlgoHexStrategy:
         "hexmeshing_bin": ParamSpec("", "HexMeshing binary (default: $HEXMESHING_BIN)"),
         "beam_width": ParamSpec(32, "beam width of the sheet collapse", lower=1),
         "beam_depth": ParamSpec(20, "beam depth (max collapses)", lower=1),
-        "hausdorff_tol": ParamSpec(0.1, "max Hausdorff distance raw hex mesh -> input surface", lower=0),
+        "hausdorff_tol": ParamSpec(0.0, "absolute Hausdorff tolerance of the collapse (0 = relative, hausdorff_rel)",
+                                   lower=0),
+        "hausdorff_rel": ParamSpec(0.02, "Hausdorff tolerance as a fraction of the bounding-box diagonal", lower=0),
+        "max_raw_rel": ParamSpec(0.05, "reject the raw hex mesh above this Hausdorff distance (fraction of the "
+                                 "diagonal; boundary vertices are snapped back onto the surface below it)", lower=0),
         "beam_workers": ParamSpec(4, "worker processes of the beam search", lower=1),
     }
 
@@ -72,7 +76,10 @@ class AlgoHexStrategy:
             run_module(ctx, "hexdp.ops.beam_collapse",
                        [ovm, "--input-vtk", tet, "--out", blocks, "--width", params["beam_width"],
                         "--depth", params["beam_depth"], "--guard", "struct",
-                        "--hausdorff-tol", params["hausdorff_tol"], "--workers", params["beam_workers"]],
+                        *(["--hausdorff-tol", params["hausdorff_tol"]] if params["hausdorff_tol"] > 0 else
+                          ["--relative", "--hausdorff-tol", params["hausdorff_rel"],
+                           "--max-raw-hausdorff", params["max_raw_rel"]]),
+                        "--workers", params["beam_workers"]],
                        "beam.log")
         bs = read_blocks_vtk(blocks)
         bs.meta["tet_vtk"] = str(tet)

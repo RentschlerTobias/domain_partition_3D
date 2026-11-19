@@ -306,6 +306,12 @@ if __name__ == "__main__":
     ap.add_argument("--max-drift-frac", type=float, default=0.5,
                     help="untangling may move boundary vertices up to this fraction of the Hausdorff tolerance off "
                          "the input surface to repair inverted cells inherited from the hex mesh (0: the old 1e-3)")
+    ap.add_argument("--relative", action="store_true",
+                    help="--hausdorff-tol and --max-raw-hausdorff are fractions of the input's bounding-box diagonal")
+    ap.add_argument("--snap", choices=("auto", "always", "off"), default="always",
+                    help="project the boundary vertices onto the input surface (keeping edges and corners) and "
+                         "untangle; kept only if neither the Hausdorff distance nor the inverted cells get worse. "
+                         "auto = only when the boundary is farther off than the tolerance")
     ap.add_argument("--force-ball", action="store_true",
                     help="cut non-ball base blocks (a block wrapped around a through hole) by extra face sheets")
     ap.add_argument("--boundary-singularities", action="store_true",
@@ -316,6 +322,14 @@ if __name__ == "__main__":
     ap.add_argument("--allow-invalid", action="store_true",
                     help="write and exit 0 even if the final block structure fails BlockStructure.check")
     a = ap.parse_args()
+    if a.relative:
+        import meshio
+        _pts = np.asarray(meshio.read(a.input_vtk).points, float)
+        diag = float(np.linalg.norm(np.ptp(_pts, 0)))
+        a.hausdorff_tol *= diag
+        a.max_raw_hausdorff *= diag
+        print(f"[beam] relative tolerances (bounding-box diagonal {diag:.4g}): Hausdorff tol {a.hausdorff_tol:.4g}, "
+              f"raw mesh limit {a.max_raw_hausdorff:.4g}")
     tol = a.hausdorff_tol
     if a.gap_frac > 0:
         import meshio
@@ -359,6 +373,11 @@ if __name__ == "__main__":
     except RawMeshOffSurface as e:
         print(f"[beam] REJECT: {e}")
         sys.exit(3)
+    if a.snap != "off" and getattr(S, "labeller", None) is not None:
+        _Q = S.P[np.asarray(S.bnd_loops)].mean(1)
+        S.labeller.label(_Q)
+        if a.snap == "always" or S.labeller.max_dist > tol:
+            cb.snap_to_surface(S, S.labeller)
     cb.write_blocks(S, a.out)
     print("\nbefore/after:")
     for k in before:

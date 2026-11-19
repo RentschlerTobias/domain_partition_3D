@@ -1246,6 +1246,7 @@ class BlockStructure:
             ids, self.surf_names = feature_angle_labels(P, loops, sharp_deg)
             self.label_source = f"feature angle {sharp_deg:.0f} deg (no input mesh)"
         self.surf_of = {fk: int(s) for (fk, _h), s in zip(self.bnd, ids)}
+        self.labeller = labeller
         self._cache = {}
 
     @classmethod
@@ -1960,6 +1961,33 @@ def extension_surface(S, cells, patch_loops):
     return surf
 
 
+def cut_non_cuboids(S, verbose=True):
+    """Last step after merging and splitting: a block that is still no structured (cuboid) lattice, e.g. a ball
+    shaped like a C or an L that no single face continuation splits, is cut by face sheets inside it
+    (force_ball_cut on the final partition). Only blocks that would otherwise make the structure invalid are
+    touched. Returns the number of blocks added."""
+    cells = S.cells_of()
+    bad = [r for r, c in cells.items() if _not_cuboid(S.hexes, c)]
+    if not bad:
+        return 0
+    owner = {h: r for r, c in cells.items() for h in c}
+    cut0 = {fk for fk, hs in S.f2h.items() if len(hs) == 2 and owner[hs[0]] != owner[hs[1]]}
+    cut, _added = force_ball_cut(S.hexes, S.f2h, cut0, log=print if verbose else (lambda *a: None))
+    new = cut - cut0
+    n0 = len(cells)
+    # the whole sheet, also through the neighbours it continues into: cutting only inside the bad block would leave
+    # a T-junction where the sheet stops (edges of one sheet with different cell counts)
+    for r in cells:
+        inner = {fk for fk in new if all(owner[h] == r for h in S.f2h[fk])}
+        if inner:
+            S.split(r, inner)
+    n1 = len(S.cells_of())
+    left = sum(_not_cuboid(S.hexes, c) for c in S.cells_of().values())
+    if verbose:
+        print(f"[clean_blocks] cut_non_cuboids: {len(bad)} non-cuboid blocks, {n0} -> {n1} blocks, {left} left")
+    return n1 - n0
+
+
 def split_non_cuboid(S, verbose=True):
     """Step 4b -- split a block whose face count is too high along the
     surface that continues one of its faces. Accepted only when the total
@@ -2153,6 +2181,7 @@ def postprocess(ovm_path, input_vtk=None, names=None, sheet_frac=0.30,
     if fix_non_cuboid:
         merge_non_cuboids(S, verbose=verbose)
         split_non_cuboid(S, verbose=verbose)
+    cut_non_cuboids(S, verbose=verbose)
 
     after, _st, _p, _c = report_structure(S, "AFTER")
     v = HexBlockValidator(S)
@@ -2418,6 +2447,93 @@ def write_block_edges_vtk(path, P, segs, cid, title):
                 f"LOOKUP_TABLE default\n")
         for c in cid:
             f.write(f"{int(c)}\n")
+
+
+def _closest_on_segments(Q, A, B):
+    """(squared distance, closest point) from Q (n,3) to segments A-B (n,k,3)."""
+    d = B - A
+    t = np.clip(np.einsum("nkj,nkj->nk", Q[:, None] - A, d) / np.maximum(np.einsum("nkj,nkj->nk", d, d), 1e-300),
+                0, 1)
+    X = A + t[..., None] * d
+    return np.einsum("nkj,nkj->nk", Q[:, None] - X, Q[:, None] - X), X
+
+
+def snap_to_surface(S, labeller, untangle_rounds=2, k=16, verbose=True):
+    """Move the boundary vertices of the fine mesh onto the input surface, keeping the surface classification:
+    a vertex on one label goes to the nearest point of that label's input triangles, a vertex on the border of two
+    labels to the nearest point of their common border curve, a vertex at three or more labels to the nearest input
+    vertex shared by them. Interior vertices follow by untangling. The result is kept only if it does not add
+    inverted cells. Returns dict(before, after, moved, inverted_before, inverted_after, kept)."""
+    from scipy.spatial import cKDTree
+    P0 = S.P.copy()
+    lab_of_v = defaultdict(set)
+    for fk, s_ in S.surf_of.items():
+        for v in fk:
+            lab_of_v[v].add(int(s_))
+    T, ids, PI = labeller.tris, np.asarray(labeller.ids).astype(int), labeller.P
+    # input structures per label, per label pair (border edges) and the corner vertices
+    by_label = {int(l): np.where(ids == l)[0] for l in np.unique(ids)}
+    e2t = defaultdict(set)
+    for t, tri in enumerate(T):
+        for a, b in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])):
+            e2t[(min(a, b), max(a, b))].add(int(ids[t]))
+    pair_edges, v_labels = defaultdict(list), defaultdict(set)
+    for e, ls in e2t.items():
+        for v in e:
+            v_labels[v] |= ls
+        if len(ls) == 2:
+            pair_edges[tuple(sorted(ls))].append(e)
+    corners = np.array([v for v, ls in v_labels.items() if len(ls) >= 3], int)
+
+    def hd(P):
+        Q = P[np.asarray(S.bnd_loops)].mean(1)
+        labeller.label(Q)
+        return labeller.max_dist
+
+    before = hd(P0)
+    sj0 = scaled_jacobians(P0, S.hexes)
+    inv0 = int((sj0 < 0).sum())
+    P = P0.copy()
+    groups = defaultdict(list)
+    for v, ls in lab_of_v.items():
+        groups[tuple(sorted(ls))].append(v)
+    moved = 0
+    for ls, vs in groups.items():
+        vs = np.asarray(vs, int)
+        Q = P[vs]
+        if len(ls) == 1 and ls[0] in by_label and len(by_label[ls[0]]):
+            tt = by_label[ls[0]]
+            kk = min(k, len(tt))
+            _d, c = cKDTree(PI[T[tt]].mean(1)).query(Q, k=kk)
+            c = tt[np.atleast_2d(c).reshape(len(Q), kk)]
+            d2, X = _closest_point_on_tris(Q, PI[T[c][..., 0]], PI[T[c][..., 1]], PI[T[c][..., 2]])
+        elif len(ls) == 2 and ls in pair_edges:
+            E = np.asarray(pair_edges[ls], int)
+            kk = min(k, len(E))
+            _d, c = cKDTree(PI[E].mean(1)).query(Q, k=kk)
+            c = np.atleast_2d(c).reshape(len(Q), kk)
+            d2, X = _closest_on_segments(Q, PI[E[c][..., 0]], PI[E[c][..., 1]])
+        elif len(ls) >= 3 and len(corners):
+            ok = np.array([set(ls) <= v_labels[v] for v in corners])
+            C = corners[ok] if ok.any() else corners
+            _d, c = cKDTree(PI[C]).query(Q)
+            P[vs] = PI[C[np.atleast_1d(c)]]
+            moved += len(vs)
+            continue
+        else:
+            continue
+        P[vs] = X[np.arange(len(Q)), np.argmin(d2, 1)]
+        moved += len(vs)
+    P, _n = untangle_until_stuck(P, S.hexes, S.f2h, labeller, rounds=untangle_rounds, verbose=False)
+    inv1 = int((scaled_jacobians(P, S.hexes) < 0).sum())
+    after = hd(P)
+    kept = inv1 <= inv0 and after <= before
+    if kept:
+        S.P = P
+    if verbose:
+        print(f"[clean_blocks] snap to surface: {moved} boundary vertices, Hausdorff {before:.4g} -> {after:.4g}, "
+              f"inverted {inv0} -> {inv1}: {'kept' if kept else 'discarded'}")
+    return dict(before=before, after=after, moved=moved, inverted_before=inv0, inverted_after=inv1, kept=kept)
 
 
 def write_blocks(S, path, title="cleaned blocks"):

@@ -51,9 +51,15 @@ Never start long computations without the owner's go (see the rules there).
       Also consider raising algohex max_raw_rel 0.05 -> 0.10 (p_0018 valid with 0.10).
 - [ ] B10 runner (structural) robustness: 1452/2000 valid; failures in hub layout QP, near-zero sJ
 - [ ] B11 save AlgoHex frame fields in future datagen (`--cell-quaternion-out-path` etc.)
-- [ ] B12 the block boundary must stay a closed 2-manifold: the beam ends with chi odd (3) or a boundary split into 3
-      components (n01): a non-manifold edge or a missing piece, plus 2-8 `t_junction` warnings. Seen in 4 of 9
-      polycube models (A5) and in i11b_s1 under AlgoHex, so it is the beam, not the strategy. Blocks the dataset.
+- [ ] B12 the block boundary must stay a closed 2-manifold. DIAGNOSED 2026-11-19 (`/work/scratch/topo/REPORT_B12.md`):
+      the fine mesh is perfect (chi 2, every edge has 2 quads); only the coarse partition is broken. `clean_blocks.
+      cut_non_cuboids` cuts a face sheet that ends on a valence-3 singular edge of the polycube base complex, so the
+      cut stops inside a block face: the neighbour shares 9 of 18 fine quads (1:2 hanging face) and in the coarse
+      model the two blocks touch only along an edge -> a pinch, chi 3, 3 t_junction warnings. Not the beam search
+      (all guard/width/depth flags give the identical result) and not the snap. Fix: cut the larger neighbour along
+      the fine index plane until conform (prototype: s10b 4->7 blocks chi 3->2, n01b 3->5 chi 6/3->2/1, check
+      clean, min coarse sJ 0.53). Effort 0.5-1 day (detect ~40, repair ~60, guard+tests ~100 lines); fixing it in
+      `force_ball_cut` instead is 1-2 days and less robust. Costs blocks, which the dataset metric must accept.
 - [ ] B13 an empty hex mesh is an error with a message: `polycube_withHexEx` returns `CELLS 0` for 5 small, sharp
       models and `beam_collapse.py:377` dies in `np.vstack([])`. Check `hex_scale`/resolution for those first.
 

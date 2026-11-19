@@ -12,8 +12,11 @@ Never start long computations without the owner's go (see the rules there).
       (`/work/scratch/canada_snap/beam2.log`). Snap discarded: Hausdorff 0.203 (5.7 % of diag) -> 0.216 at step 0.75.
       Suspected: nearest-face labels wrong when the mesh is that far off -> see B9. Next: rerun ru 0016, 0017
       (needs go; ~1 h each on 2 cores).
-- [~] A3 radMeridional variation test (`/work/scratch/radmer/vartest/results.txt`): finish, tabulate success vs
-      variation width and the failing parameters (factors in `*.factors.json`).
+- [x] A3 radMeridional variation test (2026-11-19, runner + cone only, guide vane fixed, lengths +-L, rest +-L/2):
+      +-10 % 4/4, +-25 % 3/4, +-50 % 2/4. Failures: v25_0, v50_1 dtOO `!md.converged()` in the meridional contour after
+      2 s (strong changes of l_hub*/l_shroud*); v50_2 hit the 1 h timeout (hang). ~21 min per machine on 2 cores.
+      Factors per sample: `/work/scratch/radmer/vartest/*.factors.json`. Suggestion for C3: +-25 % with a 40 min
+      timeout and filtering.
 - [ ] A4 Torus fluid (HexMe s16b) beam with relative tolerance + snap: rerun with 4 workers, 3 h limit
       (`/work/scratch/snap_torus`, earlier run hit the 1 h limit in the search).
 

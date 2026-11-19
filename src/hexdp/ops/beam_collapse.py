@@ -37,6 +37,7 @@ real cluster sample machine_0004_n2000): every run ends at 12 blocks
 where the greedy collapse produced 12, 22, or 75.
 """
 
+import sys
 import time
 from multiprocessing import get_context
 
@@ -272,6 +273,21 @@ DEFAULT_RELATIVE = (0.02, 0.05)          # Hausdorff tol, raw mesh limit, as fra
 DEFAULT_ABSOLUTE = (0.05, 0.15)          # the same in model units
 
 
+def hexahedra(mesh, path="the input"):
+    """The (n, 8) hexahedra of a mesh; an empty mesh is an error, not a crash.
+
+    The polycube path can hand over a hex mesh with zero cells (evocube found no valid cube map, so HexEx
+    extracted nothing). np.vstack([]) would then die with a bare ValueError somewhere below.
+    """
+    cells = [c.data for c in mesh.cells if c.type == "hexahedron" and len(c.data)]
+    if not cells:
+        print(f"[beam] ERROR: {path} has no hexahedra ({len(mesh.points)} points, 0 cells); nothing to collapse. "
+              f"Upstream the hex extraction produced an empty mesh (for polycube: no valid cube map).",
+              file=sys.stderr)
+        sys.exit(2)
+    return np.vstack(cells).astype(np.int64)
+
+
 def tolerances(hausdorff_tol, max_raw_hausdorff, diag, relative):
     """Both tolerances in model units. Relative (the default) means a fraction of the bbox diagonal.
 
@@ -400,7 +416,7 @@ if __name__ == "__main__":
         import meshio
         from hexdp.io import ovm as ovm_io
         _m = meshio.read(a.ovm)
-        _H = np.vstack([c.data for c in _m.cells if c.type == "hexahedron"]).astype(np.int64)
+        _H = hexahedra(_m, a.input_vtk)
         _P = np.asarray(_m.points, float)
         ovm_io.read_ovm = lambda path: (_P, None, None, None)
         ovm_io.ovm_to_cells = lambda P, e, f, poly: (_H, 0)

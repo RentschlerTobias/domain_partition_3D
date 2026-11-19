@@ -31,6 +31,27 @@ def _bin_dir(param):
     return d
 
 
+def _label_note(ws):
+    """Which of the six cube directions the evocube labeling uses (for the error message, not a check)."""
+    vals = set()
+    try:
+        for line in open(Path(ws) / "labeling.txt"):
+            tok = line.split()
+            if len(tok) == 1:            # the file is one label per line after a "tets N vertices M" header
+                try:
+                    vals.add(int(tok[0]))
+                except ValueError:
+                    pass
+    except OSError:
+        return ""
+    if not vals:
+        return ""
+    used = sorted(vals & set(range(1, 7)))
+    bad = sorted(vals - set(range(1, 7)))
+    note = f" (labeling uses {len(used)} of 6 directions: {used}"
+    return note + (f", invalid labels {bad})" if bad else ")")
+
+
 def _lib_dirs(bindir):
     """The library directories shipped with the evocube build: ``lib`` (or ``lib64``) and every
     subdirectory that holds shared libraries (e.g. ``lib/gco``, ``lib/OpenVolumeMesh/src``).
@@ -144,7 +165,13 @@ class PolycubeStrategy:
 
             from hexdp.io.ovm import write_hex_vtk
             m = meshio.read(ws / "hexes.mesh")
-            H = np.vstack([c.data for c in m.cells if c.type == "hexahedron"])
+            _cells = [c.data for c in m.cells if c.type == "hexahedron" and len(c.data)]
+            if not _cells:
+                raise RuntimeError(
+                    f"polycube: evocube extracted no hexahedra{_label_note(ws)}. The polycube map is degenerate, "
+                    f"so HexEx has nothing to extract; use the algohex strategy for this geometry "
+                    f"(logs: {ws / 'evocube_label.log'}).")
+            H = np.vstack(_cells)
             write_hex_vtk(str(ws / "hexes.vtk"), m.points, H)
             ctx.decide("polycube", f"{len(H)} hexes from the polycube map", [str(ws / "hexes.vtk")])
         if not (ws / "blocks.vtk").exists():

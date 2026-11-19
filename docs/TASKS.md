@@ -70,8 +70,11 @@ Never start long computations without the owner's go (see the rules there).
       invalid. 143 unit tests pass. Cost: the block count goes up (4->7, 3->5, 18->26), which the dataset metric
       must accept. Open: n02b; `tistos_0001` had `nonmanifold_face` before the fix - rerun to see if it is the same
       cause.
-- [ ] B13 an empty hex mesh is an error with a message: `polycube_withHexEx` returns `CELLS 0` for 5 small, sharp
-      models and `beam_collapse.py:377` dies in `np.vstack([])`. Check `hex_scale`/resolution for those first.
+- [x] B13 (2026-11-19): an empty hex mesh is an error with a message. `hexahedra()` in beam_collapse prints
+      "no hexahedra" and exits 2 instead of dying in `np.vstack([])`; the polycube strategy raises a RuntimeError
+      that names the labeling, e.g. "2 of 6 directions: [2, 4], invalid labels [0]", and points to algohex. Not a
+      `hex_scale` problem (2/4/8 all give 0 cells): the evocube labeling itself is degenerate and differs between
+      runs ([1,2,4] / [3,4] / [2,4]), which is more evidence for the non-determinism note in A5. Affects 5 models.
 
 ## C. Data / machines
 - [x] C1 HexMe b models split into solid / fluid (57 free models), agent data dir

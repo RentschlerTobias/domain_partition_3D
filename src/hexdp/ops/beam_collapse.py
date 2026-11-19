@@ -268,6 +268,25 @@ def local_allow(points, tris, labels, tol, frac):
     return np.minimum(tol, frac * gap_t)
 
 
+DEFAULT_RELATIVE = (0.02, 0.05)          # Hausdorff tol, raw mesh limit, as fractions of the bbox diagonal
+DEFAULT_ABSOLUTE = (0.05, 0.15)          # the same in model units
+
+
+def tolerances(hausdorff_tol, max_raw_hausdorff, diag, relative):
+    """Both tolerances in model units. Relative (the default) means a fraction of the bbox diagonal.
+
+    The two modes have different defaults on purpose: the relative ones suit parts from millimetres to
+    metres, the absolute ones reproduce the numbers earlier runs were validated with.
+    """
+    if relative:
+        d_h, d_m = DEFAULT_RELATIVE
+        return ((d_h if hausdorff_tol is None else hausdorff_tol) * diag,
+                (d_m if max_raw_hausdorff is None else max_raw_hausdorff) * diag)
+    d_h, d_m = DEFAULT_ABSOLUTE
+    return (d_h if hausdorff_tol is None else hausdorff_tol,
+            d_m if max_raw_hausdorff is None else max_raw_hausdorff)
+
+
 def patch(width=6, depth=6, guard="abs", sj_floor=0.05, workers=6, hausdorff_tol=0.05,
           max_base_hausdorff=0.15, topology_guard=True):
     def collapse(P, hexes, labeller, max_rounds=4, verbose=True, repair=None,
@@ -305,10 +324,13 @@ if __name__ == "__main__":
     ap.add_argument("--guard", choices=("raw", "abs", "struct"), default="abs")
     ap.add_argument("--sj-floor", type=float, default=0.05)
     ap.add_argument("--workers", type=int, default=6)
-    ap.add_argument("--hausdorff-tol", type=float, default=0.05)
+    ap.add_argument("--hausdorff-tol", type=float, default=None,
+                    help="Hausdorff tolerance; a fraction of the bounding-box diagonal unless --absolute is given "
+                         "(default 0.02 relative, 0.05 absolute)")
     ap.add_argument("--untangle-rounds", type=int, default=6)
-    ap.add_argument("--max-raw-hausdorff", type=float, default=0.15,
-                    help="refuse a raw hex mesh farther than this from the input surface")
+    ap.add_argument("--max-raw-hausdorff", type=float, default=None,
+                    help="refuse a raw hex mesh farther than this from the input surface; relative to the diagonal "
+                         "unless --absolute (default 0.05 relative, 0.15 absolute)")
     ap.add_argument("--gap-mode", choices=("local", "global"), default="local",
                     help="local: the tolerance per input face is min(tol, gap-frac x local gap); global: one "
                          "tolerance min(tol, gap-frac x narrowest gap) for the whole surface (old behaviour)")
@@ -318,8 +340,11 @@ if __name__ == "__main__":
     ap.add_argument("--max-drift-frac", type=float, default=0.5,
                     help="untangling may move boundary vertices up to this fraction of the Hausdorff tolerance off "
                          "the input surface to repair inverted cells inherited from the hex mesh (0: the old 1e-3)")
-    ap.add_argument("--relative", action="store_true",
-                    help="--hausdorff-tol and --max-raw-hausdorff are fractions of the input's bounding-box diagonal")
+    ap.add_argument("--relative", dest="relative", action="store_true", default=True,
+                    help="--hausdorff-tol and --max-raw-hausdorff are fractions of the input's bounding-box diagonal "
+                         "(default)")
+    ap.add_argument("--absolute", dest="relative", action="store_false",
+                    help="treat --hausdorff-tol and --max-raw-hausdorff as absolute distances in model units")
     ap.add_argument("--snap", choices=("auto", "always", "off"), default="always",
                     help="project the boundary vertices onto the input surface (keeping edges and corners) and "
                          "untangle; kept only if neither the Hausdorff distance nor the inverted cells get worse. "
@@ -334,12 +359,13 @@ if __name__ == "__main__":
     ap.add_argument("--allow-invalid", action="store_true",
                     help="write and exit 0 even if the final block structure fails BlockStructure.check")
     a = ap.parse_args()
+    diag = None
     if a.relative:
         import meshio
         _pts = np.asarray(meshio.read(a.input_vtk).points, float)
         diag = float(np.linalg.norm(np.ptp(_pts, 0)))
-        a.hausdorff_tol *= diag
-        a.max_raw_hausdorff *= diag
+    a.hausdorff_tol, a.max_raw_hausdorff = tolerances(a.hausdorff_tol, a.max_raw_hausdorff, diag, a.relative)
+    if a.relative:
         print(f"[beam] relative tolerances (bounding-box diagonal {diag:.4g}): Hausdorff tol {a.hausdorff_tol:.4g}, "
               f"raw mesh limit {a.max_raw_hausdorff:.4g}")
     tol = a.hausdorff_tol

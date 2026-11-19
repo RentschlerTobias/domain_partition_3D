@@ -88,7 +88,7 @@ class AlgoHexStrategy:
             run_module(ctx, "hexdp.ops.beam_collapse",
                        [ovm, "--input-vtk", tet, "--out", blocks, "--width", params["beam_width"],
                         "--depth", params["beam_depth"], "--guard", "struct",
-                        *(["--hausdorff-tol", params["hausdorff_tol"]] if params["hausdorff_tol"] > 0 else
+                        *(["--absolute", "--hausdorff-tol", params["hausdorff_tol"]] if params["hausdorff_tol"] > 0 else
                           ["--relative", "--hausdorff-tol", params["hausdorff_rel"],
                            "--max-raw-hausdorff", params["max_raw_rel"]]),
                         "--workers", params["beam_workers"]],

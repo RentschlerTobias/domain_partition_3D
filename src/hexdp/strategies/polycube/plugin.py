@@ -107,7 +107,8 @@ class PolycubeStrategy:
         "threads": ParamSpec(0, "threads of the labeling (0 = the job's core count)", lower=0),
         "beam_width": ParamSpec(16, "beam width of the sheet collapse", lower=1),
         "beam_depth": ParamSpec(16, "beam depth", lower=1),
-        "hausdorff_tol": ParamSpec(0.05, "max boundary deviation of the collapse (local, see beam)", lower=0),
+        "hausdorff_tol": ParamSpec(0.05, "max boundary deviation of the collapse as a fraction of the bounding-box "
+                                         "diagonal (relative, see beam)", lower=0),
         "beam_workers": ParamSpec(4, "worker processes of the beam search", lower=1),
     }
 
@@ -150,6 +151,7 @@ class PolycubeStrategy:
             run_module(ctx, "hexdp.ops.beam_collapse",
                        [ws / "hexes.vtk", "--input-vtk", ws / "tet.vtk", "--out", ws / "blocks.vtk",
                         "--width", params["beam_width"], "--depth", params["beam_depth"], "--guard", "struct",
+                        "--relative",
                         "--hausdorff-tol", params["hausdorff_tol"], "--workers", params["beam_workers"]],
                        "beam.log")
         bs = read_blocks_vtk(ws / "blocks.vtk")

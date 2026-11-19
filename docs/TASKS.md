@@ -38,7 +38,10 @@ Never start long computations without the owner's go (see the rules there).
       that before a dataset relies on it. n07 keeps min sJ 2.7e-6: valid, but nearly degenerate.
 
 ## B. Methods (next work, owner said: relative Hausdorff + snap first [done], then canada pilot [done], C4Hex ok)
-- [x] B1 relative Hausdorff tolerances (c33c13b)
+- [x] B1 relative Hausdorff tolerances (c33c13b); now the CLI default (`--absolute` keeps the old numbers 0.05/0.15,
+      relative defaults 0.02/0.05 of the bbox diagonal; `tolerances()` + `test_beam_tolerances.py`). Effect on the
+      two gate rejects of A5: n15b icosahedron now valid (6 blocks, min sJ 0.21, 34 s); s14b passes the gate and then
+      fails with `inverted_cells` (scaled Jacobian 0 in blocks 0/2/3) - a real defect, not the gate.
 - [x] B2 snap boundary to surface, stepwise (c33c13b, f3be635)
 - [x] B3 blocks around holes / non-cuboid blocks cut automatically (ab959b2, c33c13b)
 - [~] B4 C4HexMeshing as alternative quantization/extraction after AlgoHex: built (`/opt/stack/ext/C4HexMeshing`).

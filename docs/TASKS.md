@@ -8,8 +8,10 @@ Never start long computations without the owner's go (see the rules there).
 - [~] A1 HexMe agent test A (10 cases, solid + fluid, free method choice). Evaluate per case: strategies tried,
       blocks, valid, min sJ, time, failure reason; what methods were missing; MCP usability issues.
       Job dirs `/opt/stack/cases/hexdp_agent/runs/`. Write the result to `cases/hexdp_agent/HEXME_TEST_A.md`.
-- [~] A2 canada runner p_0018 with stepwise snap + search (`/work/scratch/canada_snap/beam2.log`): did the snap
-      keep (Hausdorff, inverted), how many blocks, valid? If good: rerun the other rejected ru samples 0016, 0017.
+- [x] A2 canada runner p_0018 (2026-11-19): VALID 18 blocks, min sJ 0.71 with --max-raw-hausdorff 0.10 (relative)
+      (`/work/scratch/canada_snap/beam2.log`). Snap discarded: Hausdorff 0.203 (5.7 % of diag) -> 0.216 at step 0.75.
+      Suspected: nearest-face labels wrong when the mesh is that far off -> see B9. Next: rerun ru 0016, 0017
+      (needs go; ~1 h each on 2 cores).
 - [~] A3 radMeridional variation test (`/work/scratch/radmer/vartest/results.txt`): finish, tabulate success vs
       variation width and the failing parameters (factors in `*.factors.json`).
 - [ ] A4 Torus fluid (HexMe s16b) beam with relative tolerance + snap: rerun with 4 workers, 3 h limit
@@ -28,7 +30,10 @@ Never start long computations without the owner's go (see the rules there).
 - [ ] B6 mesh-based sweep detection (extrusion / revolution parts from tet meshes; many HexMe parts)
 - [ ] B7 polycube with through holes (cuts before labeling; HexDom BSD-3 is a candidate)
 - [ ] B8 body O-grid for external-flow cases (body in box), like the blade O-grid
-- [ ] B9 snap: if the stepwise snap still adds inversions, try smoothing (Winslow / Mesquite) after projection
+- [ ] B9 snap: (a) when the raw mesh is far off (> ~3 % of the diagonal), the nearest-face surface labels of the
+      boundary quads can be wrong -> label by feature-curve-aware matching before projecting (canada ru p_0018:
+      snap made it worse); (b) if steps still add inversions, smoothing (Winslow / Mesquite) after projection.
+      Also consider raising algohex max_raw_rel 0.05 -> 0.10 (p_0018 valid with 0.10).
 - [ ] B10 runner (structural) robustness: 1452/2000 valid; failures in hub layout QP, near-zero sJ
 - [ ] B11 save AlgoHex frame fields in future datagen (`--cell-quaternion-out-path` etc.)
 

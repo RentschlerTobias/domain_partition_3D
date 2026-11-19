@@ -75,6 +75,16 @@ Never start long computations without the owner's go (see the rules there).
       that names the labeling, e.g. "2 of 6 directions: [2, 4], invalid labels [0]", and points to algohex. Not a
       `hex_scale` problem (2/4/8 all give 0 cells): the evocube labeling itself is degenerate and differs between
       runs ([1,2,4] / [3,4] / [2,4]), which is more evidence for the non-determinism note in A5. Affects 5 models.
+- [ ] B14 block edges as splines (goal of the dataset): a block is 8 corners plus a fine grid whose edge keeps only
+      2-5 nodes after the collapse (n15b `3x2x2`, s10b `5x4x4`), so a cylinder rim becomes a square and the TFI
+      fills a square tube - yet min sJ and Hausdorff are measured on that linear mesh. Target: 8 corners + curved
+      edges. The old tistos dataset already has that format: `/opt/stack/datasets/keepbl/tistos_s1_0131/sample_16c.npz`
+      (`vertices (40,3)`, `blocks (12,8)`, `edges (168,2)`, `edge_ctrl (168,2,3)`, `edge_polyline (812,3)` +
+      `edge_polyline_offset (169,)`, `dir_class`, surface points/tris/labels); the regression sample
+      `cases/misc_2026-11/hexdp_reg/tistos_0131/sample.npz` has the same keys. Plan: after the collapse assign each
+      block edge to a feature curve, resample it with fixed endpoints, pull the block faces along (TFI + projection),
+      then re-check sJ/Hausdorff with rollback. Open: find the fitting routine of the pre-refactor tistos pipeline
+      (`dp3d_keep_bl/.../experimentell/hex3d_algohex`, `dp3d/tmesh_faces.py:edge_polyline`) and take its semantics.
 
 ## C. Data / machines
 - [x] C1 HexMe b models split into solid / fluid (57 free models), agent data dir

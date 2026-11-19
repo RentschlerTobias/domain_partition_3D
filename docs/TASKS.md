@@ -67,5 +67,6 @@ Never start long computations without the owner's go (see the rules there).
       of a `ValueError`, `size_max`/`remesh_all` warn when tet_prep is skipped (tagged VTK input), `check_environment`
       honours `$HEXMESHING_BIN` and names the PATH fallback, `report.json` of a failed run keeps the stage timings.
       Tests: 134 passed, 3 failed (`test_mcp_server`, identical on HEAD: hexdp is not pip-installed in `/opt/venv-sci`,
-      so the entry points are missing). Open: set `HEXMESHING_BIN` in the MCP config (config, not code); an install
-      needs the owner's ok.
+      so the entry points are missing). Evocube library path proven by a smoke test on HexMe `s01b_cube` solid
+      (empty `LD_LIBRARY_PATH`): 48.6 s, 1 block, valid, min sJ 0.90 - polycube works now. Open: set
+      `HEXMESHING_BIN` in the MCP config (config, not code); an install needs the owner's ok.

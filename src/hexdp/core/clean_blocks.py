@@ -482,7 +482,9 @@ def collapse_sheet(P, hexes, edges):
 
 
 # Cut non-ball base blocks (e.g. a polycube mesh around a through hole has no interior singular edge, so its one base
-# block wraps the hole) by extra face sheets until every block is a ball. Off by default; beam --force-ball sets it.
+# block wraps the hole; a hex mesh of a box around a body may have no singular edge at all) by extra face sheets until
+# every block is a ball. A non-ball block can never be a valid block, so the cut is applied whenever the base complex
+# has one; FORCE_BALL (beam --force-ball) applies it always and keeps merges from recreating one.
 FORCE_BALL = False
 
 
@@ -515,9 +517,24 @@ def faces_of_edge_keys(fk):
 _FACE_EDGES = {}
 
 
+def _not_cuboid(hexes, b):
+    """True if the cells of block b are no structured (cuboid) lattice: not a ball, or a ball of another shape."""
+    if non_ball_blocks(hexes, [b]):
+        return True
+    from hexdp.io.blocks_vtk import structured_grids
+    H = np.asarray([hexes[h] for h in b], np.int64)
+    try:
+        structured_grids(np.zeros((int(H.max()) + 1, 3)), H, np.zeros(len(H), int))
+    except ValueError:
+        return True
+    return False
+
+
 def force_ball_cut(hexes, f2h, cut, log=print, max_tries=400):
-    """Extra cut faces so that every block of blocks_from_cut(cut) is a ball: per non-ball block, the smallest face
-    sheet through it (seeded from its interior faces) that makes the blocks balls; repeated until none is left."""
+    """Extra cut faces so that every block of blocks_from_cut(cut) is a cuboid lattice: per non-ball block (a ring
+    around a hole) or ball that is still no cuboid (the C-shaped rest of a cut ring), the smallest face sheet
+    through it (seeded from its interior faces) that reduces the number of such blocks; repeated until none is
+    left."""
     global _FACE_EDGES
     _FACE_EDGES = {}
     faces_of_edge = defaultdict(list)
@@ -530,13 +547,19 @@ def force_ball_cut(hexes, f2h, cut, log=print, max_tries=400):
                 _FACE_EDGES[fk] = es
                 for g in es:
                     faces_of_edge[g].append(fk)
+    def score(blocks):
+        # first fewer blocks around a hole, then fewer cells in blocks that are still no cuboid
+        nb = sum(non_ball_blocks(hexes, [x]) for x in blocks)
+        return nb, sum(len(x) for x in blocks if _not_cuboid(hexes, x))
+
     cut = set(cut)
     added = 0
-    for _round in range(20):
+    for _round in range(60):
         blocks = bc.blocks_from_cut(hexes, f2h, cut)
-        bad = [b for b in blocks if non_ball_blocks(hexes, [b])]
+        bad = [b for b in blocks if _not_cuboid(hexes, b)]
         if not bad:
             break
+        now = score(blocks)
         b = bad[0]
         inner = {frozenset(int(hexes[h][i]) for i in fc) for h in b for fc in HF}
         inner = [fk for fk in inner if len(f2h[fk]) == 2 and fk not in cut]
@@ -550,9 +573,9 @@ def force_ball_cut(hexes, f2h, cut, log=print, max_tries=400):
             seen_s.add(S)
             cands.append(S)
             trial = bc.blocks_from_cut(hexes, f2h, cut | S)
-            nb = sum(non_ball_blocks(hexes, [x]) for x in trial)
-            if nb < len(bad) and (best is None or (nb, len(S)) < best[0]):
-                best = ((nb, len(S)), S)
+            sc = score(trial)
+            if sc < now and (best is None or (sc, len(S)) < best[0]):
+                best = ((sc, len(S)), S)
         if best is None:
             # one cut through a ring leaves a block glued to itself across the cut: try pairs of disjoint sheets
             cands.sort(key=len)
@@ -563,15 +586,15 @@ def force_ball_cut(hexes, f2h, cut, log=print, max_tries=400):
                         continue
                     S = cands[i] | cands[j]
                     trial = bc.blocks_from_cut(hexes, f2h, cut | S)
-                    nb = sum(non_ball_blocks(hexes, [x]) for x in trial)
-                    if nb < len(bad) and (best is None or (nb, len(S)) < best[0]):
-                        best = ((nb, len(S)), S)
+                    sc = score(trial)
+                    if sc < now and (best is None or (sc, len(S)) < best[0]):
+                        best = ((sc, len(S)), S)
         if best is None:
-            log(f"[clean_blocks] force_ball: no face sheet makes block {len(b)} cells a ball")
+            log(f"[clean_blocks] force_ball: no face sheet makes the {len(b)}-cell block a cuboid")
             break
         cut |= best[1]
         added += len(best[1])
-        log(f"[clean_blocks] force_ball: cut a {len(best[1])}-face sheet, non-ball blocks {len(bad)} -> {best[0][0]}")
+        log(f"[clean_blocks] force_ball: cut a {len(best[1])}-face sheet, (non-ball, cells in non-cuboid blocks) {now} -> {best[0][0]}")
     return cut, added
 
 def non_ball_blocks(hexes, blocks):
@@ -1184,7 +1207,9 @@ class BlockStructure:
         self.sing = bc.singular_edges(self.hexes, P, self.f2h, self.e2h)
         self.sheet_of, self.n_sheet = bfx.label_sheets(self.hexes, self.f2h,
                                                        self.sing)
-        if FORCE_BALL:
+        self.force_ball = FORCE_BALL or bool(non_ball_blocks(
+            self.hexes, bc.blocks_from_cut(self.hexes, self.f2h, set(self.sheet_of))))
+        if self.force_ball:
             cut, added = force_ball_cut(self.hexes, self.f2h, set(self.sheet_of))
             nxt = self.n_sheet
             for fk in cut - set(self.sheet_of):
@@ -1282,7 +1307,7 @@ class BlockStructure:
         ra, rb = self.root(a), self.root(b)
         if ra == rb:
             return False
-        if FORCE_BALL:                           # never glue blocks into a non-ball again (a ring around a hole)
+        if getattr(self, "force_ball", FORCE_BALL):   # never glue blocks into a non-ball again (a ring around a hole)
             cells = self.cells_of()
             if non_ball_blocks(self.hexes, [cells[ra] + cells[rb]]):
                 return False

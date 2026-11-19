@@ -163,6 +163,14 @@ def beam_collapse(P, hexes, labeller, width=6, depth=6, guard="abs",
               f"{fl:.4f}, Hausdorff <= "
               f"{(f'{ceiling[1]:.3f} x local tolerance' if isinstance(ceiling, tuple) else f'{ceiling:.5f}')}; "
               f"width {width}, depth {depth}")
+    if base.get("non_ball"):
+        # a base block wrapped around a hole (e.g. a box around a body without any singular edge): the candidate
+        # statistics see the uncut base complex, so every candidate would look like the same non-ball blocks and
+        # the search is blind. Keep the raw mesh; the block structure cuts such blocks into balls (force_ball_cut).
+        if verbose:
+            print(f"[beam] {base['non_ball']} non-ball base block(s): no sheet collapse, the blocks are cut into "
+                  "balls instead")
+        return P, hexes, [dict(base, sheet=None), dict(base, sheet=[])]
     beam = [(base, P, hexes, [])]
     best = (base, P, hexes, [])
     seen = set()
@@ -358,7 +366,11 @@ if __name__ == "__main__":
     # the written structure must pass the same check an agent or the dataset applies to it
     from hexdp.core.blockstructure import invalid
     from hexdp.io.blocks_vtk import read_blocks_vtk
-    bad = invalid(read_blocks_vtk(a.out).check())
+    try:
+        bad = invalid(read_blocks_vtk(a.out).check())
+    except ValueError as exc:                    # e.g. a block that is no structured grid (not a ball)
+        from hexdp.core.blockstructure import Issue
+        bad = [Issue("not_structured", str(exc))]
     if bad:
         for i in bad[:10]:
             print(f"[beam] INVALID {i.kind}: {i.message}")

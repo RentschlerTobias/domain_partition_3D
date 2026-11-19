@@ -2524,16 +2524,28 @@ def snap_to_surface(S, labeller, untangle_rounds=2, k=16, verbose=True):
             continue
         P[vs] = X[np.arange(len(Q)), np.argmin(d2, 1)]
         moved += len(vs)
-    P, _n = untangle_until_stuck(P, S.hexes, S.f2h, labeller, rounds=untangle_rounds, verbose=False)
-    inv1 = int((scaled_jacobians(P, S.hexes) < 0).sum())
-    after = hd(P)
+    # move in steps towards the surface, untangling after each; keep the farthest step that adds no inverted cell
+    target = P
+    best = None
+    for t in (0.25, 0.5, 0.75, 1.0):
+        Pt = P0.copy()
+        Pt[list(lab_of_v)] = P0[list(lab_of_v)] + t * (target[list(lab_of_v)] - P0[list(lab_of_v)])
+        Pt, _n = untangle_until_stuck(Pt, S.hexes, S.f2h, labeller, rounds=untangle_rounds, verbose=False)
+        inv_t = int((scaled_jacobians(Pt, S.hexes) < 0).sum())
+        if inv_t > inv0:
+            if best is None:
+                best = (t, Pt, inv_t, hd(Pt))      # remembered only for the report
+            break
+        best = (t, Pt, inv_t, hd(Pt))
+    t, P, inv1, after = best
     kept = inv1 <= inv0 and after <= before
     if kept:
         S.P = P
     if verbose:
-        print(f"[clean_blocks] snap to surface: {moved} boundary vertices, Hausdorff {before:.4g} -> {after:.4g}, "
-              f"inverted {inv0} -> {inv1}: {'kept' if kept else 'discarded'}")
-    return dict(before=before, after=after, moved=moved, inverted_before=inv0, inverted_after=inv1, kept=kept)
+        print(f"[clean_blocks] snap to surface: {moved} boundary vertices, step {t:.2f}, Hausdorff {before:.4g} -> "
+              f"{after:.4g}, inverted {inv0} -> {inv1}: {'kept' if kept else 'discarded'}")
+    return dict(before=before, after=after, moved=moved, step=t, inverted_before=inv0, inverted_after=inv1,
+                kept=kept)
 
 
 def write_blocks(S, path, title="cleaned blocks"):

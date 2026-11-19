@@ -163,10 +163,11 @@ def beam_collapse(P, hexes, labeller, width=6, depth=6, guard="abs",
               f"{fl:.4f}, Hausdorff <= "
               f"{(f'{ceiling[1]:.3f} x local tolerance' if isinstance(ceiling, tuple) else f'{ceiling:.5f}')}; "
               f"width {width}, depth {depth}")
-    if base.get("non_ball"):
-        # a base block wrapped around a hole (e.g. a box around a body without any singular edge): the candidate
-        # statistics see the uncut base complex, so every candidate would look like the same non-ball blocks and
-        # the search is blind. Keep the raw mesh; the block structure cuts such blocks into balls (force_ball_cut).
+    if base.get("non_ball") and not base.get("sing"):
+        # no singular edge at all and a base block wrapped around a hole (e.g. a box around a body): every candidate
+        # is the same single non-ball block, the search is blind. Keep the raw mesh; the block structure cuts it
+        # into cuboids (force_ball_cut / cut_non_cuboids). With singular edges the search runs as usual and the
+        # remaining non-cuboid blocks are cut at the end.
         if verbose:
             print(f"[beam] {base['non_ball']} non-ball base block(s): no sheet collapse, the blocks are cut into "
                   "balls instead")

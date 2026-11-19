@@ -5,9 +5,14 @@ Update the status, the date and a one-line note when something changes. Context 
 Never start long computations without the owner's go (see the rules there).
 
 ## A. Running / to evaluate (state 2026-11-19 evening)
-- [~] A1 HexMe agent test A (10 cases, solid + fluid, free method choice). Evaluate per case: strategies tried,
-      blocks, valid, min sJ, time, failure reason; what methods were missing; MCP usability issues.
-      Job dirs `/opt/stack/cases/hexdp_agent/runs/`. Write the result to `cases/hexdp_agent/HEXME_TEST_A.md`.
+- [~] A1 HexMe agent test A (10 cases, solid + fluid, free method choice) - **evaluated 2026-11-19** (9 of 10;
+      the test was aborted, i11b_s1 fluid never started). Report: `/opt/stack/cases/hexdp_agent/HEXME_TEST_A.md`.
+      Result 1/9 valid (s01b cube solid only, 1 block). Main findings: only i11b_s1 ran with `--relative`; 3 of the
+      5 "raw mesh off surface" rejects would pass `max_raw_rel 0.05` (s16b fluid, i14b solid, i14b fluid -> rerun
+      needed); 3 AlgoHex IGM failures (invalid seamless map), not reproducible with an identical tet mesh; open
+      cavities (52-417 quads) and wrong boundary topology (i11b_s1, genus 3: Euler characteristic); polycube broken
+      (`libgco.so` not on the library path); beam post-check crashes with a ValueError instead of reporting INVALID;
+      `size_max` / `remesh_all` silently inert on a VTK input. Open: fall 10 (i11b_s1 fluid) - needs the owner's go.
 - [x] A2 canada runner p_0018 (2026-11-19): VALID 18 blocks, min sJ 0.71 with --max-raw-hausdorff 0.10 (relative)
       (`/work/scratch/canada_snap/beam2.log`). Snap discarded: Hausdorff 0.203 (5.7 % of diag) -> 0.216 at step 0.75.
       Suspected: nearest-face labels wrong when the mesh is that far off -> see B9. Next: rerun ru 0016, 0017
@@ -57,3 +62,7 @@ Never start long computations without the owner's go (see the rules there).
 - [ ] D2 push (owner pushes): not pushed yet ab959b2, c33c13b, f3be635 + the handoff commit (`git log origin/main..`)
 - [ ] D3 SciPy vs SLEPc eigensolver comparison for the FEniCS modal analysis (offered, not requested)
 - [ ] D4 remaining datagen samples 0993 / 0309 (keep-BL)
+- [ ] D5 fixes found by A1 (each minutes): evocube library path (`libgco.so` in `ext/evocube/build/lib/gco`),
+      patched AlgoHex as the default in `check_environment`/MCP, warn or refuse `size_max`/`remesh_all` when the
+      input is already a tagged VTK tet mesh, beam post-check: report INVALID instead of the `structured_grids`
+      ValueError, `report.json` for failed runs with timings. Details: `cases/hexdp_agent/HEXME_TEST_A.md` §4.

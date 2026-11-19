@@ -281,6 +281,17 @@ def patch(width=6, depth=6, guard="abs", sj_floor=0.05, workers=6, hausdorff_tol
     cb.collapse_mesh_sheets = collapse
 
 
+def post_check(path):
+    """The invalid issues of a written block structure. A block whose cells are not a structured grid is
+    reported as an issue instead of raising: that is the same verdict as for any other invalid result."""
+    from hexdp.core.blockstructure import Issue, invalid
+    from hexdp.io.blocks_vtk import read_blocks_vtk
+    try:
+        return invalid(read_blocks_vtk(path).check())
+    except ValueError as exc:                    # e.g. cells of one block that are no structured grid (not a ball)
+        return invalid([Issue("not_structured", str(exc))])
+
+
 if __name__ == "__main__":
     import argparse
     import sys
@@ -384,13 +395,7 @@ if __name__ == "__main__":
     for k in before:
         print(f"  {k:22s} {before[k]}  ->  {after[k]}")
     # the written structure must pass the same check an agent or the dataset applies to it
-    from hexdp.core.blockstructure import invalid
-    from hexdp.io.blocks_vtk import read_blocks_vtk
-    try:
-        bad = invalid(read_blocks_vtk(a.out).check())
-    except ValueError as exc:                    # e.g. a block that is no structured grid (not a ball)
-        from hexdp.core.blockstructure import Issue
-        bad = [Issue("not_structured", str(exc))]
+    bad = post_check(a.out)
     if bad:
         for i in bad[:10]:
             print(f"[beam] INVALID {i.kind}: {i.message}")

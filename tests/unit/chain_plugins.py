@@ -63,6 +63,18 @@ class NeverStrategy:
         raise AssertionError("must not run")
 
 
+class BoomStrategy:
+    """Applies but fails while running: a run that fails after the first stages have been timed."""
+    name = "boom"
+    params = {}
+
+    def applicable(self, geo, features):
+        return Score(1.0, ["fails on purpose"])
+
+    def run(self, geo, features, params, ctx):
+        raise RuntimeError("boom in strategy")
+
+
 class SplitOp:
     """Split every block in two along its i axis (straight blocks only)."""
     name = "split_i"

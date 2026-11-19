@@ -41,7 +41,7 @@ FACE_CORNERS = {
 @dataclass(frozen=True)
 class Issue:
     # orientation | inverted_cells | nonmanifold_face | hanging_vertex | t_junction | sheet_counts | degenerate |
-    # boundary_topology
+    # boundary_topology | not_structured
     kind: str
     message: str
     where: tuple = ()
@@ -50,7 +50,7 @@ class Issue:
 # Issues that make a block structure unusable. A t_junction (1:n block layout over a conforming fine mesh)
 # is only a warning: the mesh itself is valid.
 INVALID_KINDS = frozenset({"orientation", "inverted_cells", "nonmanifold_face", "hanging_vertex",
-                           "sheet_counts", "degenerate", "boundary_topology"})
+                           "sheet_counts", "degenerate", "boundary_topology", "not_structured"})
 
 
 def invalid(issues) -> list:

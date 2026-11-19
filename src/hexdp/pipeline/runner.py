@@ -104,6 +104,7 @@ def run_case(case: Case, fresh: bool = False) -> dict:
               "hexdp": __version__, "workspace": str(ws)}
     if case.parameters:
         report["parameters"] = case.parameters
+    timings: dict[str, float] = {}
     try:
         for f in case.reuse:
             dst = ws / f.name
@@ -130,6 +131,7 @@ def run_case(case: Case, fresh: bool = False) -> dict:
             discretiser=_stages("discretisers", [case.discretiser])[0] if case.discretiser else None,
             filler=_stages("fillers", [case.filler])[0] if case.filler else None,
             exporters=_stages("exporters", case.exporters),
+            timings=timings,
         )
         summary = res.blocks.summary(geo)
         report.update(state="done", strategy=res.strategy,
@@ -142,7 +144,8 @@ def run_case(case: Case, fresh: bool = False) -> dict:
             report["accepted"] = all(v["ok"] for v in report["accept"].values())
         res.blocks.save(ws / "blocks.json")
     except Exception as exc:
-        report.update(state="failed", error=f"{type(exc).__name__}: {exc}", traceback=traceback.format_exc())
+        report.update(state="failed", error=f"{type(exc).__name__}: {exc}", traceback=traceback.format_exc(),
+                      timings=timings)
     report["time_s"] = round(time.time() - t0, 2)
     _write(ws / "report.json", report)
     _write(ws / "status.json", {"state": report["state"], "pid": os.getpid(), "start": t0, "end": time.time(),

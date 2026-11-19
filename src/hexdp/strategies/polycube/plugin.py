@@ -31,11 +31,31 @@ def _bin_dir(param):
     return d
 
 
-def _run(ctx, cmd, log, threads):
+def _lib_dirs(bindir):
+    """The library directories shipped with the evocube build: ``lib`` (or ``lib64``) and every
+    subdirectory that holds shared libraries (e.g. ``lib/gco``, ``lib/OpenVolumeMesh/src``).
+    The CLIs need them on LD_LIBRARY_PATH."""
+    roots = [Path(bindir), *([Path(bindir).parent] if Path(bindir).name == "bin" else [])]
+    out = []
+    for root in roots:
+        for name in ("lib", "lib64"):
+            lib = root / name
+            if not lib.is_dir():
+                continue
+            for d in sorted({p.parent for p in lib.rglob("*.so*") if p.is_file()}):
+                if d not in out:
+                    out.append(d)
+    return out
+
+
+def _run(ctx, cmd, log, threads, libs=()):
     full = [str(c) for c in cmd]
     if ctx.cpu_list and shutil.which("taskset"):
         full = ["taskset", "-c", ctx.cpu_list, *full]
     env = dict(os.environ, OMP_NUM_THREADS=str(threads))
+    if libs:
+        old = env.get("LD_LIBRARY_PATH")
+        env["LD_LIBRARY_PATH"] = os.pathsep.join([*(str(p) for p in libs), *([old] if old else [])])
     with open(ctx.path(log), "w") as fh:
         try:
             r = subprocess.run(full, cwd=str(ctx.workspace), stdout=fh, stderr=subprocess.STDOUT, env=env,
@@ -110,14 +130,15 @@ class PolycubeStrategy:
     def run(self, geo, features, params, ctx):
         ws = ctx.workspace
         bindir = _bin_dir(params["evocube_bin"])
+        libs = _lib_dirs(bindir)
         th = params["threads"] or ctx.cores
         if not (ws / "tet.vtk").exists():
             tet_inputs(geo, ws, params["size"])
         if not (ws / "labeling_on_tets.txt").exists():
-            _run(ctx, [bindir / "prep_cli", "."], "evocube_prep.log", th)
-            _run(ctx, [bindir / "evolabel_cli", "boundary.obj", "."], "evocube_label.log", th)
+            _run(ctx, [bindir / "prep_cli", "."], "evocube_prep.log", th, libs)
+            _run(ctx, [bindir / "evolabel_cli", "boundary.obj", "."], "evocube_label.log", th, libs)
         if not (ws / "hexes.vtk").exists():
-            _run(ctx, [bindir / "polycube_withHexEx", ".", params["hex_scale"]], "evocube_hexex.log", th)
+            _run(ctx, [bindir / "polycube_withHexEx", ".", params["hex_scale"]], "evocube_hexex.log", th, libs)
             import meshio
 
             from hexdp.io.ovm import write_hex_vtk

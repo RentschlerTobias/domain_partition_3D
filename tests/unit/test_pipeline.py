@@ -87,6 +87,15 @@ def test_failed_run_is_reported_not_raised(case_dir):
     assert status(case_dir / "runs" / "never")["state"] == "failed"
 
 
+def test_failed_run_keeps_the_stage_timings(case_dir):
+    rep = run_case(load_case(write_case(case_dir, name="boom", strategy=[P + "BoomStrategy"])))
+    ws = case_dir / "runs" / "boom"
+    assert rep["state"] == "failed" and "boom in strategy" in rep["error"]
+    assert rep["timings"]["detect"] >= 0 and rep["timings"]["strategy:boom"] >= 0
+    written = json.loads((ws / "report.json").read_text())
+    assert written["timings"] == rep["timings"]
+
+
 def test_roles_from_the_case(case_dir):
     f = write_case(case_dir, name="roles", roles={1: "inlet"})
     rep = run_case(load_case(f))

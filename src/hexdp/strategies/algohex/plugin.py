@@ -50,6 +50,17 @@ class AlgoHexStrategy:
         return Score(0.4, ["general topology: no sweep direction or symmetry needed",
                            "input is a .msh with entities (tet_prep v5 cuts the blade O-grid)"])
 
+    def _warn_ignored(self, params, ctx):
+        """size_max and remesh_all act only in tet_prep; with a reused tet.vtk they change nothing."""
+        ignored = [f"{k}={params[k]}" for k in ("size_max", "remesh_all")
+                   if params[k] != self.params[k].default]
+        if not ignored:
+            return
+        msg = (f"{', '.join(ignored)}: size_max/remesh_all act only in tet_prep; tet.vtk is reused here "
+               "(an already tagged VTK tet input, or a resumed run), so these parameters have no effect")
+        print(f"[algohex] WARNING: {msg}", flush=True)
+        ctx.decide("algohex", "WARNING: size_max/remesh_all ignored", [msg])
+
     def run(self, geo, features, params, ctx):
         ws = ctx.workspace
         tet, ovm, blocks = ws / "tet.vtk", ws / "hex_hex_x.ovm", ws / "blocks.vtk"
@@ -63,6 +74,7 @@ class AlgoHexStrategy:
             args += ["--remesh-all", params["remesh_all"]]
             run_module(ctx, "hexdp.strategies.algohex.tet_prep", args, "tet_prep.log")
         else:
+            self._warn_ignored(params, ctx)
             ctx.decide("algohex", "reuse tet.vtk", [str(tet)])
         if not ovm.exists():
             th = params["threads"] or ctx.cores

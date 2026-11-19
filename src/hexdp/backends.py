@@ -48,9 +48,18 @@ def _probe(name: str) -> dict:
         except Exception as exc:                                      # noqa: BLE001
             return {"ok": False, "why": str(exc)}
     if name == "algohex":
-        b = os.environ.get("HEXMESHING_BIN", "HexMeshing")
+        given = os.environ.get("HEXMESHING_BIN", "")
+        b = given or "HexMeshing"
         p = shutil.which(b) or (b if Path(b).exists() else None)
-        return {"ok": bool(p), "path": p, "why": None if p else "HexMeshing not found (PATH or $HEXMESHING_BIN)"}
+        if not p:
+            why = (f"$HEXMESHING_BIN={given}: not found" if given
+                   else "HexMeshing not found on PATH (set $HEXMESHING_BIN to the binary of a patched build)")
+            return {"ok": False, "path": None, "why": why}
+        out = {"ok": True, "path": os.path.abspath(p), "how": "$HEXMESHING_BIN" if given else "PATH"}
+        if not given:
+            out["notes"] = ("found on PATH; set $HEXMESHING_BIN to the binary of a patched build to use that "
+                            "instead (e.g. a build with extra AlgoHex flags)")
+        return out
     if name in ("occ", "dtoo"):
         py = _occ_python()
         if not Path(py).exists():

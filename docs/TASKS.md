@@ -62,7 +62,10 @@ Never start long computations without the owner's go (see the rules there).
 - [ ] D2 push (owner pushes): not pushed yet ab959b2, c33c13b, f3be635 + the handoff commit (`git log origin/main..`)
 - [ ] D3 SciPy vs SLEPc eigensolver comparison for the FEniCS modal analysis (offered, not requested)
 - [ ] D4 remaining datagen samples 0993 / 0309 (keep-BL)
-- [ ] D5 fixes found by A1 (each minutes): evocube library path (`libgco.so` in `ext/evocube/build/lib/gco`),
-      patched AlgoHex as the default in `check_environment`/MCP, warn or refuse `size_max`/`remesh_all` when the
-      input is already a tagged VTK tet mesh, beam post-check: report INVALID instead of the `structured_grids`
-      ValueError, `report.json` for failed runs with timings. Details: `cases/hexdp_agent/HEXME_TEST_A.md` §4.
+- [x] D5 fixes found by A1 (2026-11-19): evocube library path is derived from the build (`_lib_dirs`; prep, label
+      and hexex run with `LD_LIBRARY_PATH`), beam post-check reports `not_structured` as INVALID (exit 4) instead
+      of a `ValueError`, `size_max`/`remesh_all` warn when tet_prep is skipped (tagged VTK input), `check_environment`
+      honours `$HEXMESHING_BIN` and names the PATH fallback, `report.json` of a failed run keeps the stage timings.
+      Tests: 134 passed, 3 failed (`test_mcp_server`, identical on HEAD: hexdp is not pip-installed in `/opt/venv-sci`,
+      so the entry points are missing). Open: set `HEXMESHING_BIN` in the MCP config (config, not code); an install
+      needs the owner's ok.

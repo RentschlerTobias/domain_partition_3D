@@ -58,9 +58,10 @@ def choose_strategy(geo: Geometry, feats: list[Feature], strategies: list[Stage]
 
 
 def run_chain(geo: Geometry, ctx: Context, *, detectors=(), strategies, ops=(), discretiser=None, filler=None,
-              exporters=()) -> ChainResult:
-    """Run the stages. Discretiser and filler are optional: some strategies deliver a filled structure."""
-    timings: dict[str, float] = {}
+              exporters=(), timings: dict | None = None) -> ChainResult:
+    """Run the stages. Discretiser and filler are optional: some strategies deliver a filled structure.
+    ``timings`` (optional) is filled in place, so a failed run keeps the stage times reached so far."""
+    timings = {} if timings is None else timings
     outputs: dict[str, list[str]] = {}
 
     def timed(name, fn, *a):

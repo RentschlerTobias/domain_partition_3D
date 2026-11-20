@@ -91,28 +91,88 @@ def _project_edge(project, labeller, Q, a, b):
     return P
 
 
-def _boundary_corner_pairs(bs):
-    """Corner pairs of the edges that belong to a boundary block face (a face used by one block).
+def _seam_polylines(labeller):
+    """The label boundaries of the input surface as polylines (points, closed, patch labels)."""
+    from hexdp.fill.curve_postprocess import seam_polylines
+    return seam_polylines(np.asarray(labeller.P, float), np.asarray(labeller.tris, int),
+                          np.asarray(labeller.ids, int))
 
-    Only these edges lie on the geometry. A boundary edge with two fine nodes is a straight chord between two
-    surface points - on a cylinder rim that chord cuts off the arc, which is why the edges are projected."""
+
+def _closest_on_polyline(poly, q):
+    """(arclength of the closest point, its distance) for one point on a polyline."""
+    a, d = poly[:-1], np.diff(poly, axis=0)
+    L2 = np.einsum("ij,ij->i", d, d)
+    L2[L2 <= 0] = 1e-30
+    t = np.clip(np.einsum("ij,ij->i", q - a, d) / L2, 0.0, 1.0)
+    p = a + t[:, None] * d
+    dist = np.linalg.norm(p - q, axis=1)
+    i = int(np.argmin(dist))
+    s = np.r_[0.0, np.cumsum(np.sqrt(L2))]
+    return float(s[i] + t[i] * np.sqrt(L2[i])), float(dist[i])
+
+
+def _seam_curve(seams, labels, q, k):
+    """The seam curve between an edge's two patches, resampled between the projections of its endpoints.
+
+    A block edge between two patches is a crease or a rim: its nearest point on either face alternates and the
+    curve zigzags, so the edge follows the seam of the input triangulation instead. That is what the old tistos
+    curve_postprocess did by patch pair. None when no seam with that pair runs near both endpoints."""
+    pair = tuple(sorted(labels))
+    best = None
+    for poly, _closed, labs in seams:
+        if tuple(sorted(labs)) != pair or len(poly) < 2:
+            continue
+        s0, d0 = _closest_on_polyline(poly, q[0])
+        s1, d1 = _closest_on_polyline(poly, q[-1])
+        score = max(d0, d1)
+        if best is None or score < best[0]:
+            best = (score, poly, s0, s1)
+    if best is None:
+        return None
+    score, poly, s0, s1 = best
+    if score > 0.5 * float(np.linalg.norm(q[-1] - q[0])) or abs(s1 - s0) < 1e-9:
+        return None
+    s = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(poly, axis=0), axis=1))]
+    t = np.linspace(s0, s1, k)
+    out = np.c_[tuple(np.interp(t, s, poly[:, c]) for c in range(3))]
+    out[0], out[-1] = q[0], q[-1]          # the block corners stay where they are
+    return out
+
+
+def _boundary_edge_labels(bs, labeller=None):
+    """Corner pair -> the surface patches of the boundary quads at that edge (two labels = a crease or a rim).
+
+    The surface tag comes from the block structure when the strategy recorded it (algohex does); a structure built
+    from a hex mesh without face labels (polycube, or a read blocks.vtk) asks the labeller instead."""
     P = np.asarray(bs.fine_points, float)
-    pairs = set()
-    for users in bs.faces().values():
+    out = {}
+    for key, users in bs.faces().items():
         if len(users) != 1:
             continue
         b, ax, sd = users[0]
+        info = bs.face_info.get(key)
+        lab = -1 if info is None or info.surface is None else int(info.surface)
         G = bs.grids[b]
         idx = [slice(None)] * 3
         idx[ax] = -1 if sd else 0
         F = G[tuple(idx)]
         quad = [F[0, 0], F[-1, 0], F[-1, -1], F[0, -1]]
         cs = [int(np.argmin(np.linalg.norm(bs.points - P[v], axis=1))) for v in quad]
+        if lab < 0 and labeller is not None:
+            lab = int(labeller.label(np.asarray([P[v] for v in quad]).mean(0, keepdims=True))[0])
         for i in range(4):
             a, c = cs[i], cs[(i + 1) % 4]
             if a != c:
-                pairs.add((min(a, c), max(a, c)))
-    return pairs
+                out.setdefault((min(a, c), max(a, c)), set()).add(lab)
+    return out
+
+
+def _boundary_corner_pairs(bs):
+    """Corner pairs of the edges that belong to a boundary block face (a face used by one block).
+
+    Only these edges lie on the geometry. A boundary edge with two fine nodes is a straight chord between two
+    surface points - on a cylinder rim that chord cuts off the arc, which is why the edges are projected."""
+    return set(_boundary_edge_labels(bs))
 
 
 def block_edges(bs, k=9, labeller=None):
@@ -124,7 +184,9 @@ def block_edges(bs, k=9, labeller=None):
     curvature back without touching the block structure. Endpoints never move (they are block corners), and a
     projection that would move a point more than half the chord is refused (it probably crossed a gap)."""
     seen, ends, curves = set(), [], []
-    bnd = _boundary_corner_pairs(bs) if labeller is not None else set()
+    labels_at = _boundary_edge_labels(bs, labeller) if labeller is not None else {}
+    bnd = set(labels_at)
+    seams = _seam_polylines(labeller) if labeller is not None else []
     P = np.asarray(bs.fine_points, float)
     for b, G in enumerate(bs.grids):
         n = np.array(G.shape) - 1
@@ -144,9 +206,14 @@ def block_edges(bs, k=9, labeller=None):
                     s = np.r_[0, np.cumsum(np.linalg.norm(np.diff(line, axis=0), axis=1))]
                     t = np.linspace(0, s[-1], k)
                     q = np.c_[[np.interp(t, s, line[:, c]) for c in range(3)]].T
-                    if (min(c0, c1), max(c0, c1)) in bnd and k > 2:
-                        from hexdp.core.clean_blocks import project_to_surface
-                        q[1:-1] = _project_edge(project_to_surface, labeller, q[1:-1], q[0], q[-1])
+                    eid = (min(c0, c1), max(c0, c1))
+                    if eid in bnd and k > 2:
+                        seam = _seam_curve(seams, labels_at[eid], q, k) if len(labels_at[eid]) == 2 else None
+                        if seam is None:
+                            from hexdp.core.clean_blocks import project_to_surface
+                            q[1:-1] = _project_edge(project_to_surface, labeller, q[1:-1], q[0], q[-1])
+                        else:
+                            q = seam
                     curves.append(q)
                     ends.append((c0, c1))
     return np.array(ends), np.array(curves)

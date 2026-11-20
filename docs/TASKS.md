@@ -144,7 +144,11 @@ Never start long computations without the owner's go (see the rules there).
       has chord 0.324 / arclength 0.439, i.e. a real arc.
       Open: the s10b residual is the *corners* (0.09-0.18 off the surface, the snap was discarded - B9), not the
       edges; the fine mesh and the sJ/Hausdorff metrics stay linear (only the exported target is curved); and the
-      tistos-compatible 2-control-point Bezier form is not written yet. Next for feature edges: an edge whose two
+      The tistos form is written too: `edge_ctrl (e,2,3)` (absolute cubic Bezier control points, fixed endpoints,
+      chord-length least squares) plus `edge_bezier_mode` (0 chord / 1 quadratic / 2 cubic) and
+      `edge_bezier_residual` (largest distance of the k samples from that one cubic - a half rim needs more than one,
+      so there the k samples are authoritative; measured median 4e-3 for n01b's arcs and up to 1.13 for s10b's
+      long seam rims). Next for feature edges: an edge whose two
       boundary quads lie on different patches is a crease or a rim (s10b's cylinder rim), and nearest-point
       projection may zigzag between the two faces - such edges need the seam curve (patch-pair matching, as
       `curve_postprocess.py` does it) instead of the projection. Untested so far.

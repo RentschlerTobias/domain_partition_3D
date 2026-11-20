@@ -63,3 +63,7 @@ def test_dataset_export_is_a_closed_outward_boundary(tmp_path):
     assert len(dset) == len(D) and all((b, a) in dset for a, b in D)                                  # closed, oriented
     assert np.einsum("ij,ij->i", V[T[:, 0]], np.cross(V[T[:, 1]], V[T[:, 2]])).sum() > 0             # outward
     assert z["surf_points"].shape == (500, 3) and z["blocks"].shape[1] == 8 and z["edge_curves"].shape[1:] == (5, 3)
+    # the same edges in the tistos form: two absolute Bezier control points, mode 0/1/2 per edge
+    assert z["edge_ctrl"].shape == (z["edge_curves"].shape[0], 2, 3)
+    assert z["edge_bezier_mode"].shape == (z["edge_curves"].shape[0],)
+    assert set(np.unique(z["edge_bezier_mode"])) <= {0, 1, 2}

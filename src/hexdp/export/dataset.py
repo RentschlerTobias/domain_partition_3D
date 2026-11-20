@@ -9,6 +9,10 @@ Target (the coarse block structure):
     corners (c, 3), blocks (b, 8) VTK hex order, edge_curves (e, k, 3) block edges sampled k times (curved):
     boundary edges are resampled along their chord and projected onto the input surface, because the fine grid keeps
     only 2-5 nodes per edge after the collapse and interpolation alone cannot bend a 2-node cylinder rim,
+    edge_ctrl (e, 2, 3) the same edges as two absolute cubic Bezier control points with fixed endpoints (the
+    tistos `edge_ctrl` form), edge_bezier_mode (e,) with 0 = chord, 1 = quadratic, 2 = cubic, and
+    edge_bezier_residual (e,) = the largest distance of the k samples from that cubic (a half rim needs more than
+    one cubic; then the k samples are the authoritative shape),
     edge_ends (e, 2) corner ids, face_labels: boundary faces of blocks (f, 6) = block, axis,
     side, label id, then 2 x unused (kept rectangular)
 Meta: label_names (json), blocks/valid/min_sj, case parameters and the source (json strings).
@@ -249,6 +253,29 @@ def _edge_off_surface(lab, curves, ends, bnd, part="inner"):
     return float(np.linalg.norm(Q - P, axis=1).max())
 
 
+BEZIER_CODES = {"chord": 0, "quadratic": 1, "cubic": 2}
+
+
+def _bezier_controls(curves):
+    """The tistos form next to the k samples: two absolute cubic Bezier control points per edge.
+
+    Same fit as the old dataset (``core/block_edges.fit_cubic_bezier``): fixed endpoints, least squares over the
+    whole polyline, chord-length parameter, mode chosen by how many interior points there are. ``curve_postprocess``
+    uses the cubic; a consumer that only wants the compact form gets it without having to fit again.
+    """
+    from hexdp.core.block_edges import bezier_points, fit_cubic_bezier, max_dist_to_curve
+    ctrl = np.zeros((len(curves), 2, 3))
+    mode = np.zeros(len(curves), np.int8)
+    res = np.zeros(len(curves))
+    for i, c in enumerate(curves):
+        B1, B2, m = fit_cubic_bezier(c[0], c[-1], c)
+        ctrl[i] = B1, B2
+        mode[i] = BEZIER_CODES[m]
+        # one cubic cannot follow a strongly bent seam (a half rim): say how far off it is instead of pretending
+        res[i] = max_dist_to_curve(c, bezier_points(c[0], B1, B2, c[-1], 200))
+    return ctrl, mode, res
+
+
 class DatasetExporter:
     """One training sample (sample.npz): boundary point cloud with outward normals and patch labels (input), the
     coarse block structure with curved block edges and boundary face labels (target), metrics and parameters."""
@@ -269,6 +296,7 @@ class DatasetExporter:
         pts, nrm, pl = sample_boundary(V, T, tl, params["n_points"], params["seed"])
         lab = _surface_labeller(bs, ctx) if params.get("project_edges", True) else None
         ends, curves = block_edges(bs, params["edge_samples"], lab)
+        ctrl, modes, bres = _bezier_controls(curves)
         faces = []
         for key, users in bs.faces().items():
             if len(users) == 1:
@@ -284,7 +312,9 @@ class DatasetExporter:
             out, surf_points=pts.astype(np.float32), surf_normals=nrm.astype(np.float32), surf_labels=pl.astype(np.int16),
             bnd_vertices=V.astype(np.float32), bnd_triangles=T.astype(np.int32), bnd_tri_labels=tl.astype(np.int16),
             corners=np.asarray(bs.points, np.float32), blocks=np.asarray(bs.blocks, np.int32),
-            edge_ends=ends.astype(np.int32), edge_curves=curves.astype(np.float32), face_labels=np.array(faces, np.int32),
+            edge_ends=ends.astype(np.int32), edge_curves=curves.astype(np.float32),
+            edge_ctrl=ctrl.astype(np.float32), edge_bezier_mode=modes, edge_bezier_residual=bres.astype(np.float32),
+            face_labels=np.array(faces, np.int32),
             label_names=json.dumps({int(t): n for t, n in bs.meta.get("surface_names", {}).items()}),
             metrics=json.dumps({"blocks": s["blocks"], "valid": s["valid"], "min_sj": s["min_sj_fine"],
                                 "fine_cells": s["fine_cells"],

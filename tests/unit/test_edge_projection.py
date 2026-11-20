@@ -4,8 +4,8 @@ from types import SimpleNamespace
 import numpy as np
 
 from hexdp.core import clean_blocks as cb
-from hexdp.export.dataset import (_boundary_corner_pairs, _boundary_triangles, _project_edge, _seam_curve,
-                                  block_edges)
+from hexdp.export.dataset import (_bezier_controls, _boundary_corner_pairs, _boundary_triangles,
+                                  _project_edge, _seam_curve, block_edges)
 from hexdp.io.blocks_vtk import from_grids
 
 
@@ -84,3 +84,27 @@ def test_a_seam_of_another_patch_pair_is_not_used():
 def test_a_seam_far_from_the_corners_is_refused():
     q = np.array([[0.0, 2.0, 0.0], [1.0, 2.0, 0.0]])
     assert _seam_curve(_seam(), {1, 2}, q, 5) is None
+
+
+# --- the tistos form next to the k samples ----------------------------------------------------------
+
+def test_the_controls_of_a_straight_edge_lie_on_the_chord():
+    c = np.c_[np.linspace(0, 1, 9), np.zeros(9), np.zeros(9)]
+    ctrl, mode, res = _bezier_controls(np.array([c]))
+    assert mode[0] == 2 and np.allclose(ctrl[0], [[1 / 3, 0, 0], [2 / 3, 0, 0]])
+
+
+def test_an_edge_with_two_points_is_a_chord():
+    c = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+    ctrl, mode, res = _bezier_controls(np.array([c]))
+    assert mode[0] == 0 and np.allclose(ctrl[0], [[1 / 3, 0, 0], [2 / 3, 0, 0]])
+
+
+def test_a_sampled_arc_gets_a_cubic_that_follows_it():
+    from hexdp.core.block_edges import bezier_points, max_dist_to_curve
+    t = np.linspace(0.0, 0.5 * np.pi, 9)
+    c = np.c_[np.cos(t), np.sin(t), np.zeros(9)]
+    ctrl, mode, res = _bezier_controls(np.array([c]))
+    assert mode[0] == 2
+    curve = bezier_points(c[0], ctrl[0, 0], ctrl[0, 1], c[-1], 200)
+    assert max_dist_to_curve(c, curve) < 0.01

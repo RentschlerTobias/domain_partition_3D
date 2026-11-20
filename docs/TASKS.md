@@ -100,9 +100,14 @@ Never start long computations without the owner's go (see the rules there).
       alone is not a dataset. The search has to be pushed *inside* the gate: `--hausdorff-ceiling F` (default 1.0 =
       old behaviour, both strategies) stops the collapse accepting a sheet that pushes the boundary beyond F x the
       local tolerance; the post-gate stays `max_hausdorff_rel`. Both are per-case parameters, so the value can
-      differ per geometry. Sweep over F in 1.0/0.75/0.5/0.25/0.1 on n01b, s10b, n07b (polycube) and s01b_cube
-      (algohex, beam-only on the stored hexes) measures the blocks-vs-distance trade-off; results decide the
-      default.
+      differ per geometry. Sweep over F in 1.0/0.75/0.5/0.25/0.1 (`/work/scratch/sweep/sweep.csv`, beam-only on the
+      stored hexes.vtk, which isolates the collapse): the ceiling is not the lever. s10b improves 0.707 -> 0.495
+      (F 0.5) -> 0.351 (F 0.25) while min sJ falls 0.38 -> 0.26 -> 0.21; n01b does not improve (0.691 -> 0.703) and
+      n07b gets much worse (0.325 -> 1.343, min sJ 0.009) because refusing sheets leaves the lattice where it stands.
+      So the drift is set before the collapse (coarse polycube lattice, block cuts) and by the cut stage: in the
+      pipeline the beam is at 0.707 but `cut_non_cuboids` takes 1 -> 7 blocks and the structure to 0.917. The
+      corner/edge snap after the cuts is the lever, not the ceiling; the parameter stays (default 1.0) for cases
+      where it helps. Note: this sweep measured the beam only, so its block counts are not the pipeline's.
 - [ ] B10 runner (structural) robustness: 1452/2000 valid; failures in hub layout QP, near-zero sJ
 - [ ] B11 save AlgoHex frame fields in future datagen (`--cell-quaternion-out-path` etc.)
 - [x] B12 the block boundary must stay a closed 2-manifold (fixed 2026-11-19, `clean_blocks.resolve_hanging_faces`):

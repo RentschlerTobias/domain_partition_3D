@@ -63,11 +63,15 @@ the mutation loop is OpenMP-parallel and all threads share the global `rand()`. 
 (measured on n08b); a proper fix is a per-iteration RNG stream.
 
 
-The labeling search (`evolabel_cli`) runs single-threaded by default (`label_threads: 1`): it shares one
-`rand()` across its OpenMP mutation loop, so any other thread count gives a different labeling per run, and one
-thread costs ~2 s on a five-model batch (`threads` still covers `prep_cli` and `polycube_withHexEx`). The local patch
-`archive.getIndiv(0)` -> `archive.bestIndividual()` in `app/evolabel_cli.cpp` and `app/evolabel.cpp` (the CLI used to
-finish with the worst archive member) is not committed upstream; a rebuild needs the symlink above.
+The labeling search (`evolabel_cli`) runs single-threaded: it shares one `rand()` across its OpenMP mutation loop,
+so any other thread count gives a different labeling per run. One thread costs ~2 s (`threads` still covers
+`prep_cli` and `polycube_withHexEx`). Two local patches, neither committed upstream:
+- `archive.getIndiv(0)` -> `archive.bestIndividual()` in `app/evolabel_cli.cpp` and `app/evolabel.cpp` (the CLI used
+  to finish with the worst archive member);
+- a seed argument (`evolabel_cli boundary.obj <dir> <seed>`, default 1) and one machine-readable `FINAL_SCORE <f>
+  invalid <f> flip <n>` line, which is what `label_seeds` compares.
+A rebuild needs the symlink above (`ln -s /opt/stack/ext/evocube /work/ext/evocube`), then
+`make evolabel_cli -j8` in `build/`.
 
 ## C4HexMeshing - a second extractor after AlgoHex
 

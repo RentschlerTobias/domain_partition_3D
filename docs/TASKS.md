@@ -47,8 +47,13 @@ Never start long computations without the owner's go (see the rules there).
       s06b 1, s07b 7, s10b 7 blocks; min sJ 0.08-0.996), 4 `CELLS 0` (n04b, n08b, n13b, n14b), 3 raw-mesh-off-surface
       (n09b, n15b, s08b, exit 3), 1 inverted (s14b). So the honest single-run yield is 8/16, and the 11/16 above was
       partly luck of the thread schedule - the deterministic labeling of n08b uses 2 directions and yields no hexes.
-      Next: seeded multi-start (a seed argument for `evolabel_cli`, keep the best archive score of K seeds): stays
-      deterministic because the seeds are fixed.
+      Seeded multi-start (2026-11-20, `label_seeds`, default 8): `evolabel_cli` takes a seed and prints one
+      `FINAL_SCORE` line; the strategy runs seeds 1..K single-threaded, keeps the best score and restores that
+      labeling. Deterministic, ~2 s per seed. Effect on the 8 failures (`/work/scratch/polycube_batch7/`): s08b
+      recovered (1 block, min sJ 0.78), n15b now fails the sJ floor (9.2e-6) instead of inverting, s14b unchanged,
+      and the four `CELLS 0` are unchanged - on n08b all 8 seeds end with `invalid 6, flip 55-84`, so the labeling
+      is never valid and those small sharp models are simply out of polycube's reach (route them to algohex).
+      Deterministic yield: 9 of 16.
 
 ## B. Methods (next work, owner said: relative Hausdorff + snap first [done], then canada pilot [done], C4Hex ok)
 - [x] B1 relative Hausdorff tolerances (c33c13b); now the CLI default (`--absolute` keeps the old numbers 0.05/0.15,

@@ -74,6 +74,52 @@ def _lib_dirs(bindir):
     return out
 
 
+LABEL_FILES = ("labeling.txt", "labeling_on_tets.txt", "fast_polycube_surf.obj", "logs.json")
+
+
+def final_score(log):
+    """The score of the final labeling that evolabel_cli prints (lower is better); None when the line is missing."""
+    try:
+        for line in reversed(Path(log).read_text().splitlines()):
+            if line.startswith("FINAL_SCORE"):
+                return float(line.split()[1])
+    except OSError:
+        pass
+    return None
+
+
+def label_search(ctx, bindir, ws, seeds, libs=()):
+    """Run the labeling search with several fixed seeds and keep the best labeling.
+
+    One run is deterministic (single-threaded) but the seed decides which local optimum it reaches: n08b's first
+    seed uses two directions and yields no hexahedra, another seed finds six. The seeds are fixed, so the best of
+    K is as reproducible as a single run - and the "worst archive individual" bug is why the search needs it.
+    """
+    seeds = max(1, int(seeds))
+    keep = Path(ws) / "label_seeds"
+    keep.mkdir(exist_ok=True)
+    best = None
+    for seed in range(1, seeds + 1):
+        log = f"evocube_label_s{seed}.log"
+        _run(ctx, [bindir / "evolabel_cli", "boundary.obj", ".", str(seed)], log, 1, libs)
+        score = final_score(ctx.path(log))
+        d = keep / f"s{seed}"
+        d.mkdir(exist_ok=True)
+        for name in LABEL_FILES:
+            if (Path(ws) / name).exists():
+                shutil.copy(Path(ws) / name, d / name)
+        print(f"[polycube] labeling seed {seed}: score {score}")
+        if best is None or (score is not None and (best[1] is None or score < best[1])):
+            best = (seed, score)
+    for name in LABEL_FILES:
+        src = keep / f"s{best[0]}" / name
+        if src.exists():
+            shutil.copy(src, Path(ws) / name)
+    shutil.copy(ctx.path(f"evocube_label_s{best[0]}.log"), ctx.path("evocube_label.log"))
+    print(f"[polycube] labeling: seed {best[0]} of {seeds} (score {best[1]})")
+    return best
+
+
 def _run(ctx, cmd, log, threads, libs=()):
     full = [str(c) for c in cmd]
     if ctx.cpu_list and shutil.which("taskset"):
@@ -131,9 +177,9 @@ class PolycubeStrategy:
         "size": ParamSpec(0.0, "tet size for a CAD input (0 = bbox diagonal / 30)", unit="m", lower=0),
         "hex_scale": ParamSpec(1.0, "HexEx scale of the polycube map (larger = more hexes)", lower=0.01),
         "threads": ParamSpec(0, "threads of the evocube stages (0 = the job's core count)", lower=0),
-        "label_threads": ParamSpec(1, "threads of the labeling search; 1 is deterministic (evocube shares one "
-                                      "rand() across the OpenMP mutations, so every other count gives a different "
-                                      "labeling per run) and costs ~2 s here", lower=1),
+        "label_seeds": ParamSpec(8, "seeds of the labeling search; the labeling runs single-threaded (evocube shares "
+                                     "one rand() across the OpenMP mutations, so more threads are not reproducible) "
+                                     "and the best of these fixed seeds wins. ~2 s per seed", lower=1),
         "min_sj": ParamSpec(0.05, "reject a block structure whose worst fine cell is below this scaled Jacobian "
                                   "(the structural check alone accepts nearly degenerate cells)", lower=0),
         "beam_width": ParamSpec(16, "beam width of the sheet collapse", lower=1),
@@ -168,8 +214,7 @@ class PolycubeStrategy:
             tet_inputs(geo, ws, params["size"])
         if not (ws / "labeling_on_tets.txt").exists():
             _run(ctx, [bindir / "prep_cli", "."], "evocube_prep.log", th, libs)
-            _run(ctx, [bindir / "evolabel_cli", "boundary.obj", "."], "evocube_label.log", params["label_threads"],
-                 libs)
+            label_search(ctx, bindir, ctx.workspace, params["label_seeds"], libs)
         if not (ws / "hexes.vtk").exists():
             _run(ctx, [bindir / "polycube_withHexEx", ".", params["hex_scale"]], "evocube_hexex.log", th, libs)
             import meshio

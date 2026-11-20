@@ -240,4 +240,5 @@ class PolycubeStrategy:
                        "beam.log")
         bs = read_blocks_vtk(ws / "blocks.vtk")
         bs.meta["source"] = str(ws / "blocks.vtk")
+        bs.meta["tet_vtk"] = str(ws / "tet.vtk")      # the exporters need the surface (curved edges)
         return bs

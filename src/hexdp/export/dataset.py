@@ -6,8 +6,10 @@ Input of a model (the closed, oriented boundary of the target volume):
     -- sampled area-uniformly (seeded) on the boundary triangulation, which is stored as well:
     bnd_vertices (v, 3), bnd_triangles (t, 3) oriented outward, bnd_tri_labels (t,)
 Target (the coarse block structure):
-    corners (c, 3), blocks (b, 8) VTK hex order, edge_curves (e, k, 3) block edges sampled k times along the fine
-    grid line (curved), edge_ends (e, 2) corner ids, face_labels: boundary faces of blocks (f, 6) = block, axis,
+    corners (c, 3), blocks (b, 8) VTK hex order, edge_curves (e, k, 3) block edges sampled k times (curved):
+    boundary edges are resampled along their chord and projected onto the input surface, because the fine grid keeps
+    only 2-5 nodes per edge after the collapse and interpolation alone cannot bend a 2-node cylinder rim,
+    edge_ends (e, 2) corner ids, face_labels: boundary faces of blocks (f, 6) = block, axis,
     side, label id, then 2 x unused (kept rectangular)
 Meta: label_names (json), blocks/valid/min_sj, case parameters and the source (json strings).
 """
@@ -72,9 +74,57 @@ def sample_boundary(V, T, labels, n, seed=0):
     return pts, nrm, labels[k]
 
 
-def block_edges(bs, k=9):
-    """Every block edge once: its two corners and k points along the fine grid line."""
+def _project_edge(project, labeller, Q, a, b):
+    """Project the interior samples of one edge onto the surface.
+
+    Refused in two cases: a point that would move by more than half the chord (the projection probably jumped
+    across a gap), and a projected line whose points fall on different patches. The second case is a crease or a
+    rim - the nearest point then zigzags between the two faces, and the edge needs the seam curve instead (not
+    built yet), so the straight chord is the better answer there."""
+    P = project(labeller, Q)
+    moved = np.linalg.norm(P - Q, axis=1)
+    if moved.max() > 0.5 * float(np.linalg.norm(b - a)):
+        return Q
+    ids = labeller.label(P)          # the two points next to the fixed corners may already touch another patch
+    if len(np.unique(ids[1:-1] if len(ids) > 2 else ids)) > 1:
+        return Q
+    return P
+
+
+def _boundary_corner_pairs(bs):
+    """Corner pairs of the edges that belong to a boundary block face (a face used by one block).
+
+    Only these edges lie on the geometry. A boundary edge with two fine nodes is a straight chord between two
+    surface points - on a cylinder rim that chord cuts off the arc, which is why the edges are projected."""
+    P = np.asarray(bs.fine_points, float)
+    pairs = set()
+    for users in bs.faces().values():
+        if len(users) != 1:
+            continue
+        b, ax, sd = users[0]
+        G = bs.grids[b]
+        idx = [slice(None)] * 3
+        idx[ax] = -1 if sd else 0
+        F = G[tuple(idx)]
+        quad = [F[0, 0], F[-1, 0], F[-1, -1], F[0, -1]]
+        cs = [int(np.argmin(np.linalg.norm(bs.points - P[v], axis=1))) for v in quad]
+        for i in range(4):
+            a, c = cs[i], cs[(i + 1) % 4]
+            if a != c:
+                pairs.add((min(a, c), max(a, c)))
+    return pairs
+
+
+def block_edges(bs, k=9, labeller=None):
+    """Every block edge once: its two corners and k points along the fine grid line.
+
+    With a ``labeller`` (the input surface), the interior samples of a boundary edge are projected onto the
+    geometry. The fine grid keeps only 2-5 nodes per edge after the sheet collapse, so an interpolation can only
+    follow the polygon through them: a 4-node cylinder rim stays a square. Projecting the resampled chord puts the
+    curvature back without touching the block structure. Endpoints never move (they are block corners), and a
+    projection that would move a point more than half the chord is refused (it probably crossed a gap)."""
     seen, ends, curves = set(), [], []
+    bnd = _boundary_corner_pairs(bs) if labeller is not None else set()
     P = np.asarray(bs.fine_points, float)
     for b, G in enumerate(bs.grids):
         n = np.array(G.shape) - 1
@@ -93,9 +143,43 @@ def block_edges(bs, k=9):
                     seen.add(key)
                     s = np.r_[0, np.cumsum(np.linalg.norm(np.diff(line, axis=0), axis=1))]
                     t = np.linspace(0, s[-1], k)
-                    curves.append(np.c_[[np.interp(t, s, line[:, c]) for c in range(3)]].T)
+                    q = np.c_[[np.interp(t, s, line[:, c]) for c in range(3)]].T
+                    if (min(c0, c1), max(c0, c1)) in bnd and k > 2:
+                        from hexdp.core.clean_blocks import project_to_surface
+                        q[1:-1] = _project_edge(project_to_surface, labeller, q[1:-1], q[0], q[-1])
+                    curves.append(q)
                     ends.append((c0, c1))
     return np.array(ends), np.array(curves)
+
+
+def _surface_labeller(bs, ctx=None):
+    """The input surface the beam worked on, else None.
+
+    The strategies record it in the meta; a workspace that was written by hand (or by a stage that does not) still
+    has the tet mesh as tet.vtk, which is the same file."""
+    tet = (bs.meta or {}).get("tet_vtk")
+    if not tet and ctx is not None:
+        cand = Path(ctx.workspace) / "tet.vtk"
+        tet = str(cand) if cand.exists() else None
+    if not tet or not Path(tet).exists():
+        return None
+    from hexdp.core.clean_blocks import SurfaceLabeller, read_input_surface
+    P0, tri, tid = read_input_surface(str(tet))
+    return SurfaceLabeller(P0, tri, tid)
+
+
+def _edge_off_surface(lab, curves, ends, bnd, part="inner"):
+    """Worst distance from the surface of the sampled points of the *boundary* edges.
+
+    "inner" measures the edge curve itself (the corners are fixed and belong to the block structure, not to the
+    edge shape); "ends" measures the corners, i.e. how far the block structure sits off the geometry."""
+    from hexdp.core.clean_blocks import project_to_surface
+    keep = [c for c, (a, b) in zip(curves, ends) if (min(a, b), max(a, b)) in bnd and len(c) > 2]
+    if not keep:
+        return 0.0
+    Q = np.concatenate([c[1:-1] if part == "inner" else c[[0, -1]] for c in keep], axis=0)
+    P = project_to_surface(lab, Q)
+    return float(np.linalg.norm(Q - P, axis=1).max())
 
 
 class DatasetExporter:
@@ -107,6 +191,8 @@ class DatasetExporter:
         "n_points": ParamSpec(20000, "boundary points of the input point cloud", lower=100),
         "seed": ParamSpec(0, "sampling seed", lower=0),
         "edge_samples": ParamSpec(9, "points per block edge curve", lower=2),
+        "project_edges": ParamSpec(True, "project the boundary edge curves onto the input surface (the fine grid "
+                                          "keeps only 2-5 nodes per edge, so interpolation alone cannot bend them)"),
     }
     formats = ("npz",)
 
@@ -114,7 +200,8 @@ class DatasetExporter:
         out = Path(path).with_suffix(".npz")
         V, T, tl = _boundary_triangles(bs)
         pts, nrm, pl = sample_boundary(V, T, tl, params["n_points"], params["seed"])
-        ends, curves = block_edges(bs, params["edge_samples"])
+        lab = _surface_labeller(bs, ctx) if params.get("project_edges", True) else None
+        ends, curves = block_edges(bs, params["edge_samples"], lab)
         faces = []
         for key, users in bs.faces().items():
             if len(users) == 1:
@@ -133,6 +220,11 @@ class DatasetExporter:
             edge_ends=ends.astype(np.int32), edge_curves=curves.astype(np.float32), face_labels=np.array(faces, np.int32),
             label_names=json.dumps({int(t): n for t, n in bs.meta.get("surface_names", {}).items()}),
             metrics=json.dumps({"blocks": s["blocks"], "valid": s["valid"], "min_sj": s["min_sj_fine"],
-                                "fine_cells": s["fine_cells"]}),
+                                "fine_cells": s["fine_cells"],
+                                **({"edge_off_surface_max": round(_edge_off_surface(
+                                        lab, curves, ends, _boundary_corner_pairs(bs)), 6),
+                                    "corner_off_surface_max": round(_edge_off_surface(
+                                        lab, curves, ends, _boundary_corner_pairs(bs), "ends"), 6)}
+                                   if lab is not None else {})}),
             case=json.dumps(case))
         return [out]

@@ -101,16 +101,32 @@ Never start long computations without the owner's go (see the rules there).
       that names the labeling, e.g. "2 of 6 directions: [2, 4], invalid labels [0]", and points to algohex. Not a
       `hex_scale` problem (2/4/8 all give 0 cells): the evocube labeling itself is degenerate and differs between
       runs ([1,2,4] / [3,4] / [2,4]), which is more evidence for the non-determinism note in A5. Affects 5 models.
-- [ ] B14 block edges as splines (goal of the dataset): a block is 8 corners plus a fine grid whose edge keeps only
-      2-5 nodes after the collapse (n15b `3x2x2`, s10b `5x4x4`), so a cylinder rim becomes a square and the TFI
-      fills a square tube - yet min sJ and Hausdorff are measured on that linear mesh. Target: 8 corners + curved
-      edges. The old tistos dataset already has that format: `/opt/stack/datasets/keepbl/tistos_s1_0131/sample_16c.npz`
-      (`vertices (40,3)`, `blocks (12,8)`, `edges (168,2)`, `edge_ctrl (168,2,3)`, `edge_polyline (812,3)` +
-      `edge_polyline_offset (169,)`, `dir_class`, surface points/tris/labels); the regression sample
-      `cases/misc_2026-11/hexdp_reg/tistos_0131/sample.npz` has the same keys. Plan: after the collapse assign each
-      block edge to a feature curve, resample it with fixed endpoints, pull the block faces along (TFI + projection),
-      then re-check sJ/Hausdorff with rollback. Open: find the fitting routine of the pre-refactor tistos pipeline
-      (`dp3d_keep_bl/.../experimentell/hex3d_algohex`, `dp3d/tmesh_faces.py:edge_polyline`) and take its semantics.
+- [~] B14 curved block edges (goal of the dataset: 8 corners + curved edges). Finding: the old tistos pipeline
+      never fitted edges to feature curves - `edge_ctrl` (2 points per edge) are the absolute control points of a
+      cubic Bezier least-squares fitted to the raw fine-node polyline with fixed endpoints (54 cubic / 6 quadratic /
+      24 chord in sample_16c), `edge_polyline` is that raw chain (2-7 nodes at n=2000, not resampled, not projected).
+      Faces/volume come from `tfi.py` (cubic face resampling + surface projection + TFI + per-block fallback to
+      linear) and never read `edge_ctrl`; real feature curves exist only in the optional `curve_postprocess.py`
+      (block edge between two different patches -> 65 arclength points on the seam, corners may move) and
+      `blade_insert.py` (only the HEX20 mid-node). The old "curved faces + TFI" attempt failed: 120 and 185 inverted
+      cells. Implemented 2026-11-20: `dataset.block_edges(bs, k, labeller)` resamples every boundary block edge along
+      its chord and projects the interior samples onto the input surface (endpoints fixed, a move beyond half the
+      chord is refused); the exporter builds the labeller from `meta["tet_vtk"]` and records
+      `edge_off_surface_max` (inner points) and `corner_off_surface_max` (the block corners) over boundary edges
+      only. A projection is refused when a point would move more than half the chord or when the projected interior
+      points land on different patches - that is a crease or a rim, where the nearest point zigzags between two
+      faces and the straight chord is the better answer until seam curves exist. Measured (inner off-surface, per
+      boundary edge): s10b 47 of 54 edges improved, median 0.179 -> 0.000 (worst 0.562 -> 0.181); n01b 8 of 12,
+      median 0.041 -> 0.000; n07b 2 of 20 (its block boundary sits 0.48 off the surface and the edges are creases);
+      s07b 6 of 50 (median already 0). The old numbers are the linear curves and they explain the "square rim":
+      s10b's rim edges have 2 nodes, so interpolation alone can never bend them. The refined export curve on n01b
+      has chord 0.324 / arclength 0.439, i.e. a real arc.
+      Open: the s10b residual is the *corners* (0.09-0.18 off the surface, the snap was discarded - B9), not the
+      edges; the fine mesh and the sJ/Hausdorff metrics stay linear (only the exported target is curved); and the
+      tistos-compatible 2-control-point Bezier form is not written yet. Next for feature edges: an edge whose two
+      boundary quads lie on different patches is a crease or a rim (s10b's cylinder rim), and nearest-point
+      projection may zigzag between the two faces - such edges need the seam curve (patch-pair matching, as
+      `curve_postprocess.py` does it) instead of the projection. Untested so far.
 - [~] B15 polycube labeling: non-determinism and the worst-individual bug (2026-11-20). Two separate causes, both in
       `evolabel_cli`, found by reading `/opt/stack/ext/evocube`:
       (a) *Non-determinism.* `srand(1)` is fixed, but the 100 mutations of a generation run in an OpenMP parallel

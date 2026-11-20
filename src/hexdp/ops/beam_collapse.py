@@ -327,6 +327,25 @@ def post_check(path):
         return invalid([Issue("not_structured", str(exc))])
 
 
+def quality_issues(path, min_sj):
+    """The cells below a scaled-Jacobian floor; an empty list when the floor is off or not reached.
+
+    ``check()`` says "valid" for upright cells only, so a structure can be valid and still unusable: n07 kept
+    min sJ 2.7e-6. A dataset gate needs this second question, and it belongs next to the structural one.
+    """
+    if min_sj <= 0:
+        return []
+    from hexdp.core.blockstructure import Issue
+    from hexdp.io.blocks_vtk import read_blocks_vtk
+    m = read_blocks_vtk(path).fine_min_jacobian()
+    if m is None or not len(m):
+        return []
+    b = int(m.argmin())
+    if m[b] >= min_sj:
+        return []
+    return [Issue("low_jacobian", f"block {b}: fine min scaled Jacobian {m[b]:.3g} < {min_sj:g}")]
+
+
 if __name__ == "__main__":
     import argparse
     import sys
@@ -339,6 +358,9 @@ if __name__ == "__main__":
     ap.add_argument("--depth", type=int, default=6)
     ap.add_argument("--guard", choices=("raw", "abs", "struct"), default="abs")
     ap.add_argument("--sj-floor", type=float, default=0.05)
+    ap.add_argument("--min-sj", type=float, default=0.0,
+                    help="reject the result when the worst fine cell is below this scaled Jacobian; 'valid' only "
+                         "says the cells are upright (default 0 = no such gate)")
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--hausdorff-tol", type=float, default=None,
                     help="Hausdorff tolerance; a fraction of the bounding-box diagonal unless --absolute is given "
@@ -437,7 +459,7 @@ if __name__ == "__main__":
     for k in before:
         print(f"  {k:22s} {before[k]}  ->  {after[k]}")
     # the written structure must pass the same check an agent or the dataset applies to it
-    bad = post_check(a.out)
+    bad = post_check(a.out) + quality_issues(a.out, a.min_sj)
     if bad:
         for i in bad[:10]:
             print(f"[beam] INVALID {i.kind}: {i.message}")

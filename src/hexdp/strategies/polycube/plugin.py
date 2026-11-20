@@ -130,7 +130,12 @@ class PolycubeStrategy:
         "evocube_bin": ParamSpec("", "directory of the evocube programs (default $HEXDP_EVOCUBE_BIN)"),
         "size": ParamSpec(0.0, "tet size for a CAD input (0 = bbox diagonal / 30)", unit="m", lower=0),
         "hex_scale": ParamSpec(1.0, "HexEx scale of the polycube map (larger = more hexes)", lower=0.01),
-        "threads": ParamSpec(0, "threads of the labeling (0 = the job's core count)", lower=0),
+        "threads": ParamSpec(0, "threads of the evocube stages (0 = the job's core count)", lower=0),
+        "label_threads": ParamSpec(1, "threads of the labeling search; 1 is deterministic (evocube shares one "
+                                      "rand() across the OpenMP mutations, so every other count gives a different "
+                                      "labeling per run) and costs ~2 s here", lower=1),
+        "min_sj": ParamSpec(0.05, "reject a block structure whose worst fine cell is below this scaled Jacobian "
+                                  "(the structural check alone accepts nearly degenerate cells)", lower=0),
         "beam_width": ParamSpec(16, "beam width of the sheet collapse", lower=1),
         "beam_depth": ParamSpec(16, "beam depth", lower=1),
         "hausdorff_tol": ParamSpec(0.05, "max boundary deviation of the collapse as a fraction of the bounding-box "
@@ -163,7 +168,8 @@ class PolycubeStrategy:
             tet_inputs(geo, ws, params["size"])
         if not (ws / "labeling_on_tets.txt").exists():
             _run(ctx, [bindir / "prep_cli", "."], "evocube_prep.log", th, libs)
-            _run(ctx, [bindir / "evolabel_cli", "boundary.obj", "."], "evocube_label.log", th, libs)
+            _run(ctx, [bindir / "evolabel_cli", "boundary.obj", "."], "evocube_label.log", params["label_threads"],
+                 libs)
         if not (ws / "hexes.vtk").exists():
             _run(ctx, [bindir / "polycube_withHexEx", ".", params["hex_scale"]], "evocube_hexex.log", th, libs)
             import meshio
@@ -184,7 +190,8 @@ class PolycubeStrategy:
                        [ws / "hexes.vtk", "--input-vtk", ws / "tet.vtk", "--out", ws / "blocks.vtk",
                         "--width", params["beam_width"], "--depth", params["beam_depth"], "--guard", "struct",
                         "--relative",
-                        "--hausdorff-tol", params["hausdorff_tol"], "--workers", params["beam_workers"]],
+                        "--hausdorff-tol", params["hausdorff_tol"], "--workers", params["beam_workers"],
+                        "--min-sj", params["min_sj"]],
                        "beam.log")
         bs = read_blocks_vtk(ws / "blocks.vtk")
         bs.meta["source"] = str(ws / "blocks.vtk")

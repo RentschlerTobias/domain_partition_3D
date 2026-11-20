@@ -112,10 +112,12 @@ Never start long computations without the owner's go (see the rules there).
       `bestIndividual()`; the build cache of `/opt/stack/ext/evocube/build` still points to the pre-refactor path
       `/work/ext/evocube`, so a rebuild needs `ln -s /opt/stack/ext/evocube /work/ext/evocube`.
       Measured after the patch on the five `CELLS 0` models: n08b and n13b now produce 1 block each (n08b min sJ
-      4e-7, n13b 0.056), n04b/n09b/n14b still `CELLS 0`; the labelings use 5-6 directions instead of 2-3 (n14b is
-      still degenerate with only the opposite pair 0/5). Open: `threads: 1` for reproducibility (cost unmeasured),
-      or per-iteration RNGs in the mutation loop (no speed loss); and whether repeated restarts with different seeds
-      plus "keep the best label" are cheaper than more generations.
+[1208 characters, dropped: the file on disk has it]
+
+- [x] B16 (2026-11-20): the structural check is not a quality check. `beam_collapse --min-sj F` (default 0 = off,
+      relative tolerances untouched) rejects a structure whose worst fine cell is below F: issue `low_jacobian`,
+      exit 4, so `report.json` says invalid like any other defect. Both strategies carry `min_sj` (default 0.05).
+      Reason: `valid` alone accepted n07 at min sJ 2.7e-6 and n08b at 4e-7. Tests: `test_quality_gate.py`.
 
 ## C. Data / machines
 - [x] C1 HexMe b models split into solid / fluid (57 free models), agent data dir

@@ -63,6 +63,12 @@ the mutation loop is OpenMP-parallel and all threads share the global `rand()`. 
 (measured on n08b); a proper fix is a per-iteration RNG stream.
 
 
+The labeling search (`evolabel_cli`) runs single-threaded by default (`label_threads: 1`): it shares one
+`rand()` across its OpenMP mutation loop, so any other thread count gives a different labeling per run, and one
+thread costs ~2 s on a five-model batch (`threads` still covers `prep_cli` and `polycube_withHexEx`). The local patch
+`archive.getIndiv(0)` -> `archive.bestIndividual()` in `app/evolabel_cli.cpp` and `app/evolabel.cpp` (the CLI used to
+finish with the worst archive member) is not committed upstream; a rebuild needs the symlink above.
+
 ## C4HexMeshing - a second extractor after AlgoHex
 
 GPL-3, used as an external program only (`src/hexdp/strategies/algohex/extract_c4hex.py`). Built here at

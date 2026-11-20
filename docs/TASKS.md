@@ -79,10 +79,24 @@ Never start long computations without the owner's go (see the rules there).
 - [ ] B6 mesh-based sweep detection (extrusion / revolution parts from tet meshes; many HexMe parts)
 - [ ] B7 polycube with through holes (cuts before labeling; HexDom BSD-3 is a candidate)
 - [ ] B8 body O-grid for external-flow cases (body in box), like the blade O-grid
-- [ ] B9 snap: (a) when the raw mesh is far off (> ~3 % of the diagonal), the nearest-face surface labels of the
+- [~] B9 snap: (a) when the raw mesh is far off (> ~3 % of the diagonal), the nearest-face surface labels of the
       boundary quads can be wrong -> label by feature-curve-aware matching before projecting (canada ru p_0018:
       snap made it worse); (b) if steps still add inversions, smoothing (Winslow / Mesquite) after projection.
       Also consider raising algohex max_raw_rel 0.05 -> 0.10 (p_0018 valid with 0.10).
+      Finding 2026-11-20: the snap is label-aware already (a vertex on one label goes to that label's triangles, on
+      two labels to their common border, at three or more to the shared input vertex), and it does move vertices on
+      polycube structures (S.surf_of is built from the labeller, not from face_info). The real defect is the
+      acceptance: the collapse drifts up to the Hausdorff ceiling, and the ceiling is 1.0 x the *local* tolerance
+      (the distance the narrowest gap allows). Measured `hausdorff_rel` of the nine "valid" polycube models of
+      batch6: 0.998, 0.993, 0.928, 0.989, 0.971, 0.844 - only n06b (0.072) and s06b (0.055) are near the surface.
+      So the structures are as far off as the geometry permits while still passing. New gate:
+      `beam_collapse --max-hausdorff-rel F` (default 0 = off, strategies 0.5) rejects a result above F x the local
+      tolerance with issue `off_surface`; `hausdorff_issue()` + tests. The gate must ask the labeller again after
+      the snap (`final_hausdorff()`): the collapse's stats dict carries `hausdorff_rel` only for the state before
+      the snap, so the first version silently passed everything. Measured after the snap: n06b 0.072 and s06b 0.000
+      pass, n07b 0.833 and s10b 0.917 are rejected. Open: 0.5 is a policy choice, and the search should be pushed
+      *inside* the gate (a tighter ceiling during the collapse) rather than only judged afterwards - otherwise
+      models that could be better are simply rejected.
 - [ ] B10 runner (structural) robustness: 1452/2000 valid; failures in hub layout QP, near-zero sJ
 - [ ] B11 save AlgoHex frame fields in future datagen (`--cell-quaternion-out-path` etc.)
 - [x] B12 the block boundary must stay a closed 2-manifold (fixed 2026-11-19, `clean_blocks.resolve_hanging_faces`):
@@ -112,6 +126,13 @@ Never start long computations without the owner's go (see the rules there).
       cells. Implemented 2026-11-20: `dataset.block_edges(bs, k, labeller)` resamples every boundary block edge along
       its chord and projects the interior samples onto the input surface (endpoints fixed, a move beyond half the
       chord is refused); the exporter builds the labeller from `meta["tet_vtk"]` and records
+      Feature edges (two patches at one edge) follow the seam curve of the input triangulation instead: the seam
+      polylines come from `fill/curve_postprocess.seam_polylines`, the matching is by patch pair plus the nearest
+      endpoint pair, and the curve is resampled between the projections of the two corners (the tistos
+      curve_postprocess logic, without moving corners). Labels come from `face_info` when the strategy recorded them
+      and from the labeller otherwise (polycube records none). With that: s10b 50 of 54 boundary edges improved and
+      the worst inner distance 0.562 -> 0.000, s07b 0.0135 -> 0.000, n01b 8 of 12 (median 0.041 -> 0.000,
+      chord 0.324 with arclength 0.439), n07b unchanged (block boundary 0.48 off the surface). The exporter reports
       `edge_off_surface_max` (inner points) and `corner_off_surface_max` (the block corners) over boundary edges
       only. A projection is refused when a point would move more than half the chord or when the projected interior
       points land on different patches - that is a crease or a rim, where the nearest point zigzags between two

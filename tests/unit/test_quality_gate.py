@@ -33,3 +33,16 @@ def test_a_structure_without_fine_grids_is_not_judged(monkeypatch):
     monkeypatch.setattr("hexdp.io.blocks_vtk.read_blocks_vtk",
                         lambda p: SimpleNamespace(fine_min_jacobian=lambda: None))
     assert bc.quality_issues("blocks.vtk", 0.05) == []
+
+
+def test_a_structure_that_drifted_to_the_tolerance_limit_is_reported():
+    issues = bc.hausdorff_issue({"hausdorff_rel": 0.99}, 0.5)
+    assert len(issues) == 1 and issues[0].kind == "off_surface" and "0.99" in issues[0].message
+
+
+def test_a_structure_near_the_surface_passes_the_hausdorff_gate():
+    assert bc.hausdorff_issue({"hausdorff_rel": 0.07}, 0.5) == []
+
+
+def test_a_limit_of_zero_switches_the_hausdorff_gate_off():
+    assert bc.hausdorff_issue({"hausdorff_rel": 0.99}, 0.0) == []

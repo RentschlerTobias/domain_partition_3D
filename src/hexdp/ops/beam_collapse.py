@@ -327,6 +327,32 @@ def post_check(path):
         return invalid([Issue("not_structured", str(exc))])
 
 
+def final_hausdorff(S):
+    """The boundary distance of the written structure, as a fraction of the allowed local tolerance.
+
+    The stats dict of the collapse holds `hausdorff_rel` only for the state *before* the snap (it is read from the
+    labeller then), so the gate has to ask the labeller again after the snap."""
+    Q = S.P[np.asarray(S.bnd_loops)].mean(1)
+    S.labeller.label(Q)
+    return {"hausdorff_rel": float(getattr(S.labeller, "max_rel", 0.0))}
+
+
+def hausdorff_issue(stats, limit):
+    """The structure may sit at 100 % of the allowed local tolerance and still count as valid.
+
+    That tolerance is the distance the narrowest gap of the model allows, so a result at 0.99 of it is a lattice
+    that drifted as far from the surface as the geometry permits - useless for a dataset, although structurally
+    fine. ``limit`` is a fraction of that tolerance (0 = no such gate)."""
+    if limit <= 0:
+        return []
+    rel = float((stats or {}).get("hausdorff_rel", 0.0))
+    if rel <= limit:
+        return []
+    from hexdp.core.blockstructure import Issue
+    return [Issue("off_surface", f"the block structure sits at {rel:.2f} of the allowed local tolerance from the "
+                                 f"input surface (> {limit:g})")]
+
+
 def quality_issues(path, min_sj):
     """The cells below a scaled-Jacobian floor; an empty list when the floor is off or not reached.
 
@@ -361,6 +387,9 @@ if __name__ == "__main__":
     ap.add_argument("--min-sj", type=float, default=0.0,
                     help="reject the result when the worst fine cell is below this scaled Jacobian; 'valid' only "
                          "says the cells are upright (default 0 = no such gate)")
+    ap.add_argument("--max-hausdorff-rel", type=float, default=0.0,
+                    help="reject the result when the block boundary sits farther than this fraction of the allowed "
+                         "local tolerance from the input surface; the search otherwise drifts to ~1.0 (default 0)")
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--hausdorff-tol", type=float, default=None,
                     help="Hausdorff tolerance; a fraction of the bounding-box diagonal unless --absolute is given "
@@ -459,7 +488,10 @@ if __name__ == "__main__":
     for k in before:
         print(f"  {k:22s} {before[k]}  ->  {after[k]}")
     # the written structure must pass the same check an agent or the dataset applies to it
-    bad = post_check(a.out) + quality_issues(a.out, a.min_sj)
+    _fh = final_hausdorff(S)
+    if a.max_hausdorff_rel > 0:
+        print(f"[beam] boundary distance {_fh['hausdorff_rel']:.3f} x local tolerance (limit {a.max_hausdorff_rel:g})")
+    bad = post_check(a.out) + quality_issues(a.out, a.min_sj) + hausdorff_issue(_fh, a.max_hausdorff_rel)
     if bad:
         for i in bad[:10]:
             print(f"[beam] INVALID {i.kind}: {i.message}")

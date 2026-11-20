@@ -182,6 +182,9 @@ class PolycubeStrategy:
                                      "and the best of these fixed seeds wins. ~2 s per seed", lower=1),
         "min_sj": ParamSpec(0.05, "reject a block structure whose worst fine cell is below this scaled Jacobian "
                                   "(the structural check alone accepts nearly degenerate cells)", lower=0),
+        "max_hausdorff_rel": ParamSpec(0.5, "reject a structure whose boundary sits farther than this fraction "
+                                          "of the allowed local tolerance from the surface (the search drifts "
+                                          "to ~1.0)", lower=0),
         "beam_width": ParamSpec(16, "beam width of the sheet collapse", lower=1),
         "beam_depth": ParamSpec(16, "beam depth", lower=1),
         "hausdorff_tol": ParamSpec(0.05, "max boundary deviation of the collapse as a fraction of the bounding-box "
@@ -236,7 +239,8 @@ class PolycubeStrategy:
                         "--width", params["beam_width"], "--depth", params["beam_depth"], "--guard", "struct",
                         "--relative",
                         "--hausdorff-tol", params["hausdorff_tol"], "--workers", params["beam_workers"],
-                        "--min-sj", params["min_sj"]],
+                        "--min-sj", params["min_sj"],
+                        "--max-hausdorff-rel", params["max_hausdorff_rel"]],
                        "beam.log")
         bs = read_blocks_vtk(ws / "blocks.vtk")
         bs.meta["source"] = str(ws / "blocks.vtk")

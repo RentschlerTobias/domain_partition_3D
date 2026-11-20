@@ -178,6 +178,22 @@ FAIL_FAST_MARK = "Parameterizing without quantization"
 FAIL_FAST_EXIT = 3
 
 
+def _hex_cell_count(ovm):
+    """Number of hexahedra in an .ovm (0 for a missing or empty file).
+
+    HexMeshing exits 0 even when HexEx refuses the map ("Detected N Flipped ... after the Sanitization",
+    "Invalid Input - Flipped or Degenerate Tet") and leaves an .ovm with vertices but no cells, so the exit
+    code alone says nothing about success.
+    """
+    try:
+        from hexdp.io.ovm import ovm_to_cells, read_ovm
+        P, E, F, polys = read_ovm(ovm)
+        H, _ = ovm_to_cells(P, E, F, polys)
+        return len(H)
+    except (OSError, ValueError):
+        return 0
+
+
 def _run_watched(cmd, log, log_path, mark, poll=10.0):
     """subprocess.run, but terminate when `mark` appears in the log.
     Returns (returncode, stopped_by_mark)."""
@@ -347,5 +363,14 @@ if __name__ == "__main__":
         extra, tag=a.tag, in_vtk=a.in_vtk, prefix=a.prefix, cpus=a.cpus,
         backend=backend, image=a.image, out_dir=a.out_dir,
         checkpoints=a.checkpoints, fail_fast=not a.no_fail_fast)
+    if rc == 0:
+        # HexMeshing exits 0 even when HexEx refuses the map ("Invalid Input - Flipped or Degenerate Tet")
+        # and writes an .ovm without cells; report that here, where the log is known.
+        empty = _hex_cell_count(out_ovm) == 0
+        if empty:
+            print(f"[run_algohex] ERROR: {out_ovm} has no hexahedra. HexMeshing exited 0 but HexEx "
+                  f"extracted nothing, the integer-grid map is folded - see the seamless-map check in "
+                  f"{log_path}. Use the polycube strategy or a different tet mesh.", file=sys.stderr)
+            sys.exit(4)
     print(f"[run_algohex] hex mesh: {out_ovm}")
     sys.exit(rc)

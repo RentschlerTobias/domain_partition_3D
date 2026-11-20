@@ -35,6 +35,9 @@ class AlgoHexStrategy:
         "max_raw_rel": ParamSpec(0.05, "reject the raw hex mesh above this Hausdorff distance (fraction of the "
                                  "diagonal; boundary vertices are snapped back onto the surface below it)", lower=0),
         "beam_workers": ParamSpec(4, "worker processes of the beam search", lower=1),
+        "checkpoints": ParamSpec(False, "also keep the seamless map (hex_seamless_x.hexex, ~45 MB) and the final "
+                                        "tet mesh (~11 MB): needed by an external extractor (C4HexMeshing) and by -n "
+                                        "sweeps, which do not work from the tet mesh (DATA_GENERATION.md)"),
     }
 
     def applicable(self, geo, features):
@@ -81,6 +84,7 @@ class AlgoHexStrategy:
             env = {"HEXMESHING_BIN": params["hexmeshing_bin"]} if params["hexmeshing_bin"] else {}
             run_module(ctx, "hexdp.strategies.algohex.run_algohex",
                        ["--backend", "native", "--prefix", "hex", "--tag", "x", "--in-vtk", tet, "--out-dir", ws,
+                        *(["--checkpoints"] if params["checkpoints"] else []),
                         "--", "-n", params["n"]], "algohex.log", threads=th, env=env)
         else:
             ctx.decide("algohex", "reuse hex_hex_x.ovm", [str(ovm)])

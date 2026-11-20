@@ -42,6 +42,13 @@ Never start long computations without the owner's go (see the rules there).
       blocks), 3 still `CELLS 0` (n04b, n09b, n14b), 2 invalid (`s14b` inverted behind the sphere cutout, `n15b`
       min sJ 2.2e-6 -> one cell at -7e-4). Quality clearly better: n07b 0.64, n03b 0.86, n01b 0.86, s08b 0.81
       (n07b was 2.7e-6). n08b (4e-7) and n13b (0.056) are valid but useless - a min-sJ floor is still needed.
+      Those numbers were single random draws (8-thread labeling). Deterministic rerun 2026-11-20 (`label_threads: 1`,
+      `min_sj: 0.05`), `/work/scratch/polycube_batch6/`: **8 of 16 valid** (n01b 1, n02b 5, n03b 3, n06b 1, n07b 2,
+      s06b 1, s07b 7, s10b 7 blocks; min sJ 0.08-0.996), 4 `CELLS 0` (n04b, n08b, n13b, n14b), 3 raw-mesh-off-surface
+      (n09b, n15b, s08b, exit 3), 1 inverted (s14b). So the honest single-run yield is 8/16, and the 11/16 above was
+      partly luck of the thread schedule - the deterministic labeling of n08b uses 2 directions and yields no hexes.
+      Next: seeded multi-start (a seed argument for `evolabel_cli`, keep the best archive score of K seeds): stays
+      deterministic because the seeds are fixed.
 
 ## B. Methods (next work, owner said: relative Hausdorff + snap first [done], then canada pilot [done], C4Hex ok)
 - [x] B1 relative Hausdorff tolerances (c33c13b); now the CLI default (`--absolute` keeps the old numbers 0.05/0.15,

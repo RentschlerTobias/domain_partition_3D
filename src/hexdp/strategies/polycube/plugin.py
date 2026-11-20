@@ -32,22 +32,27 @@ def _bin_dir(param):
 
 
 def _label_note(ws):
-    """Which of the six cube directions the evocube labeling uses (for the error message, not a check)."""
+    """Which of the six cube directions the evocube labeling uses (for the error message, not a check).
+
+    A label is ``2*axis + dir`` over the three axes (evocube ``src/flagging_utils.cpp:axesMatrix``), so the six
+    valid values are 0..5 - 0 is a direction like any other. Only ``labeling_on_tets.txt`` uses -1 ("no label").
+    """
     vals = set()
     try:
         for line in open(Path(ws) / "labeling.txt"):
             tok = line.split()
-            if len(tok) == 1:            # the file is one label per line after a "tets N vertices M" header
+            if len(tok) == 1:            # the file is one label per line
                 try:
                     vals.add(int(tok[0]))
                 except ValueError:
                     pass
     except OSError:
         return ""
+    vals.discard(-1)
     if not vals:
         return ""
-    used = sorted(vals & set(range(1, 7)))
-    bad = sorted(vals - set(range(1, 7)))
+    used = sorted(vals & set(range(6)))
+    bad = sorted(vals - set(range(6)))
     note = f" (labeling uses {len(used)} of 6 directions: {used}"
     return note + (f", invalid labels {bad})" if bad else ")")
 

@@ -35,7 +35,13 @@ Never start long computations without the owner's go (see the rules there).
       valid** (s10 4->7, n01 3->5, n07 18->9, n02 7->7, the rest unchanged), all `check(geo)` clean. Still 7 failed
       for other reasons (5 `CELLS 0`, 2 Hausdorff gate). Caveat: two runs of the same model differ before the fix
       already (n07: 146 vs 144 fine cells, min sJ 0.014 vs 0.333), so polycube/HexEx is not deterministic - check
-      that before a dataset relies on it. n07 keeps min sJ 2.7e-6: valid, but nearly degenerate.
+      that before a dataset relies on it (cause and fix options: B15). n07 keeps min sJ 2.7e-6: valid, but nearly
+      degenerate.
+      Rerun 2026-11-20 with the B15 patch (best archive individual instead of the worst), `/work/scratch/polycube_batch5/`:
+      **11 of 16 valid** (n01b 1, n02b 5, n03b 3, n06b 1, n07b 9, n08b 1, n13b 1, s06b 1, s07b 7, s08b 1, s10b 7
+      blocks), 3 still `CELLS 0` (n04b, n09b, n14b), 2 invalid (`s14b` inverted behind the sphere cutout, `n15b`
+      min sJ 2.2e-6 -> one cell at -7e-4). Quality clearly better: n07b 0.64, n03b 0.86, n01b 0.86, s08b 0.81
+      (n07b was 2.7e-6). n08b (4e-7) and n13b (0.056) are valid but useless - a min-sJ floor is still needed.
 
 ## B. Methods (next work, owner said: relative Hausdorff + snap first [done], then canada pilot [done], C4Hex ok)
 - [x] B1 relative Hausdorff tolerances (c33c13b); now the CLI default (`--absolute` keeps the old numbers 0.05/0.15,
@@ -45,9 +51,17 @@ Never start long computations without the owner's go (see the rules there).
 - [x] B2 snap boundary to surface, stepwise (c33c13b, f3be635)
 - [x] B3 blocks around holes / non-cuboid blocks cut automatically (ab959b2, c33c13b)
 - [~] B4 C4HexMeshing as alternative quantization/extraction after AlgoHex: built (`/opt/stack/ext/C4HexMeshing`).
-      Next: run AlgoHex with `--sm-out-path`, feed `c4hex_cli`, convert its hex mesh to .ovm/.vtk for beam; test on a
-      case where AlgoHex extraction failed (HexMe s16b_torus solid v2: 22k flipped tets in HexHex). Then wire it in
-      as an option of the algohex strategy (param `extractor: algohex|c4hex`) + docs/backends.md.
+      Stage written: `src/hexdp/strategies/algohex/extract_c4hex.py` (runs `c4hex_cli` on a `.hexex`, finds
+      `<prefix>_<n>_hex.ovm`, reports failures with exit code and log tail; 5 tests incl. a real run on
+      `minimal.hexex`: 10 648 hexes, min sJ 1.0, readable by `hexdp.io.ovm`). AlgoHex writes the map with
+      `--checkpoints` (new param `checkpoints` of the algohex strategy). Measured on s16b_torus solid (2026-11-20):
+      HexMeshing produced the seamless map (37 MB) but HexEx still found 22185 flipped tets; `c4hex_cli` then stops
+      after 2 s with "Reading seamless map failed with error code 5" = `INVALID_CHART` (Reader.hpp: "parametrically
+      inverted or degenerate tet"), also with `--force-sanitization`. So C4Hex does not rescue a folded
+      *parametrisation*: it replaces HexEx's IGM, not AlgoHex's field. It helps only for maps that are valid but
+      quantise badly. Not wired into the strategy yet (`extractor: algohex|c4hex` still open); the 3 AlgoHex gate
+      cases stay blocked unless the field improves. The C4Hex repo's own `fandisk_algohex.hexex` sample fails too
+      (exit 22 after 17 min), so the bundled samples are not all solvable either.
 - [ ] B5 algohex strategy: option `tet_prep: v5|named` (generic tet_prep_named for any named .msh, e.g. radMeridional,
       canada) instead of the tistos-specific v5.
 - [ ] B6 mesh-based sweep detection (extrusion / revolution parts from tet meshes; many HexMe parts)
@@ -85,6 +99,23 @@ Never start long computations without the owner's go (see the rules there).
       block edge to a feature curve, resample it with fixed endpoints, pull the block faces along (TFI + projection),
       then re-check sJ/Hausdorff with rollback. Open: find the fitting routine of the pre-refactor tistos pipeline
       (`dp3d_keep_bl/.../experimentell/hex3d_algohex`, `dp3d/tmesh_faces.py:edge_polyline`) and take its semantics.
+- [~] B15 polycube labeling: non-determinism and the worst-individual bug (2026-11-20). Two separate causes, both in
+      `evolabel_cli`, found by reading `/opt/stack/ext/evocube`:
+      (a) *Non-determinism.* `srand(1)` is fixed, but the 100 mutations of a generation run in an OpenMP parallel
+      for (`app/evolabel_cli.cpp:131`) and all draw from the global `rand()` (`include/archive.h:116`,
+      `evolabel_cli.cpp:75,142`, ~20 places in `include/labeling_individual.h`), so the scheduling decides which
+      individual gets which number. Measured on n08b: two runs with `OMP_NUM_THREADS=1` give an identical
+      `labeling.txt` (md5 6b5c8efa), with 8 threads the second differs (04e14632). No seed/thread option exists.
+      (b) *Quality.* The archive is sorted by descending score (front = worst, `bestScore()` = `back()`, the
+      roulette selection favours high indices), yet `app/evolabel_cli.cpp:241` (and upstream `app/evolabel.cpp:244`)
+      takes `archive.getIndiv(0)` - the worst stored individual - as the final labeling. Patched locally to
+      `bestIndividual()`; the build cache of `/opt/stack/ext/evocube/build` still points to the pre-refactor path
+      `/work/ext/evocube`, so a rebuild needs `ln -s /opt/stack/ext/evocube /work/ext/evocube`.
+      Measured after the patch on the five `CELLS 0` models: n08b and n13b now produce 1 block each (n08b min sJ
+      4e-7, n13b 0.056), n04b/n09b/n14b still `CELLS 0`; the labelings use 5-6 directions instead of 2-3 (n14b is
+      still degenerate with only the opposite pair 0/5). Open: `threads: 1` for reproducibility (cost unmeasured),
+      or per-iteration RNGs in the mutation loop (no speed loss); and whether repeated restarts with different seeds
+      plus "keep the best label" are cheaper than more generations.
 
 ## C. Data / machines
 - [x] C1 HexMe b models split into solid / fluid (57 free models), agent data dir

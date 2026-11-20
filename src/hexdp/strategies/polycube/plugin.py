@@ -185,6 +185,8 @@ class PolycubeStrategy:
         "max_hausdorff_rel": ParamSpec(0.5, "reject a structure whose boundary sits farther than this fraction "
                                           "of the allowed local tolerance from the surface (the search drifts "
                                           "to ~1.0)", lower=0),
+        "hausdorff_ceiling": ParamSpec(1.0, "the collapse may not accept a sheet beyond this fraction of "
+                                          "the allowed local tolerance (1.0 = the full tolerance)", lower=0),
         "beam_width": ParamSpec(16, "beam width of the sheet collapse", lower=1),
         "beam_depth": ParamSpec(16, "beam depth", lower=1),
         "hausdorff_tol": ParamSpec(0.05, "max boundary deviation of the collapse as a fraction of the bounding-box "
@@ -240,7 +242,8 @@ class PolycubeStrategy:
                         "--relative",
                         "--hausdorff-tol", params["hausdorff_tol"], "--workers", params["beam_workers"],
                         "--min-sj", params["min_sj"],
-                        "--max-hausdorff-rel", params["max_hausdorff_rel"]],
+                        "--max-hausdorff-rel", params["max_hausdorff_rel"],
+                        "--hausdorff-ceiling", params["hausdorff_ceiling"]],
                        "beam.log")
         bs = read_blocks_vtk(ws / "blocks.vtk")
         bs.meta["source"] = str(ws / "blocks.vtk")

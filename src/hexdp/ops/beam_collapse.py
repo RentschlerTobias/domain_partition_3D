@@ -127,7 +127,8 @@ class RawMeshOffSurface(RuntimeError):
 
 def beam_collapse(P, hexes, labeller, width=6, depth=6, guard="abs",
                   sj_floor=0.05, workers=6, guard_ref=None, verbose=True,
-                  hausdorff_tol=0.05, max_base_hausdorff=0.15, topology_guard=True):
+                  hausdorff_tol=0.05, max_base_hausdorff=0.15, topology_guard=True,
+                  hausdorff_ceiling=1.0):
     base = cb._structure_stats(P, hexes, labeller)
     base_topo = topology_issues(P, hexes) if topology_guard else None
     # The ceiling below follows a raw Hausdorff above the tolerance. On a raw
@@ -155,7 +156,7 @@ def beam_collapse(P, hexes, labeller, width=6, depth=6, guard="abs",
     if guard != "raw" and getattr(labeller, "allow", None) is not None:
         # local tolerance (allowed distance per input face from the local gap): relative ceiling 1, or the raw
         # mesh's own relative deviation if that is larger
-        ceiling = ("rel", max(base["hausdorff_rel"], 1.0))
+        ceiling = ("rel", max(base["hausdorff_rel"], 1.0) * hausdorff_ceiling)
     # with "struct" the collapse may sacrifice quality -> quality only breaks ties
     if verbose:
         fl = bar["min_sj"] if guard == "raw" else sj_floor
@@ -304,12 +305,13 @@ def tolerances(hausdorff_tol, max_raw_hausdorff, diag, relative):
 
 
 def patch(width=6, depth=6, guard="abs", sj_floor=0.05, workers=6, hausdorff_tol=0.05,
-          max_base_hausdorff=0.15, topology_guard=True):
+          max_base_hausdorff=0.15, topology_guard=True, hausdorff_ceiling=1.0):
     def collapse(P, hexes, labeller, max_rounds=4, verbose=True, repair=None,
                  guard_ref=None):
         P, hexes, log = beam_collapse(P, hexes, labeller, width, depth, guard,
                                       sj_floor, workers, guard_ref, verbose,
-                                      hausdorff_tol, max_base_hausdorff, topology_guard)
+                                      hausdorff_tol, max_base_hausdorff, topology_guard,
+                                      hausdorff_ceiling)
         if repair is not None:
             P = repair(P.copy(), hexes)
         return P, hexes, log
@@ -387,6 +389,9 @@ if __name__ == "__main__":
     ap.add_argument("--min-sj", type=float, default=0.0,
                     help="reject the result when the worst fine cell is below this scaled Jacobian; 'valid' only "
                          "says the cells are upright (default 0 = no such gate)")
+    ap.add_argument("--hausdorff-ceiling", type=float, default=1.0,
+                    help="the collapse may not accept a sheet that pushes the boundary beyond this fraction of the "
+                         "allowed local tolerance (1.0 = today's behaviour, i.e. the full tolerance)")
     ap.add_argument("--max-hausdorff-rel", type=float, default=0.0,
                     help="reject the result when the block boundary sits farther than this fraction of the allowed "
                          "local tolerance from the input surface; the search otherwise drifts to ~1.0 (default 0)")
@@ -459,7 +464,7 @@ if __name__ == "__main__":
         cb.UNTANGLE_MAX_DRIFT = max(cb.UNTANGLE_MAX_DRIFT, a.max_drift_frac * tol)
         print(f"[beam] untangle max boundary drift {cb.UNTANGLE_MAX_DRIFT:.4f}")
     patch(a.width, a.depth, a.guard, a.sj_floor, a.workers, tol,
-          a.max_raw_hausdorff, not a.no_topology_guard)
+          a.max_raw_hausdorff, not a.no_topology_guard, a.hausdorff_ceiling)
     if a.ovm.endswith(".vtk"):
         # start from a saved blocks.vtk (fine hex mesh AFTER the greedy
         # collapse): BlockStructure otherwise reads .ovm only. The block IDs
@@ -489,8 +494,8 @@ if __name__ == "__main__":
         print(f"  {k:22s} {before[k]}  ->  {after[k]}")
     # the written structure must pass the same check an agent or the dataset applies to it
     _fh = final_hausdorff(S)
-    if a.max_hausdorff_rel > 0:
-        print(f"[beam] boundary distance {_fh['hausdorff_rel']:.3f} x local tolerance (limit {a.max_hausdorff_rel:g})")
+    print(f"[beam] boundary distance {_fh['hausdorff_rel']:.3f} x local tolerance "
+          f"(limit {a.max_hausdorff_rel:g}, ceiling {a.hausdorff_ceiling:g})")
     bad = post_check(a.out) + quality_issues(a.out, a.min_sj) + hausdorff_issue(_fh, a.max_hausdorff_rel)
     if bad:
         for i in bad[:10]:

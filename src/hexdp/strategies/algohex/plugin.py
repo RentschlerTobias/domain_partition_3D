@@ -32,6 +32,8 @@ class AlgoHexStrategy:
         "max_hausdorff_rel": ParamSpec(0.5, "reject a structure whose boundary sits farther than this fraction "
                                           "of the allowed local tolerance from the surface (the search drifts "
                                           "to ~1.0)", lower=0),
+        "hausdorff_ceiling": ParamSpec(1.0, "the collapse may not accept a sheet beyond this fraction of "
+                                          "the allowed local tolerance (1.0 = the full tolerance)", lower=0),
         "beam_width": ParamSpec(32, "beam width of the sheet collapse", lower=1),
         "beam_depth": ParamSpec(20, "beam depth (max collapses)", lower=1),
         "hausdorff_tol": ParamSpec(0.0, "absolute Hausdorff tolerance of the collapse (0 = relative, hausdorff_rel)",
@@ -101,7 +103,8 @@ class AlgoHexStrategy:
                           ["--relative", "--hausdorff-tol", params["hausdorff_rel"],
                            "--max-raw-hausdorff", params["max_raw_rel"]]),
                         "--workers", params["beam_workers"], "--min-sj", params["min_sj"],
-                        "--max-hausdorff-rel", params["max_hausdorff_rel"]],
+                        "--max-hausdorff-rel", params["max_hausdorff_rel"],
+                        "--hausdorff-ceiling", params["hausdorff_ceiling"]],
                        "beam.log")
         bs = read_blocks_vtk(blocks)
         bs.meta["tet_vtk"] = str(tet)

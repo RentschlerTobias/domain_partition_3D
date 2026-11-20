@@ -94,9 +94,15 @@ Never start long computations without the owner's go (see the rules there).
       tolerance with issue `off_surface`; `hausdorff_issue()` + tests. The gate must ask the labeller again after
       the snap (`final_hausdorff()`): the collapse's stats dict carries `hausdorff_rel` only for the state before
       the snap, so the first version silently passed everything. Measured after the snap: n06b 0.072 and s06b 0.000
-      pass, n07b 0.833 and s10b 0.917 are rejected. Open: 0.5 is a policy choice, and the search should be pushed
-      *inside* the gate (a tighter ceiling during the collapse) rather than only judged afterwards - otherwise
-      models that could be better are simply rejected.
+      pass, n07b 0.833 and s10b 0.917 are rejected.
+      With both gates (min_sj 0.05, max_hausdorff_rel 0.5) the deterministic 16-model polycube batch gives 3 valid
+      (n06b, s06b, s07b), 8 rejected for distance (0.998 ... 0.579), 4 CELLS 0, 1 raw-mesh-off-surface - so filtering
+      alone is not a dataset. The search has to be pushed *inside* the gate: `--hausdorff-ceiling F` (default 1.0 =
+      old behaviour, both strategies) stops the collapse accepting a sheet that pushes the boundary beyond F x the
+      local tolerance; the post-gate stays `max_hausdorff_rel`. Both are per-case parameters, so the value can
+      differ per geometry. Sweep over F in 1.0/0.75/0.5/0.25/0.1 on n01b, s10b, n07b (polycube) and s01b_cube
+      (algohex, beam-only on the stored hexes) measures the blocks-vs-distance trade-off; results decide the
+      default.
 - [ ] B10 runner (structural) robustness: 1452/2000 valid; failures in hub layout QP, near-zero sJ
 - [ ] B11 save AlgoHex frame fields in future datagen (`--cell-quaternion-out-path` etc.)
 - [x] B12 the block boundary must stay a closed 2-manifold (fixed 2026-11-19, `clean_blocks.resolve_hanging_faces`):

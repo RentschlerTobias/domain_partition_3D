@@ -1,0 +1,19 @@
+# hexdp workflow: training data for the solid tistos runner (hub + 4 blades with fillet); the bore radius is an
+# augmentation. One dataset.npz per run. This is the workflow of /opt/stack/datasets/tistos_runner_struct_2026-11-18
+# (there with sandbox paths); the step chain is the same as runner_tistos.yaml, only the exporter differs.
+#   hexdp batch runner_tistos_dataset.yaml --each sample=tistos_s1_0131,tistos_s1_0317 --set r_bore=0.0
+# Bore variants of the dataset: r_bore per sample in [0.1, 0.3] (samples_bore.txt next to the dataset).
+parameters: {sample: tistos_s1_0131, r_bore: "0.0", fillet: "true"}
+name: ${sample}_b${r_bore}
+geometry: ${HEXDP_DATA}/tistos/${sample}/params.json
+strategy:
+  - name: composite
+    params:
+      steps:
+        - {id: rotor, use: dtoo_rotor, params: {fillet: "${fillet}"}}
+        - {id: hub_surface, use: band_layout, from: [rotor], params: {h: 0.04}}
+        - {id: hub, use: revolve_fill, from: [hub_surface], params: {r_bore: "${r_bore}"}}
+        - {id: blades, use: section_sweep, from: [hub_surface, rotor], params: {h: 0.04}}
+exporters: [{name: dataset, params: {n_points: 20000}}]
+resources: {cores: 1, timeout_s: 1800}
+accept: {valid: true}
